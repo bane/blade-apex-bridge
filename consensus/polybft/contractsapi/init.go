@@ -75,6 +75,7 @@ var (
 	NumberPersister        *contracts.Artifact
 	ZexCoinERC20           *contracts.Artifact
 	ZexNFT                 *contracts.Artifact
+	TestCardanoVerifySign  *contracts.Artifact
 
 	contractArtifacts map[string]*contracts.Artifact
 )
@@ -272,6 +273,11 @@ func init() {
 		log.Fatal(err)
 	}
 
+	TestCardanoVerifySign, err = contracts.DecodeArtifact(readTestContractContent("TestCardanoVerifySignature.json"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	StakeManager, err = contracts.DecodeArtifact([]byte(StakeManagerArtifact))
 	if err != nil {
 		log.Fatal(err)
@@ -408,6 +414,7 @@ func init() {
 		"Slots":                           Slots,
 		"UTXOsc":                          UTXOsc,
 		"Validators":                      Validators,
+		"TestCardanoVerifySignature":      TestCardanoVerifySign,
 	}
 }
 

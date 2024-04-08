@@ -97,6 +97,8 @@ var (
 	NativeTransferPrecompile = types.StringToAddress("0x2020")
 	// BLSAggSigsVerificationPrecompile is an address of BLS aggregated signatures verificatin precompile
 	BLSAggSigsVerificationPrecompile = types.StringToAddress("0x2030")
+	// CardanoVerifySignaturePrecompile is an address of precompile which provides some cardano functionalities
+	CardanoVerifySignaturePrecompile = types.StringToAddress("0x2050")
 	// ConsolePrecompile is and address of Hardhat console precompile
 	ConsolePrecompile = types.StringToAddress("0x000000000000000000636F6e736F6c652e6c6f67")
 	// AllowListContractsAddr is the address of the contract deployer allow list

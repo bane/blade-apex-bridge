@@ -79,6 +79,9 @@ func (p *Precompiled) setupContracts() {
 
 	// BLS aggregated signatures verification precompile
 	p.register(contracts.BLSAggSigsVerificationPrecompile.String(), &blsAggSignsVerification{})
+
+	// CardanoVerifySignature precompile
+	p.register(contracts.CardanoVerifySignaturePrecompile.String(), &cardanoVerifySignaturePrecompile{})
 }
 
 func (p *Precompiled) register(precompileAddrRaw string, b contract) {
