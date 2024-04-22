@@ -74,10 +74,10 @@ func TestFSM_ValidateHeader(t *testing.T) {
 	header.Difficulty = 1
 	header.Hash = types.BytesToHash([]byte{11, 22, 33})
 	require.ErrorContains(t, validateHeaderFields(parent, header, blockTimeDrift), "invalid header hash")
-	header.Timestamp = uint64(time.Now().UTC().Unix() + 150)
+	header.Timestamp = uint64(time.Now().UTC().UnixMilli() + 150)
 	require.ErrorContains(t, validateHeaderFields(parent, header, blockTimeDrift), "block from the future")
 
-	header.Timestamp = uint64(time.Now().UTC().Unix())
+	header.Timestamp = uint64(time.Now().UTC().UnixMilli())
 
 	header.ComputeHash()
 	require.NoError(t, validateHeaderFields(parent, header, blockTimeDrift))

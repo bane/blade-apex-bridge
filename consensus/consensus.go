@@ -85,7 +85,7 @@ type Params struct {
 	Grpc           *grpc.Server
 	Logger         hclog.Logger
 	SecretsManager secrets.SecretsManager
-	BlockTime      uint64
+	BlockTime      time.Duration
 
 	MetricsInterval time.Duration
 

@@ -582,7 +582,7 @@ func (s *Server) setupConsensus() error {
 			Grpc:            s.grpcServer,
 			Logger:          s.logger,
 			SecretsManager:  s.secretsManager,
-			BlockTime:       uint64(blockTime.Seconds()),
+			BlockTime:       blockTime.Duration,
 			MetricsInterval: s.config.MetricsInterval,
 			// event tracker
 			EventTracker: &consensus.EventTracker{
@@ -621,9 +621,9 @@ func extractBlockTime(engineConfig map[string]interface{}) (common.Duration, err
 		return common.Duration{}, errBlockTimeInvalid
 	}
 
-	if blockTime.Seconds() < 1 {
-		return common.Duration{}, errBlockTimeInvalid
-	}
+	// if blockTime.Seconds() < 1 {
+	// 	return common.Duration{}, errBlockTimeInvalid
+	// }
 
 	return blockTime, nil
 }

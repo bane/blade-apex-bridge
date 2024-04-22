@@ -550,7 +550,7 @@ func (r *BaseLoadTestRunner) calculateResults(blockInfos map[uint64]*BlockInfo, 
 		}
 
 		currentBlockTimestamp := blockTimeMap[block]
-		blockTime := math.Abs(float64(currentBlockTimestamp - parentBlockTimestamp))
+		blockTime := math.Abs(float64(currentBlockTimestamp-parentBlockTimestamp) / 1000)
 
 		currentBlockTxsPerSecond := float64(currentBlockTxsNum) / blockTime
 
@@ -576,7 +576,7 @@ func (r *BaseLoadTestRunner) calculateResults(blockInfos map[uint64]*BlockInfo, 
 	}
 
 	for _, info := range blockInfos {
-		info.BlockTime = math.Abs(float64(info.CreatedAt - blockTimeMap[info.Number-1]))
+		info.BlockTime = math.Abs(float64(info.CreatedAt-blockTimeMap[info.Number-1]) / 1000)
 		info.TPS = float64(info.NumTxs) / info.BlockTime
 	}
 
@@ -761,7 +761,7 @@ func (r *BaseLoadTestRunner) sendTransactionsForUser(account *account, chainID *
 	}
 
 	sendErrs := make([]error, 0)
-	checkFeeDataNum := r.cfg.TxsPerUser / 5
+	checkFeeDataNum := r.cfg.TxsPerUser / 10
 
 	for i := 0; i < r.cfg.TxsPerUser; i++ {
 		if i%checkFeeDataNum == 0 {

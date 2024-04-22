@@ -70,7 +70,7 @@ type BlockBuilder struct {
 // Init initializes block builder before adding transactions and actual block building
 func (b *BlockBuilder) Reset() error {
 	// set the timestamp
-	parentTime := time.Unix(int64(b.params.Parent.Timestamp), 0)
+	parentTime := time.UnixMilli(int64(b.params.Parent.Timestamp))
 	headerTime := parentTime.Add(b.params.BlockTime)
 
 	if headerTime.Before(time.Now().UTC()) {
@@ -88,7 +88,7 @@ func (b *BlockBuilder) Reset() error {
 		Sha3Uncles:   types.EmptyUncleHash,
 		GasLimit:     b.params.GasLimit,
 		BaseFee:      b.params.BaseFee,
-		Timestamp:    uint64(headerTime.Unix()),
+		Timestamp:    uint64(headerTime.UnixMilli()),
 	}
 
 	transition, err := b.params.Executor.BeginTxn(b.params.Parent.StateRoot, b.header, b.params.Coinbase)
