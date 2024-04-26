@@ -342,6 +342,12 @@ func init() {
 		log.Fatal(err)
 	}
 
+	// Apex contracts
+	Bridge, ClaimsHelper, Claims, SignedBatches, Slots, UTXOsc, Validators, err = initApexContracts()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	contractArtifacts = map[string]*contracts.Artifact{
 		"CheckpointManager":               CheckpointManager,
 		"ExitHelper":                      ExitHelper,
@@ -395,6 +401,13 @@ func init() {
 		"TestRewardToken":                 TestRewardToken,
 		"ZexCoinERC20":                    ZexCoinERC20,
 		"ZexNFT":                          ZexNFT,
+		"Bridge":                          Bridge,
+		"ClaimsHelper":                    ClaimsHelper,
+		"Claims":                          Claims,
+		"SignedBatches":                   SignedBatches,
+		"Slots":                           Slots,
+		"UTXOsc":                          UTXOsc,
+		"Validators":                      Validators,
 	}
 }
 

@@ -107,6 +107,13 @@ stop-docker:
 destroy-docker:
 	./scripts/cluster polybft --docker destroy
 
+.PHONY: update-apex-contracts
+update-apex-contracts:
+	git submodule update --remote  apex-bridge-smartcontracts && \
+	cd apex-bridge-smartcontracts/ && npx hardhat compile && cd .. && \
+	go run consensus/polybft/contractsapi/apex-artifacts-gen/main.go && \
+	go run consensus/polybft/contractsapi/bindings-gen/main.go
+
 .PHONY: help
 help:
 	@echo "Available targets:"

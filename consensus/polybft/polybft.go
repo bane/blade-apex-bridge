@@ -205,6 +205,11 @@ func GenesisPostHookFactory(config *chain.Chain, engineName string) func(txn *st
 			return err
 		}
 
+		// Initialize Apex contracts
+		if err = initApex(transition, polyBFTConfig.ProxyContractsAdmin, polyBFTConfig); err != nil {
+			return err
+		}
+
 		bridgeCfg := polyBFTConfig.Bridge
 		if bridgeCfg != nil {
 			// check if there are Bridge Allow List Admins and Bridge Block List Admins
