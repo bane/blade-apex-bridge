@@ -66,6 +66,7 @@ func (t *TestOgmiosServer) Start() error {
 	}
 
 	t.node = node
+	t.node.SetShouldForceStop(true)
 
 	return nil
 }

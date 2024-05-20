@@ -87,6 +87,7 @@ func (t *TestCardanoServer) Start() error {
 	}
 
 	t.node = node
+	t.node.SetShouldForceStop(true)
 
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -213,7 +214,7 @@ func NewCardanoTestCluster(t *testing.T, opts ...CardanoClusterOption) (*TestCar
 		NetworkMagic:   42,
 		SecurityParam:  10,
 		NodesCount:     3,
-		InitialSupply:  new(big.Int).SetUint64(12000000),
+		InitialSupply:  new(big.Int).SetUint64(11_111_111_112_000_000),
 		StartTimeDelay: time.Second * 30,
 		BlockTimeMilis: 2000,
 		Port:           3000,
@@ -308,21 +309,34 @@ func (c *TestCardanoCluster) Fail(err error) {
 }
 
 func (c *TestCardanoCluster) Stop() error {
-	for _, srv := range c.Servers {
-		if srv.IsRunning() {
-			if err := srv.Stop(); err != nil {
-				return err
-			}
-		}
-	}
-
 	if c.OgmiosServer.IsRunning() {
 		if err := c.OgmiosServer.Stop(); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	wg := sync.WaitGroup{}
+	errs := []error(nil)
+
+	for _, srv := range c.Servers {
+		if srv.IsRunning() {
+			wg.Add(1)
+
+			go func(s *TestCardanoServer) {
+				defer wg.Done()
+
+				fmt.Printf("terminating cardano node: cluster=%d, node port=%d\n", c.Config.ID, s.Port())
+
+				errs = append(errs, s.Stop())
+
+				fmt.Printf("cardano node has been terminated: cluster=%d, node port=%d\n", c.Config.ID, s.Port())
+			}(srv)
+		}
+	}
+
+	wg.Wait()
+
+	return errors.Join(errs...)
 }
 
 func (c *TestCardanoCluster) OgmiosURL() string {

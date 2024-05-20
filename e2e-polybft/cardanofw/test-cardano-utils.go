@@ -4,14 +4,23 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"math/big"
+	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	InvalidState = "InvalidRequest"
 )
 
 func ResolveCardanoCliBinary() string {
@@ -63,7 +72,6 @@ func runCommand(cmd *exec.Cmd, stdout io.Writer, envVariables ...string) error {
 	cmd.Stdout = stdout
 
 	cmd.Env = append(os.Environ(), envVariables...)
-	// fmt.Printf("$ %s %s\n", binary, strings.Join(args, " "))
 
 	if err := cmd.Run(); err != nil {
 		if stdErr.Len() > 0 {
@@ -151,4 +159,107 @@ func SplitString(s string, mxlen int) (res []string) {
 	}
 
 	return res
+}
+
+func WaitForRequestState(expectedState string, ctx context.Context, requestURL string, apiKey string,
+	timeout uint) (string, error) {
+	var (
+		currentState *BridgingRequestStateResponse
+		err          error
+	)
+
+	timeoutTimer := time.NewTimer(time.Second * time.Duration(timeout))
+	defer timeoutTimer.Stop()
+
+	for {
+		select {
+		case <-timeoutTimer.C:
+			fmt.Printf("Timeout\n")
+
+			return "", errors.New("Timeout")
+		case <-ctx.Done():
+			fmt.Printf("Done\n")
+
+			return "", errors.New("Done")
+		case <-time.After(time.Millisecond * 500):
+		}
+
+		currentState, err = GetBridgingRequestState(ctx, requestURL, apiKey)
+		if err != nil {
+			fmt.Println("error requesting bridging state", err)
+
+			continue
+		} else if currentState == nil {
+			fmt.Println("empty currentState")
+
+			continue
+		}
+
+		fmt.Println(currentState.Status)
+
+		if strings.Compare(currentState.Status, expectedState) == 0 {
+			return currentState.Status, nil
+		}
+	}
+}
+
+func WaitForInvalidState(t *testing.T, ctx context.Context, apiURL string, apiKey string, txHash string) {
+	t.Helper()
+
+	requestURL := fmt.Sprintf(
+		"%s/api/BridgingRequestState/Get?chainId=%s&txHash=%s", apiURL, "prime", txHash)
+
+	state, err := WaitForRequestState(InvalidState, ctx, requestURL, apiKey, 300)
+	require.NoError(t, err)
+	require.Equal(t, InvalidState, state)
+}
+
+func GetBridgingRequestState(ctx context.Context, requestURL string, apiKey string) (
+	*BridgingRequestStateResponse, error,
+) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("X-API-KEY", apiKey)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	} else if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("http status for %s code is %d", requestURL, http.StatusOK)
+	}
+
+	resBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var responseModel *BridgingRequestStateResponse
+
+	err = json.Unmarshal(resBody, &responseModel)
+	if err != nil {
+		return nil, err
+	}
+
+	return responseModel, nil
+}
+
+type BridgingRequestStateResponse struct {
+	SourceChainID      string `json:"sourceChainId"`
+	SourceTxHash       string `json:"sourceTxHash"`
+	DestinationChainID string `json:"destinationChainId"`
+	Status             string `json:"status"`
+	DestinationTxHash  string `json:"destinationTxHash"`
+}
+
+// GetTokenAmount returns token amount for address
+func GetTokenAmount(ctx context.Context, txProvider wallet.ITxProvider, addr string) (*big.Int, error) {
+	utxos, err := txProvider.GetUtxos(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	return wallet.GetUtxosSum(utxos), nil
 }
