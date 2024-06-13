@@ -15,7 +15,7 @@ jobs:
       lint: true
       unit_test: true
       e2e_polybft_test: true
-      e2e_apex_tests: true
+      e2e_apex_test: true
   notification_apex_nightly:
     name: ApexBridge Nightly Notification
     uses: ./.github/workflows/apex-notification-nightly.yml
