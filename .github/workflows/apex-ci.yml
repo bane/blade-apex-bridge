@@ -33,6 +33,7 @@ on: # yamllint disable-line rule:truthy
       build_blade:
         description: Build Blade
         type: boolean
+        required: true
       lint:
         description: Lint
         type: boolean
@@ -48,7 +49,7 @@ on: # yamllint disable-line rule:truthy
       e2e_apex_test:
         description: E2E ApexBridge Tests
         type: boolean
-        default: true
+        required: true
     outputs:
       build_blade:
         description: Build Blade output
