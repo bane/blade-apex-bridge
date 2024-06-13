@@ -48,7 +48,9 @@ type TestCardanoBridge struct {
 
 	apiPortStart int
 	apiKey       string
-	ttlInc       uint64
+
+	vectorTTLInc uint64
+	primeTTLInc  uint64
 }
 
 func WithAPIPortStart(apiPortStart int) CardanoBridgeOption {
@@ -63,9 +65,15 @@ func WithAPIKey(apiKey string) CardanoBridgeOption {
 	}
 }
 
-func WithTTLInc(ttlInc uint64) CardanoBridgeOption {
+func WithVectorTTLInc(ttlInc uint64) CardanoBridgeOption {
 	return func(h *TestCardanoBridge) {
-		h.ttlInc = ttlInc
+		h.vectorTTLInc = ttlInc
+	}
+}
+
+func WithPrimeTTLInc(ttlInc uint64) CardanoBridgeOption {
+	return func(h *TestCardanoBridge) {
+		h.primeTTLInc = ttlInc
 	}
 }
 
@@ -200,12 +208,13 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 				primeNetworkAddress,
 				primeNetworkMagic,
 				primeOgmiosURL,
+				cb.primeTTLInc,
 				vectorNetworkAddress,
 				vectorNetworkMagic,
 				vectorOgmiosURL,
+				cb.vectorTTLInc,
 				cb.apiPortStart+indx,
 				cb.apiKey,
-				cb.ttlInc,
 				telemetryConfig,
 			)
 		}(validator, i)

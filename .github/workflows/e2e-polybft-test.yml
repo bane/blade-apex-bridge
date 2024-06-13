@@ -5,7 +5,10 @@ on: # yamllint disable-line rule:truthy
     outputs:
       workflow_output:
         description: E2E PolyBFT Tests output
-        value: ${{ jobs.e2e_polybft.outputs.e2e_polybft_output_failure }} 
+        value: ${{ jobs.e2e_polybft.outputs.e2e_polybft_output_failure }}
+    secrets:
+      PERSONAL_ACCESS_TOKEN:
+        required: true
 
 jobs:
   e2e_polybft:

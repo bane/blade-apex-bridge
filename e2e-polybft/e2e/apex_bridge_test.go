@@ -139,7 +139,8 @@ func TestE2E_ApexBridge_BatchRecreated(t *testing.T) {
 
 	apex := cardanofw.RunApexBridge(
 		t, ctx,
-		cardanofw.WithTTLInc(1),
+		cardanofw.WithPrimeTTLInc(1),
+		cardanofw.WithVectorTTLInc(1),
 		cardanofw.WithAPIKey(apiKey),
 	)
 	user := apex.CreateAndFundUser(t, ctx, uint64(5_000_000))

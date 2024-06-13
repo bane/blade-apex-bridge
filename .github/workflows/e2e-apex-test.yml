@@ -5,7 +5,7 @@ on: # yamllint disable-line rule:truthy
     outputs:
       workflow_output:
         description: E2E ApexBridge Tests output
-        value: ${{ jobs.e2e_apex_bridge.outputs.e2e_apex_output_failure }} 
+        value: ${{ jobs.e2e_apex_bridge.outputs.e2e_apex_output_failure }}
     secrets:
       PERSONAL_ACCESS_TOKEN:
         required: true
@@ -73,3 +73,10 @@ jobs:
           name: e2e-apex-bridge-logs
           path: e2e-logs-*/
           retention-days: 30
+      - name: Archive e2e bridge data
+        if: always()
+        uses: actions/upload-artifact@v4.3.0
+        with:
+          name: e2e-bridge-data
+          path: e2e-bridge-data-tmp-*/
+          retention-days: 3

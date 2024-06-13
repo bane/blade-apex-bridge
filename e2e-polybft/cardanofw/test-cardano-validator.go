@@ -120,12 +120,13 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 	primeNetworkAddress string,
 	primeNetworkMagic int,
 	primeOgmiosURL string,
+	primeTTLInc uint64,
 	vectorNetworkAddress string,
 	vectorNetworkMagic int,
 	vectorOgmiosURL string,
+	vectorTTLInc uint64,
 	apiPort int,
 	apiKey string,
-	ttlInc uint64,
 	telemetryConfig string,
 ) error {
 	cv.APIPort = apiPort
@@ -153,9 +154,15 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 		"--telemetry", telemetryConfig,
 	}
 
-	if ttlInc > 0 {
+	if primeTTLInc > 0 {
 		args = append(args,
-			"--ttl-slot-inc", fmt.Sprint(ttlInc),
+			"--prime-ttl-slot-inc", fmt.Sprint(primeTTLInc),
+		)
+	}
+
+	if vectorTTLInc > 0 {
+		args = append(args,
+			"--vector-ttl-slot-inc", fmt.Sprint(vectorTTLInc),
 		)
 	}
 
