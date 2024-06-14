@@ -22,17 +22,17 @@ func TestThrottling(t *testing.T) {
 		delay    time.Duration
 	}{
 		// 1st 5 starts immediately, no error, order of execution is irrelevant
-		{200 * time.Millisecond, 0},
-		{1000 * time.Millisecond, 0},
-		{1000 * time.Millisecond, 0},
-		{1000 * time.Millisecond, 0},
-		{1000 * time.Millisecond, 0},
+		{300 * time.Millisecond, 0},
+		{1200 * time.Millisecond, 0},
+		{1200 * time.Millisecond, 0},
+		{1200 * time.Millisecond, 0},
+		{1200 * time.Millisecond, 0},
 
 		// 6th & 8th attempt should fail, from now on order of execution is relevant, hence delay > 0
 		{20 * time.Millisecond, 100 * time.Millisecond},
-		{200 * time.Millisecond, 300 * time.Millisecond},
-		{20 * time.Millisecond, 400 * time.Millisecond},
-		{200 * time.Millisecond, 600 * time.Millisecond},
+		{300 * time.Millisecond, 500 * time.Millisecond},
+		{20 * time.Millisecond, 600 * time.Millisecond},
+		{200 * time.Millisecond, 1000 * time.Millisecond},
 	}
 
 	th := NewThrottling(maxRequests, 20*time.Millisecond)

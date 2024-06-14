@@ -206,6 +206,9 @@ func (t *TestServer) Start() {
 	}
 
 	t.node = node
+
+	// Wait some time for network to be initialized in order to avoid 'parallel' start issue in tests
+	time.Sleep(250 * time.Millisecond)
 }
 
 func (t *TestServer) Stop() {
