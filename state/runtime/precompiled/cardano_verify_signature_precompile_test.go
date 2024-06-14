@@ -2,8 +2,6 @@ package precompiled
 
 import (
 	"fmt"
-	"os"
-	"path"
 	"testing"
 
 	"github.com/0xPolygon/polygon-edge/helper/hex"
@@ -71,7 +69,7 @@ func Test_cardanoVerifySignaturePrecompile_ValidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	value, err = prec.run(
-		encodeCardanoVerifySignature(t, string(message), signature, walletBasic.GetVerificationKey(), false),
+		encodeCardanoVerifySignature(t, message, signature, walletBasic.GetVerificationKey(), false),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolTrue, value)
@@ -131,13 +129,13 @@ func Test_cardanoVerifySignaturePrecompile_InvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	value, err = prec.run(
-		encodeCardanoVerifySignature(t, string(message), signature, walletFee.GetVerificationKey(), false),
+		encodeCardanoVerifySignature(t, message, signature, walletFee.GetVerificationKey(), false),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolFalse, value)
 
 	value, err = prec.run(
-		encodeCardanoVerifySignature(t, string(message)+"0", signature, walletBasic.GetVerificationKey(), false),
+		encodeCardanoVerifySignature(t, append([]byte{0}, message...), signature, walletBasic.GetVerificationKey(), false),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolFalse, value)
@@ -154,19 +152,19 @@ func Test_cardanoVerifySignaturePrecompile_InvalidInputs(t *testing.T) {
 	txRaw, _ := createTx(t)
 
 	_, err = prec.run(
-		encodeCardanoVerifySignature(t, txRaw, []byte{}, []byte{}, true),
+		encodeCardanoVerifySignature(t, txRaw, []byte{}, []byte{}, true)[1:],
 		types.ZeroAddress, nil)
 	require.Error(t, err)
 }
 
 func encodeCardanoVerifySignature(t *testing.T,
-	txRaw string, witnessOrSignature []byte, verificationKey []byte, isTx bool) []byte {
+	txRaw []byte, witnessOrSignature []byte, verificationKey []byte, isTx bool) []byte {
 	t.Helper()
 
 	encoded, err := abi.Encode([]interface{}{
 		txRaw,
-		hex.EncodeToString(witnessOrSignature),
-		string(verificationKey),
+		witnessOrSignature,
+		verificationKey,
 		isTx,
 	},
 		cardanoVerifySignaturePrecompileInputABIType)
@@ -178,26 +176,16 @@ func encodeCardanoVerifySignature(t *testing.T,
 func createWallets(t *testing.T) (cardano_wallet.IWallet, cardano_wallet.IWallet) {
 	t.Helper()
 
-	walletDir, err := os.MkdirTemp("", "cardano-txs-wallets")
+	walletBasic, err := cardano_wallet.GenerateWallet(false)
 	require.NoError(t, err)
 
-	defer func() {
-		os.RemoveAll(walletDir)
-		os.Remove(walletDir)
-	}()
-
-	walletMngr := cardano_wallet.NewWalletManager()
-
-	walletBasic, err := walletMngr.Create(path.Join(walletDir, "wallet"), false)
-	require.NoError(t, err)
-
-	walletFee, err := walletMngr.Create(path.Join(walletDir, "wallet_fee"), false)
+	walletFee, err := cardano_wallet.GenerateWallet(false)
 	require.NoError(t, err)
 
 	return walletBasic, walletFee
 }
 
-func createTx(t *testing.T) (string, string) {
+func createTx(t *testing.T) ([]byte, string) {
 	t.Helper()
 
 	const (
@@ -290,5 +278,5 @@ func createTx(t *testing.T) (string, string) {
 	txRaw, txHash, err := builder.Build()
 	require.NoError(t, err)
 
-	return hex.EncodeToHex(txRaw), txHash
+	return txRaw, txHash
 }

@@ -3,9 +3,6 @@ package precompiled
 import (
 	"encoding/hex"
 	"errors"
-	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/0xPolygon/polygon-edge/chain"
 	"github.com/0xPolygon/polygon-edge/state/runtime"
@@ -15,7 +12,7 @@ import (
 	"github.com/umbracle/ethgo/abi"
 )
 
-var cardanoVerifySignaturePrecompileInputABIType = abi.MustNewType("tuple(string, string, string, bool)")
+var cardanoVerifySignaturePrecompileInputABIType = abi.MustNewType("tuple(bytes, bytes, bytes32, bool)")
 
 // cardanoVerifySignaturePrecompile is a concrete implementation of the contract interface.
 type cardanoVerifySignaturePrecompile struct {
@@ -23,7 +20,7 @@ type cardanoVerifySignaturePrecompile struct {
 
 // gas returns the gas required to execute the pre-compiled contract
 func (c *cardanoVerifySignaturePrecompile) gas(_ []byte, config *chain.ForksInTime) uint64 {
-	return 150000
+	return 50_000
 }
 
 // Run runs the precompiled contract with the given input.
@@ -32,43 +29,19 @@ func (c *cardanoVerifySignaturePrecompile) gas(_ []byte, config *chain.ForksInTi
 func (c *cardanoVerifySignaturePrecompile) run(input []byte, caller types.Address, _ runtime.Host) ([]byte, error) {
 	rawData, err := abi.Decode(cardanoVerifySignaturePrecompileInputABIType, input)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(runtime.ErrInvalidInputData, err)
 	}
 
-	data, ok := rawData.(map[string]interface{})
-	if !ok || len(data) != 4 {
-		return nil, runtime.ErrInvalidInputData
-	}
-
-	dataBytes := [3][]byte{}
-
-	for i := range dataBytes {
-		switch dt := data[strconv.Itoa(i)].(type) {
-		case string:
-			dataBytes[i], err = hex.DecodeString(strings.TrimPrefix(dt, "0x"))
-			if err != nil {
-				dataBytes[i] = []byte(dt)
-			}
-		case []byte:
-			dataBytes[i] = dt
-		case [32]byte:
-			dataBytes[i] = dt[:]
-		default:
-			return nil, fmt.Errorf("%w: index %d", runtime.ErrInvalidInputData, i)
-		}
-	}
-
-	rawTxOrMessage, witnessOrSignature, verifyingKey := dataBytes[0], dataBytes[1], dataBytes[2]
-
-	isTx, ok := data["3"].(bool)
-	if !ok {
-		return nil, runtime.ErrInvalidInputData
-	}
+	data := rawData.(map[string]interface{}) //nolint: forcetypeassert
+	rawTxOrMessage := data["0"].([]byte)     //nolint: forcetypeassert
+	signature := data["1"].([]byte)          //nolint: forcetypeassert
+	verifyingKey := data["2"].([32]byte)     //nolint: forcetypeassert
+	isTx := data["3"].(bool)                 //nolint: forcetypeassert
 
 	// second parameter can be witness
-	signature, _, err := cardano_wallet.TxWitnessRaw(witnessOrSignature).GetSignatureAndVKey()
-	if err != nil {
-		signature = witnessOrSignature
+	signatureFromWitness, _, err := cardano_wallet.TxWitnessRaw(signature).GetSignatureAndVKey()
+	if err == nil {
+		signature = signatureFromWitness
 	}
 
 	// if first argument is raw transaction we need to get tx hash from it
@@ -84,7 +57,7 @@ func (c *cardanoVerifySignaturePrecompile) run(input []byte, caller types.Addres
 		}
 	}
 
-	err = cardano_wallet.VerifyMessage(rawTxOrMessage, verifyingKey, signature)
+	err = cardano_wallet.VerifyMessage(rawTxOrMessage, verifyingKey[:], signature)
 	if err != nil {
 		if errors.Is(err, cardano_wallet.ErrInvalidSignature) {
 			return abiBoolFalse, nil
