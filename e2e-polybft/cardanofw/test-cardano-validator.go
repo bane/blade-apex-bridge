@@ -2,6 +2,7 @@ package cardanofw
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -32,6 +33,7 @@ type TestCardanoValidator struct {
 	dataDirPath string
 	cluster     *framework.TestCluster
 	server      *framework.TestServer
+	node        *framework.Node
 }
 
 func NewTestCardanoValidator(
@@ -169,9 +171,7 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 	return RunCommand(ResolveApexBridgeBinary(), args, os.Stdout)
 }
 
-func (cv *TestCardanoValidator) StartValidatorComponents(
-	ctx context.Context, runAPI bool,
-) {
+func (cv *TestCardanoValidator) Start(ctx context.Context, runAPI bool) (err error) {
 	args := []string{
 		"run-validator-components",
 		"--config", cv.GetValidatorComponentsConfig(),
@@ -181,7 +181,15 @@ func (cv *TestCardanoValidator) StartValidatorComponents(
 		args = append(args, "--run-api")
 	}
 
-	go func() {
-		_ = RunCommandContext(ctx, ResolveApexBridgeBinary(), args, os.Stdout)
-	}()
+	cv.node, err = framework.NewNodeWithContext(ctx, ResolveApexBridgeBinary(), args, os.Stdout)
+
+	return err
+}
+
+func (cv *TestCardanoValidator) Stop() error {
+	if cv.node == nil {
+		return errors.New("validator not started")
+	}
+
+	return cv.node.Stop()
 }

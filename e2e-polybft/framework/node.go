@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"context"
 	"io"
 	"os"
 	"os/exec"
@@ -22,7 +23,14 @@ type Node struct {
 }
 
 func NewNode(binary string, args []string, stdout io.Writer) (*Node, error) {
-	cmd := exec.Command(binary, args...)
+	return newNode(exec.Command(binary, args...), stdout)
+}
+
+func NewNodeWithContext(ctx context.Context, binary string, args []string, stdout io.Writer) (*Node, error) {
+	return newNode(exec.CommandContext(ctx, binary, args...), stdout)
+}
+
+func newNode(cmd *exec.Cmd, stdout io.Writer) (*Node, error) {
 	cmd.Stdout = stdout
 	cmd.Stderr = stdout
 

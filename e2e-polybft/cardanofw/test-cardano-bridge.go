@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -32,7 +33,8 @@ type TestCardanoBridge struct {
 	validatorCount int
 	dataDirPath    string
 
-	validators []*TestCardanoValidator
+	validators  []*TestCardanoValidator
+	relayerNode *framework.Node
 
 	primeMultisigKeys     []string
 	primeMultisigFeeKeys  []string
@@ -46,8 +48,9 @@ type TestCardanoBridge struct {
 
 	cluster *framework.TestCluster
 
-	apiPortStart int
-	apiKey       string
+	apiPortStart    int
+	apiKey          string
+	telemetryConfig string
 
 	vectorTTLInc uint64
 	primeTTLInc  uint64
@@ -74,6 +77,12 @@ func WithVectorTTLInc(ttlInc uint64) CardanoBridgeOption {
 func WithPrimeTTLInc(ttlInc uint64) CardanoBridgeOption {
 	return func(h *TestCardanoBridge) {
 		h.primeTTLInc = ttlInc
+	}
+}
+
+func WithTelemetryConfig(tc string) CardanoBridgeOption {
+	return func(h *TestCardanoBridge) {
+		h.telemetryConfig = tc // something like "0.0.0.0:5001,localhost:8126"
 	}
 }
 
@@ -130,6 +139,14 @@ func (cb *TestCardanoBridge) StartValidators(t *testing.T, epochSize int) {
 	for idx, validator := range cb.validators {
 		validator.SetClusterAndServer(cb.cluster, cb.cluster.Servers[idx])
 	}
+}
+
+func (cb *TestCardanoBridge) GetValidator(t *testing.T, idx int) *TestCardanoValidator {
+	t.Helper()
+
+	require.True(t, idx >= 0 && idx < len(cb.validators))
+
+	return cb.validators[idx]
 }
 
 func (cb *TestCardanoBridge) WaitForValidatorsReady(t *testing.T) {
@@ -201,7 +218,7 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 
 			telemetryConfig := ""
 			if indx == 0 {
-				telemetryConfig = "0.0.0.0:5001,localhost:8126"
+				telemetryConfig = cb.telemetryConfig
 			}
 
 			errs[indx] = validator.GenerateConfigs(
@@ -227,7 +244,9 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 
 func (cb *TestCardanoBridge) StartValidatorComponents(ctx context.Context) (err error) {
 	for _, validator := range cb.validators {
-		validator.StartValidatorComponents(ctx, RunAPIOnValidatorID == validator.ID)
+		if err = validator.Start(ctx, RunAPIOnValidatorID == validator.ID); err != nil {
+			return err
+		}
 	}
 
 	return err
@@ -235,17 +254,28 @@ func (cb *TestCardanoBridge) StartValidatorComponents(ctx context.Context) (err 
 
 func (cb *TestCardanoBridge) StartRelayer(ctx context.Context) (err error) {
 	for _, validator := range cb.validators {
-		if RunRelayerOnValidatorID == validator.ID {
-			go func(config string) {
-				_ = RunCommandContext(ctx, ResolveApexBridgeBinary(), []string{
-					"run-relayer",
-					"--config", config,
-				}, os.Stdout)
-			}(validator.GetRelayerConfig())
+		if RunRelayerOnValidatorID != validator.ID {
+			continue
+		}
+
+		cb.relayerNode, err = framework.NewNodeWithContext(ctx, ResolveApexBridgeBinary(), []string{
+			"run-relayer",
+			"--config", validator.GetRelayerConfig(),
+		}, os.Stdout)
+		if err != nil {
+			return err
 		}
 	}
 
-	return err
+	return nil
+}
+
+func (cb TestCardanoBridge) StopRelayer() error {
+	if cb.relayerNode == nil {
+		return errors.New("relayer not started")
+	}
+
+	return cb.relayerNode.Stop()
 }
 
 func (cb *TestCardanoBridge) GetBridgingAPI() (string, error) {

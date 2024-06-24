@@ -9,7 +9,6 @@ import (
 	"io"
 	"math/big"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -375,7 +374,7 @@ func (c *TestCardanoCluster) Stats() ([]*TestCardanoStats, bool, error) {
 				"--socket-path", srv.SocketPath(),
 			}
 
-			if err := c.runCommand(c.Config.Binary, args, stdOut); err != nil {
+			if err := RunCommand(c.Config.Binary, args, stdOut); err != nil {
 				if strings.Contains(err.Error(), "Network.Socket.connect") &&
 					strings.Contains(err.Error(), "does not exist (No such file or directory)") {
 					c.Config.t.Log("socket error", "path", srv.SocketPath(), "err", err)
@@ -555,32 +554,6 @@ func (c *TestCardanoCluster) StartOgmios(t *testing.T) error {
 	return err
 }
 
-// runCommand executes command with given arguments
-func (c *TestCardanoCluster) runCommand(binary string, args []string, stdout io.Writer, envVariables ...string) error {
-	var stdErr bytes.Buffer
-
-	cmd := exec.Command(binary, args...)
-	cmd.Stderr = &stdErr
-	cmd.Stdout = stdout
-
-	cmd.Env = append(os.Environ(), envVariables...)
-	// fmt.Printf("$ %s %s\n", binary, strings.Join(args, " "))
-
-	if err := cmd.Run(); err != nil {
-		if stdErr.Len() > 0 {
-			return fmt.Errorf("failed to execute command: %s", stdErr.String())
-		}
-
-		return fmt.Errorf("failed to execute command: %w", err)
-	}
-
-	if stdErr.Len() > 0 {
-		return fmt.Errorf("error during command execution: %s", stdErr.String())
-	}
-
-	return nil
-}
-
 func (c *TestCardanoCluster) InitGenesis(startTime int64) error {
 	var b bytes.Buffer
 
@@ -617,7 +590,7 @@ func (c *TestCardanoCluster) InitGenesis(startTime int64) error {
 	}
 	stdOut := c.Config.GetStdout("cardano-genesis", &b)
 
-	return c.runCommand(c.Config.Binary, args, stdOut)
+	return RunCommand(c.Config.Binary, args, stdOut)
 }
 
 func (c *TestCardanoCluster) CopyConfigFilesStep1() error {
@@ -788,7 +761,7 @@ func (c *TestCardanoCluster) GenesisCreateStaked(startTime time.Time) error {
 	}
 	stdOut := c.Config.GetStdout("cardano-genesis-create-staked", &b)
 
-	err := c.runCommand(c.Config.Binary, args, stdOut)
+	err := RunCommand(c.Config.Binary, args, stdOut)
 	if strings.Contains(err.Error(), exprectedErr) {
 		return nil
 	}
