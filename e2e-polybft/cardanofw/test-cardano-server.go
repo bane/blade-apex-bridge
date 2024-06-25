@@ -17,7 +17,7 @@ type TestCardanoServerConfig struct {
 	Binary       string
 	Port         int
 	SocketPath   string
-	NetworkMagic int
+	NetworkMagic uint
 	TxProvider   cardano_wallet.ITxProvider
 	StdOut       io.Writer
 }

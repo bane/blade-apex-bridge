@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
+	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 )
 
@@ -108,25 +109,16 @@ func NewTestCardanoBridge(
 	return bridge
 }
 
-func (cb *TestCardanoBridge) CardanoCreateWalletsAndAddresses(
-	networkMagicPrime int, networkMagicVector int,
-) (err error) {
-	err = cb.cardanoCreateWallets()
-	if err != nil {
+func (cb *TestCardanoBridge) CardanoCreateWalletsAndAddresses() error {
+	if err := cb.cardanoCreateWallets(); err != nil {
 		return err
 	}
 
-	err = cb.cardanoPrepareKeys()
-	if err != nil {
+	if err := cb.cardanoPrepareKeys(); err != nil {
 		return err
 	}
 
-	err = cb.cardanoCreateAddresses(networkMagicPrime, networkMagicVector)
-	if err != nil {
-		return err
-	}
-
-	return err
+	return cb.cardanoCreateAddresses()
 }
 
 func (cb *TestCardanoBridge) StartValidators(t *testing.T, epochSize int) {
@@ -201,10 +193,8 @@ func (cb *TestCardanoBridge) RegisterChains(
 
 func (cb *TestCardanoBridge) GenerateConfigs(
 	primeNetworkAddress string,
-	primeNetworkMagic int,
 	primeOgmiosURL string,
 	vectorNetworkAddress string,
-	vectorNetworkMagic int,
 	vectorOgmiosURL string,
 ) error {
 	errs := make([]error, len(cb.validators))
@@ -223,11 +213,13 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 
 			errs[indx] = validator.GenerateConfigs(
 				primeNetworkAddress,
-				primeNetworkMagic,
+				GetNetworkMagic(true),
+				uint(GetNetworkID(true)),
 				primeOgmiosURL,
 				cb.primeTTLInc,
 				vectorNetworkAddress,
-				vectorNetworkMagic,
+				GetNetworkMagic(false),
+				uint(GetNetworkID(false)),
 				vectorOgmiosURL,
 				cb.vectorTTLInc,
 				cb.apiPortStart+indx,
@@ -335,9 +327,7 @@ func (cb *TestCardanoBridge) cardanoPrepareKeys() (err error) {
 	return err
 }
 
-func (cb *TestCardanoBridge) cardanoCreateAddresses(
-	networkMagicPrime int, networkMagicVector int,
-) error {
+func (cb *TestCardanoBridge) cardanoCreateAddresses() error {
 	errs := make([]error, 4)
 	wg := sync.WaitGroup{}
 
@@ -346,25 +336,25 @@ func (cb *TestCardanoBridge) cardanoCreateAddresses(
 	go func() {
 		defer wg.Done()
 
-		cb.PrimeMultisigAddr, errs[0] = cb.cardanoCreateAddress(networkMagicPrime, cb.primeMultisigKeys)
+		cb.PrimeMultisigAddr, errs[0] = cb.cardanoCreateAddress(GetNetworkID(true), cb.primeMultisigKeys)
 	}()
 
 	go func() {
 		defer wg.Done()
 
-		cb.PrimeMultisigFeeAddr, errs[1] = cb.cardanoCreateAddress(networkMagicPrime, cb.primeMultisigFeeKeys)
+		cb.PrimeMultisigFeeAddr, errs[1] = cb.cardanoCreateAddress(GetNetworkID(true), cb.primeMultisigFeeKeys)
 	}()
 
 	go func() {
 		defer wg.Done()
 
-		cb.VectorMultisigAddr, errs[2] = cb.cardanoCreateAddress(networkMagicVector, cb.vectorMultisigKeys)
+		cb.VectorMultisigAddr, errs[2] = cb.cardanoCreateAddress(GetNetworkID(false), cb.vectorMultisigKeys)
 	}()
 
 	go func() {
 		defer wg.Done()
 
-		cb.VectorMultisigFeeAddr, errs[3] = cb.cardanoCreateAddress(networkMagicVector, cb.vectorMultisigFeeKeys)
+		cb.VectorMultisigFeeAddr, errs[3] = cb.cardanoCreateAddress(GetNetworkID(false), cb.vectorMultisigFeeKeys)
 	}()
 
 	wg.Wait()
@@ -372,10 +362,10 @@ func (cb *TestCardanoBridge) cardanoCreateAddresses(
 	return errors.Join(errs...)
 }
 
-func (cb *TestCardanoBridge) cardanoCreateAddress(networkMagic int, keys []string) (string, error) {
+func (cb *TestCardanoBridge) cardanoCreateAddress(network wallet.CardanoNetworkType, keys []string) (string, error) {
 	args := []string{
 		"create-address",
-		"--testnet", fmt.Sprint(networkMagic),
+		"--network-id", fmt.Sprint(network),
 	}
 
 	for _, key := range keys {

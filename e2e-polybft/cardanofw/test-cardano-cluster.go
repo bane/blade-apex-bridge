@@ -57,7 +57,7 @@ type TestCardanoClusterConfig struct {
 	t *testing.T
 
 	ID             int
-	NetworkMagic   int
+	NetworkMagic   uint
 	SecurityParam  int
 	NodesCount     int
 	StartNodeID    int
@@ -187,7 +187,7 @@ func WithLogsDir(logsDir string) CardanoClusterOption {
 	}
 }
 
-func WithNetworkMagic(networkMagic int) CardanoClusterOption {
+func WithNetworkMagic(networkMagic uint) CardanoClusterOption {
 	return func(h *TestCardanoClusterConfig) {
 		h.NetworkMagic = networkMagic
 	}
@@ -368,11 +368,11 @@ func (c *TestCardanoCluster) Stats() ([]*TestCardanoStats, bool, error) {
 			var b bytes.Buffer
 
 			stdOut := c.Config.GetStdout(fmt.Sprintf("cardano-stats-%d", srv.ID()), &b)
-			args := []string{
+
+			args := append([]string{
 				"query", "tip",
-				"--testnet-magic", strconv.Itoa(c.Config.NetworkMagic),
 				"--socket-path", srv.SocketPath(),
-			}
+			}, GetTestNetMagicArgs(c.Config.NetworkMagic)...)
 
 			if err := RunCommand(c.Config.Binary, args, stdOut); err != nil {
 				if strings.Contains(err.Error(), "Network.Socket.connect") &&
@@ -576,7 +576,7 @@ func (c *TestCardanoCluster) InitGenesis(startTime int64) error {
 
 	args := []string{
 		"byron", "genesis", "genesis",
-		"--protocol-magic", strconv.Itoa(c.Config.NetworkMagic),
+		"--protocol-magic", strconv.FormatUint(uint64(c.Config.NetworkMagic), 10),
 		"--start-time", strconv.FormatInt(startTime, 10),
 		"--k", strconv.Itoa(c.Config.SecurityParam),
 		"--n-poor-addresses", "0",
@@ -747,10 +747,11 @@ func (c *TestCardanoCluster) GenesisCreateStaked(startTime time.Time) error {
 	exprectedErr := fmt.Sprintf(
 		"%d genesis keys, %d non-delegating UTxO keys, %d stake pools, %d delegating UTxO keys, %d delegation map entries",
 		c.Config.NodesCount, c.Config.NodesCount, c.Config.NodesCount, c.Config.NodesCount, c.Config.NodesCount)
-	args := []string{
+	stdOut := c.Config.GetStdout("cardano-genesis-create-staked", &b)
+
+	args := append([]string{
 		"genesis", "create-staked",
 		"--genesis-dir", c.Config.Dir(""),
-		"--testnet-magic", strconv.Itoa(c.Config.NetworkMagic),
 		"--start-time", startTime.Format("2006-01-02T15:04:05Z"),
 		"--supply", "2000000000000",
 		"--supply-delegated", "240000000002",
@@ -758,8 +759,7 @@ func (c *TestCardanoCluster) GenesisCreateStaked(startTime time.Time) error {
 		"--gen-pools", strconv.Itoa(c.Config.NodesCount),
 		"--gen-stake-delegs", strconv.Itoa(c.Config.NodesCount),
 		"--gen-utxo-keys", strconv.Itoa(c.Config.NodesCount),
-	}
-	stdOut := c.Config.GetStdout("cardano-genesis-create-staked", &b)
+	}, GetTestNetMagicArgs(c.Config.NetworkMagic)...)
 
 	err := RunCommand(c.Config.Binary, args, stdOut)
 	if strings.Contains(err.Error(), exprectedErr) {

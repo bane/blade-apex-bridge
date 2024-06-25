@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -299,4 +300,42 @@ func ExecuteWithRetryIfNeeded(ctx context.Context, handler func() error) error {
 
 func IsRecoverableError(err error) bool {
 	return strings.Contains(err.Error(), "status code 500")
+}
+
+func GetDestinationChainID(isSourcePrime bool) string {
+	if isSourcePrime {
+		return "vector"
+	}
+
+	return "prime"
+}
+
+func GetNetworkID(isSourcePrime bool) wallet.CardanoNetworkType {
+	// if isSourcePrime { return wallet.TestNetNetwork } return wallet.VectorTestNetNetwork with apex cardano-node
+	return wallet.TestNetNetwork
+}
+
+func GetNetworkMagic(isSourcePrime bool) uint {
+	if isSourcePrime {
+		return 3311
+	}
+
+	return 1127
+}
+
+func GetAddress(isSourcePrime bool, cardanoWallet wallet.IWallet) (wallet.CardanoAddress, error) {
+	if len(cardanoWallet.GetStakeVerificationKey()) > 0 {
+		return wallet.NewBaseAddress(GetNetworkID(isSourcePrime),
+			cardanoWallet.GetVerificationKey(), cardanoWallet.GetStakeVerificationKey())
+	}
+
+	return wallet.NewEnterpriseAddress(GetNetworkID(isSourcePrime), cardanoWallet.GetVerificationKey())
+}
+
+func GetTestNetMagicArgs(testnetMagic uint) []string {
+	if testnetMagic == 0 || testnetMagic == wallet.MainNetProtocolMagic {
+		return []string{"--mainnet"}
+	}
+
+	return []string{"--testnet-magic", strconv.FormatUint(uint64(testnetMagic), 10)}
 }

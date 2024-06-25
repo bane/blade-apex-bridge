@@ -88,7 +88,7 @@ func SetupAndRunApexCardanoChains(
 				WithPort(5100+id*100),
 				WithOgmiosPort(1337+id),
 				WithLogsDir(logsDir),
-				WithNetworkMagic(42+id),
+				WithNetworkMagic(GetNetworkMagic(id == 0)),
 			)
 			if checkAndSetError(err) {
 				return
@@ -168,8 +168,7 @@ func SetupAndRunApexBridge(
 
 	t.Cleanup(cleanupFunc)
 
-	require.NoError(t, cb.CardanoCreateWalletsAndAddresses(
-		primeCluster.Config.NetworkMagic, vectorCluster.Config.NetworkMagic))
+	require.NoError(t, cb.CardanoCreateWalletsAndAddresses())
 
 	fmt.Printf("Wallets and addresses created\n")
 
@@ -180,7 +179,7 @@ func SetupAndRunApexBridge(
 	require.NoError(t, err)
 
 	_, err = SendTx(ctx, txProviderPrime, primeGenesisWallet, sendAmount,
-		cb.PrimeMultisigAddr, primeCluster.Config.NetworkMagic, []byte{})
+		cb.PrimeMultisigAddr, true, []byte{})
 	require.NoError(t, err)
 
 	err = wallet.WaitForAmount(context.Background(), txProviderPrime, cb.PrimeMultisigAddr, func(val *big.Int) bool {
@@ -191,7 +190,7 @@ func SetupAndRunApexBridge(
 	fmt.Printf("Prime multisig addr funded\n")
 
 	_, err = SendTx(ctx, txProviderPrime, primeGenesisWallet, sendAmount,
-		cb.PrimeMultisigFeeAddr, primeCluster.Config.NetworkMagic, []byte{})
+		cb.PrimeMultisigFeeAddr, true, []byte{})
 	require.NoError(t, err)
 
 	err = wallet.WaitForAmount(context.Background(), txProviderPrime, cb.PrimeMultisigFeeAddr, func(val *big.Int) bool {
@@ -205,7 +204,7 @@ func SetupAndRunApexBridge(
 	require.NoError(t, err)
 
 	_, err = SendTx(ctx, txProviderVector, vectorGenesisWallet, sendAmount,
-		cb.VectorMultisigAddr, vectorCluster.Config.NetworkMagic, []byte{})
+		cb.VectorMultisigAddr, false, []byte{})
 	require.NoError(t, err)
 
 	err = wallet.WaitForAmount(context.Background(), txProviderVector, cb.VectorMultisigAddr, func(val *big.Int) bool {
@@ -216,7 +215,7 @@ func SetupAndRunApexBridge(
 	fmt.Printf("Vector multisig addr funded\n")
 
 	_, err = SendTx(ctx, txProviderVector, vectorGenesisWallet, sendAmount,
-		cb.VectorMultisigFeeAddr, vectorCluster.Config.NetworkMagic, []byte{})
+		cb.VectorMultisigFeeAddr, false, []byte{})
 	require.NoError(t, err)
 
 	err = wallet.WaitForAmount(context.Background(), txProviderVector, cb.VectorMultisigFeeAddr, func(val *big.Int) bool {
@@ -249,10 +248,8 @@ func SetupAndRunApexBridge(
 	// need params for it to work properly
 	require.NoError(t, cb.GenerateConfigs(
 		primeCluster.NetworkURL(),
-		primeCluster.Config.NetworkMagic,
 		primeCluster.OgmiosURL(),
 		vectorCluster.NetworkURL(),
-		vectorCluster.Config.NetworkMagic,
 		vectorCluster.OgmiosURL(),
 	))
 
@@ -338,10 +335,7 @@ func (a *ApexSystem) GetVectorTxProvider() wallet.ITxProvider {
 func (a *ApexSystem) CreateAndFundUser(t *testing.T, ctx context.Context, sendAmount uint64) *TestApexUser {
 	t.Helper()
 
-	user := NewTestApexUser(
-		t, uint(a.PrimeCluster.Config.NetworkMagic), uint(a.VectorCluster.Config.NetworkMagic))
-
-	t.Cleanup(user.Dispose)
+	user := NewTestApexUser(t)
 
 	txProviderPrime := a.GetPrimeTxProvider()
 	txProviderVector := a.GetVectorTxProvider()
@@ -368,11 +362,7 @@ func (a *ApexSystem) CreateAndFundExistingUser(
 ) *TestApexUser {
 	t.Helper()
 
-	user := NewTestApexUserWithExistingWallets(
-		t, primePrivateKey, vectorPrivateKey,
-		uint(a.PrimeCluster.Config.NetworkMagic), uint(a.VectorCluster.Config.NetworkMagic))
-
-	t.Cleanup(user.Dispose)
+	user := NewTestApexUserWithExistingWallets(t, primePrivateKey, vectorPrivateKey)
 
 	txProviderPrime := a.GetPrimeTxProvider()
 	txProviderVector := a.GetVectorTxProvider()

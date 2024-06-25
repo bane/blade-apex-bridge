@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/secretmanager v1.13.1
 	github.com/0xPolygon/go-ibft v0.4.1-0.20240429085428-e2032115c799
 	github.com/Ethernal-Tech/blockchain-event-tracker v0.0.0-20231202204931-b886edca635a
-	github.com/Ethernal-Tech/cardano-infrastructure v0.0.0-20240617102527-1188f34c1905
+	github.com/Ethernal-Tech/cardano-infrastructure v0.0.0-20240624104321-44fa018ccabd
 	github.com/Ethernal-Tech/merkle-tree v0.0.0-20231213143318-4db9da419e04
 	github.com/armon/go-metrics v0.4.1
 	github.com/aws/aws-sdk-go v1.53.14
