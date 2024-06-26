@@ -2,18 +2,21 @@ package cardanofw
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
-	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
+	"github.com/0xPolygon/polygon-edge/helper/common"
+	secretsCardano "github.com/Ethernal-Tech/cardano-infrastructure/secrets"
+	secretsHelper "github.com/Ethernal-Tech/cardano-infrastructure/secrets/helper"
+	cardanoWallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
 
 const (
-	CardanoWalletsDir  = "cardano-wallet"
 	BridgingConfigsDir = "bridging-configs"
 	BridgingLogsDir    = "bridging-logs"
 	BridgingDBsDir     = "bridging-dbs"
@@ -23,8 +26,8 @@ const (
 )
 
 type CardanoWallet struct {
-	Multisig    wallet.IWallet
-	MultisigFee wallet.IWallet
+	Multisig    *cardanoWallet.Wallet `json:"multisig"`
+	MultisigFee *cardanoWallet.Wallet `json:"fee"`
 }
 
 type TestCardanoValidator struct {
@@ -41,60 +44,84 @@ func NewTestCardanoValidator(
 	id int,
 ) *TestCardanoValidator {
 	return &TestCardanoValidator{
-		dataDirPath: path.Join(dataDirPath, fmt.Sprintf("validator_%d", id)),
+		dataDirPath: filepath.Join(dataDirPath, fmt.Sprintf("validator_%d", id)),
 		ID:          id,
 	}
 }
 
 func (cv *TestCardanoValidator) SetClusterAndServer(
-	cluster *framework.TestCluster, server *framework.TestServer) {
+	cluster *framework.TestCluster, server *framework.TestServer,
+) error {
 	cv.cluster = cluster
 	cv.server = server
-}
+	// move wallets files
+	srcPath := filepath.Join(cv.dataDirPath, secretsCardano.CardanoFolderLocal)
+	dstPath := filepath.Join(cv.server.DataDir(), secretsCardano.CardanoFolderLocal)
 
-func (cv *TestCardanoValidator) GetCardanoWalletsDir() string {
-	return path.Join(cv.dataDirPath, CardanoWalletsDir)
+	if err := common.CreateDirSafe(dstPath, 0750); err != nil {
+		return fmt.Errorf("failed to create dst directory: %w", err)
+	}
+
+	files, err := os.ReadDir(srcPath)
+	if err != nil {
+		return fmt.Errorf("failed to read source directory: %w", err)
+	}
+
+	for _, file := range files {
+		sourcePath := filepath.Join(srcPath, file.Name())
+		destPath := filepath.Join(dstPath, file.Name())
+		// Move the file
+		if err := os.Rename(sourcePath, destPath); err != nil {
+			return fmt.Errorf("failed to move file %s: %w", file.Name(), err)
+		}
+	}
+
+	return nil
 }
 
 func (cv *TestCardanoValidator) GetBridgingConfigsDir() string {
-	return path.Join(cv.dataDirPath, BridgingConfigsDir)
+	return filepath.Join(cv.dataDirPath, BridgingConfigsDir)
 }
 
 func (cv *TestCardanoValidator) GetValidatorComponentsConfig() string {
-	return path.Join(cv.GetBridgingConfigsDir(), ValidatorComponentsConfigFileName)
+	return filepath.Join(cv.GetBridgingConfigsDir(), ValidatorComponentsConfigFileName)
 }
 
 func (cv *TestCardanoValidator) GetRelayerConfig() string {
-	return path.Join(cv.GetBridgingConfigsDir(), RelayerConfigFileName)
+	return filepath.Join(cv.GetBridgingConfigsDir(), RelayerConfigFileName)
 }
 
 func (cv *TestCardanoValidator) CardanoWalletCreate(chainID string) error {
 	return RunCommand(ResolveApexBridgeBinary(), []string{
 		"wallet-create",
 		"--chain", chainID,
-		"--dir", cv.GetCardanoWalletsDir(),
+		"--validator-data-dir", cv.dataDirPath,
 	}, os.Stdout)
 }
 
 func (cv *TestCardanoValidator) GetCardanoWallet(chainID string) (*CardanoWallet, error) {
-	wm := wallet.NewWalletManager()
-
-	multiSig, err := wm.Load(path.Join(
-		cv.GetCardanoWalletsDir(), chainID, "multisig"))
+	secretsMngr, err := secretsHelper.CreateSecretsManager(&secretsCardano.SecretsManagerConfig{
+		Path: cv.dataDirPath,
+		Type: secretsCardano.Local,
+	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load wallet: %w", err)
 	}
 
-	multiSigFee, err := wm.Load(path.Join(
-		cv.GetCardanoWalletsDir(), chainID, "multisigfee"))
+	keyName := fmt.Sprintf("%s%s_key", secretsCardano.CardanoKeyLocalPrefix, chainID)
+
+	bytes, err := secretsMngr.GetSecret(keyName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load wallet: %w", err)
 	}
 
-	return &CardanoWallet{
-		Multisig:    multiSig,
-		MultisigFee: multiSigFee,
-	}, nil
+	var cardanoWallet *CardanoWallet
+
+	if err := json.Unmarshal(bytes, &cardanoWallet); err != nil {
+		return nil, fmt.Errorf("failed to load wallet: %w", err)
+	}
+
+	return cardanoWallet, nil
 }
 
 func (cv *TestCardanoValidator) RegisterChain(
@@ -107,8 +134,7 @@ func (cv *TestCardanoValidator) RegisterChain(
 	return RunCommand(ResolveApexBridgeBinary(), []string{
 		"register-chain",
 		"--chain", chainID,
-		"--keys-dir", cv.GetCardanoWalletsDir(),
-		"--bridge-validator-data-dir", cv.server.DataDir(),
+		"--validator-data-dir", cv.server.DataDir(),
 		"--addr", multisigAddr,
 		"--addr-fee", multisigFeeAddr,
 		"--token-supply", fmt.Sprint(tokenSupply),
@@ -137,24 +163,22 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 
 	args := []string{
 		"generate-configs",
+		"--validator-data-dir", cv.server.DataDir(),
 		"--output-dir", cv.GetBridgingConfigsDir(),
 		"--output-validator-components-file-name", ValidatorComponentsConfigFileName,
 		"--output-relayer-file-name", RelayerConfigFileName,
-		"--prime-keys-dir", path.Join(cv.GetCardanoWalletsDir(), ChainIDPrime),
 		"--prime-network-address", primeNetworkAddress,
 		"--prime-network-magic", fmt.Sprint(primeNetworkMagic),
 		"--prime-network-id", fmt.Sprint(primeNetworkID),
 		"--prime-ogmios-url", primeOgmiosURL,
-		"--vector-keys-dir", path.Join(cv.GetCardanoWalletsDir(), ChainIDVector),
 		"--vector-network-address", vectorNetworkAddress,
 		"--vector-network-magic", fmt.Sprint(vectorNetworkMagic),
 		"--vector-network-id", fmt.Sprint(vectorNetworkID),
 		"--vector-ogmios-url", vectorOgmiosURL,
 		"--bridge-node-url", cv.server.JSONRPCAddr(),
 		"--bridge-sc-address", BridgeSCAddr,
-		"--logs-path", path.Join(cv.dataDirPath, BridgingLogsDir),
-		"--dbs-path", path.Join(cv.dataDirPath, BridgingDBsDir),
-		"--bridge-validator-data-dir", cv.server.DataDir(),
+		"--logs-path", filepath.Join(cv.dataDirPath, BridgingLogsDir),
+		"--dbs-path", filepath.Join(cv.dataDirPath, BridgingDBsDir),
 		"--api-port", fmt.Sprint(apiPort),
 		"--api-keys", apiKey,
 		"--telemetry", telemetryConfig,

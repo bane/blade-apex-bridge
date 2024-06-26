@@ -129,7 +129,7 @@ func (cb *TestCardanoBridge) StartValidators(t *testing.T, epochSize int) {
 	)
 
 	for idx, validator := range cb.validators {
-		validator.SetClusterAndServer(cb.cluster, cb.cluster.Servers[idx])
+		require.NoError(t, validator.SetClusterAndServer(cb.cluster, cb.cluster.Servers[idx]))
 	}
 }
 

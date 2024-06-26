@@ -308,7 +308,7 @@ func (c *TestCardanoCluster) Fail(err error) {
 }
 
 func (c *TestCardanoCluster) Stop() error {
-	if c.OgmiosServer.IsRunning() {
+	if c.OgmiosServer != nil && c.OgmiosServer.IsRunning() {
 		if err := c.OgmiosServer.Stop(); err != nil {
 			return err
 		}
