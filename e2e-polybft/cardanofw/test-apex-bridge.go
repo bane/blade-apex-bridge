@@ -236,12 +236,7 @@ func SetupAndRunApexBridge(
 	// need params for it to work properly
 	primeTokenSupply := big.NewInt(int64(sendAmount))
 	vectorTokenSupply := big.NewInt(int64(sendAmount))
-	require.NoError(t, cb.RegisterChains(
-		primeTokenSupply,
-		primeCluster.OgmiosURL(),
-		vectorTokenSupply,
-		vectorCluster.OgmiosURL(),
-	))
+	require.NoError(t, cb.RegisterChains(primeTokenSupply, vectorTokenSupply))
 
 	fmt.Printf("Chain registered\n")
 

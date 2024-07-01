@@ -155,9 +155,7 @@ func (cb *TestCardanoBridge) StopValidators() {
 
 func (cb *TestCardanoBridge) RegisterChains(
 	primeTokenSupply *big.Int,
-	primeOgmiosURL string,
 	vectorTokenSupply *big.Int,
-	vectorOgmiosURL string,
 ) error {
 	errs := make([]error, len(cb.validators))
 	wg := sync.WaitGroup{}
@@ -169,17 +167,13 @@ func (cb *TestCardanoBridge) RegisterChains(
 			defer wg.Done()
 
 			errs[indx] = validator.RegisterChain(
-				ChainIDPrime, cb.PrimeMultisigAddr, cb.PrimeMultisigFeeAddr,
-				primeTokenSupply, primeOgmiosURL,
-			)
+				ChainIDPrime, cb.PrimeMultisigAddr, cb.PrimeMultisigFeeAddr, primeTokenSupply)
 			if errs[indx] != nil {
 				return
 			}
 
 			errs[indx] = validator.RegisterChain(
-				ChainIDVector, cb.VectorMultisigAddr, cb.VectorMultisigFeeAddr,
-				vectorTokenSupply, vectorOgmiosURL,
-			)
+				ChainIDVector, cb.VectorMultisigAddr, cb.VectorMultisigFeeAddr, vectorTokenSupply)
 			if errs[indx] != nil {
 				return
 			}

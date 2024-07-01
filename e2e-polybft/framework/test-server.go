@@ -213,7 +213,9 @@ func (t *TestServer) Start() {
 
 func (t *TestServer) Stop() {
 	if err := t.node.Stop(); err != nil {
-		t.t.Fatal(err)
+		if !errors.Is(err, os.ErrProcessDone) {
+			t.t.Fatal(err)
+		}
 	}
 
 	t.node = nil

@@ -1119,6 +1119,10 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 			fmt.Printf("TXs on vector expected amount received: %v\n", err)
 
+			if err != nil {
+				return
+			}
+
 			// nothing else should be bridged for 2 minutes
 			err = cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val *big.Int) bool {
 				return val.Cmp(new(big.Int).SetUint64(expectedAmountOnVector)) > 0
@@ -1141,6 +1145,10 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 			assert.NoError(t, err)
 
 			fmt.Printf("TXs on prime expected amount received: %v\n", err)
+
+			if err != nil {
+				return
+			}
 
 			// nothing else should be bridged for 2 minutes
 			err = cardanofw.WaitForAmount(ctx, txProviderPrime, user.PrimeAddress, func(val *big.Int) bool {
