@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"net/http"
 	"os"
 	"os/exec"
@@ -27,31 +26,57 @@ const (
 	retriesMaxCount = 10
 )
 
-func ResolveCardanoCliBinary() string {
-	bin := os.Getenv("CARDANO_CLI_BINARY")
-	if bin != "" {
-		return bin
+func ResolveCardanoCliBinary(networkID wallet.CardanoNetworkType) string {
+	var env, name string
+
+	switch networkID {
+	case wallet.VectorMainNetNetwork, wallet.VectorTestNetNetwork:
+		env = "CARDANO_CLI_BINARY_VECTOR"
+		name = "vector-cli"
+	default:
+		env = "CARDANO_CLI_BINARY"
+		name = "cardano-cli"
 	}
-	// fallback
-	return "cardano-cli"
+
+	return tryResolveFromEnv(env, name)
+}
+
+func ResolveOgmiosBinary(networkID wallet.CardanoNetworkType) string {
+	var env, name string
+
+	switch networkID {
+	case wallet.VectorMainNetNetwork, wallet.VectorTestNetNetwork:
+		env = "OGMIOS_BINARY_VECTOR"
+		name = "vector-ogmios"
+	default:
+		env = "OGMIOS"
+		name = "ogmios"
+	}
+
+	return tryResolveFromEnv(env, name)
+}
+
+func ResolveCardanoNodeBinary(networkID wallet.CardanoNetworkType) string {
+	var env, name string
+
+	switch networkID {
+	case wallet.VectorMainNetNetwork, wallet.VectorTestNetNetwork:
+		env = "CARDANO_NODE_BINARY_VECTOR"
+		name = "vector-node"
+	default:
+		env = "CARDANO_NODE_BINARY_VECTOR"
+		name = "cardano-node"
+	}
+
+	return tryResolveFromEnv(env, name)
 }
 
 func ResolveApexBridgeBinary() string {
-	bin := os.Getenv("APEX_BRIDGE_BINARY")
-	if bin != "" {
-		return bin
-	}
-	// fallback
-	return "apex-bridge"
+	return tryResolveFromEnv("APEX_BRIDGE_BINARY", "apex-bridge")
 }
 
 func ResolveBladeBinary() string {
-	bin := os.Getenv("BLADE_BINARY")
-	if bin != "" {
-		return bin
-	}
-	// fallback
-	return "blade"
+	return tryResolveFromEnv("BLADE_BINARY", "blade")
 }
 
 func RunCommandContext(
@@ -259,7 +284,7 @@ type BridgingRequestStateResponse struct {
 }
 
 // GetTokenAmount returns token amount for address
-func GetTokenAmount(ctx context.Context, txProvider wallet.ITxProvider, addr string) (*big.Int, error) {
+func GetTokenAmount(ctx context.Context, txProvider wallet.ITxProvider, addr string) (uint64, error) {
 	var utxos []wallet.Utxo
 
 	err := ExecuteWithRetryIfNeeded(ctx, func() (err error) {
@@ -268,7 +293,7 @@ func GetTokenAmount(ctx context.Context, txProvider wallet.ITxProvider, addr str
 		return err
 	})
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	return wallet.GetUtxosSum(utxos), nil
@@ -276,7 +301,7 @@ func GetTokenAmount(ctx context.Context, txProvider wallet.ITxProvider, addr str
 
 // WaitForAmount waits for address to have amount specified by cmpHandler
 func WaitForAmount(ctx context.Context, txRetriever wallet.IUTxORetriever,
-	addr string, cmpHandler func(*big.Int) bool, numRetries int, waitTime time.Duration,
+	addr string, cmpHandler func(uint64) bool, numRetries int, waitTime time.Duration,
 ) error {
 	return wallet.WaitForAmount(ctx, txRetriever, addr, cmpHandler, numRetries, waitTime, IsRecoverableError)
 }
@@ -338,4 +363,12 @@ func GetTestNetMagicArgs(testnetMagic uint) []string {
 	}
 
 	return []string{"--testnet-magic", strconv.FormatUint(uint64(testnetMagic), 10)}
+}
+
+func tryResolveFromEnv(env, name string) string {
+	if bin := os.Getenv(env); bin != "" {
+		return bin
+	}
+	// fallback
+	return name
 }

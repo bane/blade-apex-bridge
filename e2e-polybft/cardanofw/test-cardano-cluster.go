@@ -19,6 +19,7 @@ import (
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
 	"github.com/0xPolygon/polygon-edge/helper/common"
+	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
 
 //go:embed files/*
@@ -26,38 +27,12 @@ var cardanoFiles embed.FS
 
 const hostIP = "127.0.0.1"
 
-func resolveCardanoNodeBinary() string {
-	bin := os.Getenv("CARDANO_NODE_BINARY")
-	if bin != "" {
-		return bin
-	}
-	// fallback
-	return "cardano-node"
-}
-
-func resolveCardanoCliBinary() string {
-	bin := os.Getenv("CARDANO_CLI_BINARY")
-	if bin != "" {
-		return bin
-	}
-	// fallback
-	return "cardano-cli"
-}
-
-func resolveOgmiosBinary() string {
-	bin := os.Getenv("OGMIOS")
-	if bin != "" {
-		return bin
-	}
-	// fallback
-	return "ogmios"
-}
-
 type TestCardanoClusterConfig struct {
 	t *testing.T
 
 	ID             int
 	NetworkMagic   uint
+	NetworkID      wallet.CardanoNetworkType
 	SecurityParam  int
 	NodesCount     int
 	StartNodeID    int
@@ -71,7 +46,6 @@ type TestCardanoClusterConfig struct {
 	WithStdout bool
 	LogsDir    string
 	TmpDir     string
-	Binary     string
 
 	logsDirOnce sync.Once
 }
@@ -199,17 +173,22 @@ func WithID(id int) CardanoClusterOption {
 	}
 }
 
+func WithNetworkID(networkID wallet.CardanoNetworkType) CardanoClusterOption {
+	return func(h *TestCardanoClusterConfig) {
+		h.NetworkID = networkID
+	}
+}
+
 func NewCardanoTestCluster(t *testing.T, opts ...CardanoClusterOption) (*TestCardanoCluster, error) {
 	t.Helper()
 
 	var err error
 
 	config := &TestCardanoClusterConfig{
-		t:          t,
-		WithLogs:   true, // strings.ToLower(os.Getenv(e)) == "true"
-		WithStdout: true, // strings.ToLower(os.Getenv(envStdoutEnabled)) == "true"
-		Binary:     resolveCardanoCliBinary(),
-
+		t:              t,
+		WithLogs:       true, // strings.ToLower(os.Getenv(e)) == "true"
+		WithStdout:     true, // strings.ToLower(os.Getenv(envStdoutEnabled)) == "true"
+		NetworkID:      wallet.TestNetNetwork,
 		NetworkMagic:   42,
 		SecurityParam:  10,
 		NodesCount:     3,
@@ -278,8 +257,8 @@ func (c *TestCardanoCluster) NewTestServer(t *testing.T, id int, port int) error
 		//StdOut:       c.Config.GetStdout(fmt.Sprintf("node-%d", id)),
 		ConfigFile:   c.Config.Dir("configuration.yaml"),
 		NodeDir:      c.Config.Dir(fmt.Sprintf("node-spo%d", id)),
-		Binary:       resolveCardanoNodeBinary(),
 		NetworkMagic: c.Config.NetworkMagic,
+		NetworkID:    c.Config.NetworkID,
 	})
 	if err != nil {
 		return err
@@ -346,8 +325,8 @@ func (c *TestCardanoCluster) NetworkURL() string {
 	return fmt.Sprintf("http://localhost:%d", c.Config.Port)
 }
 
-func (c *TestCardanoCluster) Stats() ([]*TestCardanoStats, bool, error) {
-	blocks := make([]*TestCardanoStats, len(c.Servers))
+func (c *TestCardanoCluster) Stats() ([]*wallet.QueryTipData, bool, error) {
+	blocks := make([]*wallet.QueryTipData, len(c.Servers))
 	ready := make([]bool, len(c.Servers))
 	errors := make([]error, len(c.Servers))
 	wg := sync.WaitGroup{}
@@ -365,34 +344,7 @@ func (c *TestCardanoCluster) Stats() ([]*TestCardanoStats, bool, error) {
 		go func() {
 			defer wg.Done()
 
-			var b bytes.Buffer
-
-			stdOut := c.Config.GetStdout(fmt.Sprintf("cardano-stats-%d", srv.ID()), &b)
-
-			args := append([]string{
-				"query", "tip",
-				"--socket-path", srv.SocketPath(),
-			}, GetTestNetMagicArgs(c.Config.NetworkMagic)...)
-
-			if err := RunCommand(c.Config.Binary, args, stdOut); err != nil {
-				if strings.Contains(err.Error(), "Network.Socket.connect") &&
-					strings.Contains(err.Error(), "does not exist (No such file or directory)") {
-					c.Config.t.Log("socket error", "path", srv.SocketPath(), "err", err)
-
-					return
-				}
-
-				ready[id], errors[id] = true, err
-
-				return
-			}
-
-			stat, err := NewTestCardanoStats(b.Bytes())
-			if err != nil {
-				ready[id], errors[id] = true, err
-			}
-
-			ready[id], blocks[id] = true, stat
+			ready[id], blocks[id], errors[id] = srv.Stat()
 		}()
 	}
 
@@ -479,8 +431,6 @@ func (c *TestCardanoCluster) WaitForBlockWithState(
 			return false, nil
 		}
 
-		fmt.Print("WaitForBlockWithState", "tips", tips)
-
 		for i, bn := range tips {
 			serverID := servers[i].ID()
 			// bn == nil -> server is stopped + dont remember smaller than n blocks
@@ -530,7 +480,7 @@ func (c *TestCardanoCluster) StartOgmios(t *testing.T) error {
 
 	srv, err := NewOgmiosTestServer(t, &TestOgmiosServerConfig{
 		ConfigFile: c.Servers[0].config.ConfigFile,
-		Binary:     resolveOgmiosBinary(),
+		NetworkID:  c.Config.NetworkID,
 		Port:       c.Config.OgmiosPort,
 		SocketPath: c.Servers[0].SocketPath(),
 		StdOut:     c.Config.GetStdout(fmt.Sprintf("ogmios-%d", c.Config.ID)),
@@ -590,7 +540,7 @@ func (c *TestCardanoCluster) InitGenesis(startTime int64) error {
 	}
 	stdOut := c.Config.GetStdout("cardano-genesis", &b)
 
-	return RunCommand(c.Config.Binary, args, stdOut)
+	return RunCommand(ResolveCardanoCliBinary(c.Config.NetworkID), args, stdOut)
 }
 
 func (c *TestCardanoCluster) CopyConfigFilesStep1() error {
@@ -761,7 +711,7 @@ func (c *TestCardanoCluster) GenesisCreateStaked(startTime time.Time) error {
 		"--gen-utxo-keys", strconv.Itoa(c.Config.NodesCount),
 	}, GetTestNetMagicArgs(c.Config.NetworkMagic)...)
 
-	err := RunCommand(c.Config.Binary, args, stdOut)
+	err := RunCommand(ResolveCardanoCliBinary(c.Config.NetworkID), args, stdOut)
 	if strings.Contains(err.Error(), exprectedErr) {
 		return nil
 	}

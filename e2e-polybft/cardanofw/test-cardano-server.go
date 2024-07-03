@@ -1,47 +1,38 @@
 package cardanofw
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
-	cardano_wallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
+	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
 
 type TestCardanoServerConfig struct {
 	ID           int
 	NodeDir      string
 	ConfigFile   string
-	Binary       string
 	Port         int
 	SocketPath   string
 	NetworkMagic uint
-	TxProvider   cardano_wallet.ITxProvider
+	NetworkID    cardanowallet.CardanoNetworkType
 	StdOut       io.Writer
 }
 
 type TestCardanoServer struct {
 	t *testing.T
 
-	config *TestCardanoServerConfig
-	node   *framework.Node
+	config     *TestCardanoServerConfig
+	txProvider cardanowallet.ITxProvider
+	node       *framework.Node
 }
 
 func NewCardanoTestServer(t *testing.T, config *TestCardanoServerConfig) (*TestCardanoServer, error) {
 	t.Helper()
-
-	var err error
-
-	if config.Binary == "" {
-		config.Binary = resolveCardanoNodeBinary()
-	}
-
-	config.TxProvider, err = cardano_wallet.NewTxProviderCli(uint(config.NetworkMagic), config.SocketPath)
-	if err != nil {
-		return nil, err
-	}
 
 	srv := &TestCardanoServer{
 		t:      t,
@@ -80,8 +71,9 @@ func (t *TestCardanoServer) Start() error {
 		"--shelley-operational-certificate", fmt.Sprintf("%s/opcert.cert", t.config.NodeDir),
 		"--port", strconv.Itoa(t.config.Port),
 	}
+	binary := ResolveCardanoNodeBinary(t.config.NetworkID)
 
-	node, err := framework.NewNode(t.config.Binary, args, t.config.StdOut)
+	node, err := framework.NewNode(binary, args, t.config.StdOut)
 	if err != nil {
 		return err
 	}
@@ -90,6 +82,18 @@ func (t *TestCardanoServer) Start() error {
 	t.node.SetShouldForceStop(true)
 
 	return nil
+}
+
+func (t TestCardanoServer) Stat() (bool, *cardanowallet.QueryTipData, error) {
+	queryTipData, err := t.getTxProvider().GetTip(context.Background())
+	if err != nil {
+		if strings.Contains(err.Error(), "Network.Socket.connect") &&
+			strings.Contains(err.Error(), "does not exist") {
+			return false, nil, nil
+		}
+	}
+
+	return true, &queryTipData, err
 }
 
 func (t TestCardanoServer) ID() int {
@@ -109,6 +113,16 @@ func (t TestCardanoServer) URL() string {
 	return fmt.Sprintf("localhost:%d", t.config.Port)
 }
 
-func (t TestCardanoServer) GetTxProvider() cardano_wallet.ITxProvider {
-	return t.config.TxProvider
+func (t TestCardanoServer) getTxProvider() cardanowallet.ITxProvider {
+	if t.txProvider == nil {
+		txProvider, err := cardanowallet.NewTxProviderCli(
+			t.config.NetworkMagic, t.SocketPath(), ResolveCardanoCliBinary(t.config.NetworkID))
+		if err != nil {
+			t.t.Fatalf("failed to create tx provider: %s", err.Error())
+		}
+
+		t.txProvider = txProvider
+	}
+
+	return t.txProvider
 }

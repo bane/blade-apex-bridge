@@ -10,7 +10,7 @@ import (
 	"github.com/0xPolygon/polygon-edge/txrelayer"
 	"github.com/0xPolygon/polygon-edge/types"
 	"github.com/Ethernal-Tech/cardano-infrastructure/indexer"
-	cardano_wallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
+	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 	"github.com/umbracle/ethgo/abi"
 )
@@ -48,7 +48,7 @@ func TestE2E_ApexBridge_TestCardanoVerifySignaturePrecompile(t *testing.T) {
 
 	txHash, _ := hex.DecodeString(txInfo.Hash)
 
-	cw, err := cardano_wallet.GenerateWallet(false)
+	cw, err := cardanowallet.GenerateWallet(false)
 	require.NoError(t, err)
 	invalidKey := [32]byte{}
 
@@ -78,7 +78,7 @@ func TestE2E_ApexBridge_TestCardanoVerifySignaturePrecompile(t *testing.T) {
 		}
 	}
 
-	signature, err := cardano_wallet.SignMessage(cw.GetSigningKey(), cw.GetVerificationKey(), txHash)
+	signature, err := cardanowallet.SignMessage(cw.GetSigningKey(), cw.GetVerificationKey(), txHash)
 	require.NoError(t, err)
 
 	checkValidity(t, txRaw, signature, cw.GetVerificationKey(), true, true)
@@ -86,7 +86,7 @@ func TestE2E_ApexBridge_TestCardanoVerifySignaturePrecompile(t *testing.T) {
 	checkValidity(t, txRaw, append([]byte{0}, signature...), cw.GetVerificationKey(), true, false)
 
 	// message with key hash example
-	signature, err = cardano_wallet.SignMessage(
+	signature, err = cardanowallet.SignMessage(
 		cw.GetSigningKey(), cw.GetVerificationKey(), append([]byte("hello world: "), dummyKeyHash...))
 	require.NoError(t, err)
 

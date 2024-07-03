@@ -6,7 +6,7 @@ import (
 
 	"github.com/0xPolygon/polygon-edge/helper/hex"
 	"github.com/0xPolygon/polygon-edge/types"
-	cardano_wallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
+	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 	"github.com/umbracle/ethgo/abi"
 )
@@ -19,10 +19,10 @@ func Test_cardanoVerifySignaturePrecompile_ValidSignature(t *testing.T) {
 	txRaw, txHash := createTx(t)
 	walletBasic, walletFee := createWallets(t)
 
-	witness, err := cardano_wallet.CreateTxWitness(txHash, walletBasic)
+	witness, err := cardanowallet.CreateTxWitness(txHash, walletBasic)
 	require.NoError(t, err)
 
-	witnessFee, err := cardano_wallet.CreateTxWitness(txHash, walletFee)
+	witnessFee, err := cardanowallet.CreateTxWitness(txHash, walletFee)
 	require.NoError(t, err)
 
 	prec := &cardanoVerifySignaturePrecompile{}
@@ -41,10 +41,10 @@ func Test_cardanoVerifySignaturePrecompile_ValidSignature(t *testing.T) {
 	require.Equal(t, abiBoolTrue, value)
 
 	// with signatures
-	signature, _, err := cardano_wallet.TxWitnessRaw(witness).GetSignatureAndVKey()
+	signature, _, err := cardanowallet.TxWitnessRaw(witness).GetSignatureAndVKey()
 	require.NoError(t, err)
 
-	signatureFee, _, err := cardano_wallet.TxWitnessRaw(witnessFee).GetSignatureAndVKey()
+	signatureFee, _, err := cardanowallet.TxWitnessRaw(witnessFee).GetSignatureAndVKey()
 	require.NoError(t, err)
 
 	value, err = prec.run(
@@ -59,12 +59,12 @@ func Test_cardanoVerifySignaturePrecompile_ValidSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, abiBoolTrue, value)
 
-	keyHash, err := cardano_wallet.GetKeyHash(walletBasic.GetVerificationKey())
+	keyHash, err := cardanowallet.GetKeyHash(walletBasic.GetVerificationKey())
 	require.NoError(t, err)
 
 	// message
 	message := []byte(fmt.Sprintf("Hello world! My keyHash is: %s", keyHash))
-	signature, err = cardano_wallet.SignMessage(
+	signature, err = cardanowallet.SignMessage(
 		walletBasic.GetSigningKey(), walletBasic.GetVerificationKey(), message)
 	require.NoError(t, err)
 
@@ -79,10 +79,10 @@ func Test_cardanoVerifySignaturePrecompile_InvalidSignature(t *testing.T) {
 	txRaw, txHash := createTx(t)
 	walletBasic, walletFee := createWallets(t)
 
-	witness, err := cardano_wallet.CreateTxWitness(txHash, walletBasic)
+	witness, err := cardanowallet.CreateTxWitness(txHash, walletBasic)
 	require.NoError(t, err)
 
-	witnessFee, err := cardano_wallet.CreateTxWitness(txHash, walletFee)
+	witnessFee, err := cardanowallet.CreateTxWitness(txHash, walletFee)
 	require.NoError(t, err)
 
 	prec := &cardanoVerifySignaturePrecompile{}
@@ -101,10 +101,10 @@ func Test_cardanoVerifySignaturePrecompile_InvalidSignature(t *testing.T) {
 	require.Equal(t, abiBoolFalse, value)
 
 	// with signatures
-	signature, _, err := cardano_wallet.TxWitnessRaw(witness).GetSignatureAndVKey()
+	signature, _, err := cardanowallet.TxWitnessRaw(witness).GetSignatureAndVKey()
 	require.NoError(t, err)
 
-	signatureFee, _, err := cardano_wallet.TxWitnessRaw(witnessFee).GetSignatureAndVKey()
+	signatureFee, _, err := cardanowallet.TxWitnessRaw(witnessFee).GetSignatureAndVKey()
 	require.NoError(t, err)
 
 	value, err = prec.run(
@@ -119,12 +119,12 @@ func Test_cardanoVerifySignaturePrecompile_InvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, abiBoolFalse, value)
 
-	keyHash, err := cardano_wallet.GetKeyHash(walletBasic.GetVerificationKey())
+	keyHash, err := cardanowallet.GetKeyHash(walletBasic.GetVerificationKey())
 	require.NoError(t, err)
 
 	// message
 	message := []byte(fmt.Sprintf("Hello world! My keyHash is: %s", keyHash))
-	signature, err = cardano_wallet.SignMessage(
+	signature, err = cardanowallet.SignMessage(
 		walletBasic.GetSigningKey(), walletBasic.GetVerificationKey(), message)
 	require.NoError(t, err)
 
@@ -173,13 +173,13 @@ func encodeCardanoVerifySignature(t *testing.T,
 	return encoded
 }
 
-func createWallets(t *testing.T) (cardano_wallet.IWallet, cardano_wallet.IWallet) {
+func createWallets(t *testing.T) (cardanowallet.IWallet, cardanowallet.IWallet) {
 	t.Helper()
 
-	walletBasic, err := cardano_wallet.GenerateWallet(false)
+	walletBasic, err := cardanowallet.GenerateWallet(false)
 	require.NoError(t, err)
 
-	walletFee, err := cardano_wallet.GenerateWallet(false)
+	walletFee, err := cardanowallet.GenerateWallet(false)
 	require.NoError(t, err)
 
 	return walletBasic, walletFee
@@ -208,33 +208,38 @@ func createTx(t *testing.T) ([]byte, string) {
 		"d215701e2eb17c741b9d306cba553f9fbaaca1e12a5925a065b90fa8",
 	}
 
-	policyScriptMultiSig, err := cardano_wallet.NewPolicyScript(walletsKeyHashes, len(walletsKeyHashes)*2/3+1)
+	policyScriptMultiSig := cardanowallet.NewPolicyScript(walletsKeyHashes, len(walletsKeyHashes)*2/3+1)
+	policyScriptFeeMultiSig := cardanowallet.NewPolicyScript(walletsFeeKeyHashes, len(walletsFeeKeyHashes)*2/3+1)
+	cardanoCliBinary := cardanowallet.ResolveCardanoCliBinary(cardanowallet.TestNetNetwork)
+	cliUtils := cardanowallet.NewCliUtils(cardanoCliBinary)
+
+	policyID, err := cliUtils.GetPolicyID(policyScriptMultiSig)
 	require.NoError(t, err)
 
-	policyScriptFeeMultiSig, err := cardano_wallet.NewPolicyScript(walletsFeeKeyHashes, len(walletsFeeKeyHashes)*2/3+1)
+	feePolicyID, err := cliUtils.GetPolicyID(policyScriptFeeMultiSig)
 	require.NoError(t, err)
 
-	multiSigAddr, err := policyScriptMultiSig.CreateMultiSigAddress(testNetMagic)
+	multiSigAddr, err := cardanowallet.NewPolicyScriptAddress(cardanowallet.TestNetNetwork, policyID)
 	require.NoError(t, err)
 
-	multiSigFeeAddr, err := policyScriptFeeMultiSig.CreateMultiSigAddress(testNetMagic)
+	multiSigFeeAddr, err := cardanowallet.NewPolicyScriptAddress(cardanowallet.TestNetNetwork, feePolicyID)
 	require.NoError(t, err)
 
-	outputs := []cardano_wallet.TxOutput{
+	outputs := []cardanowallet.TxOutput{
 		{
 			Addr:   "addr_test1vqjysa7p4mhu0l25qknwznvj0kghtr29ud7zp732ezwtzec0w8g3u",
-			Amount: cardano_wallet.MinUTxODefaultValue,
+			Amount: cardanowallet.MinUTxODefaultValue,
 		},
 	}
-	outputsSum := cardano_wallet.GetOutputsSum(outputs)
+	outputsSum := cardanowallet.GetOutputsSum(outputs)
 
-	builder, err := cardano_wallet.NewTxBuilder()
+	builder, err := cardanowallet.NewTxBuilder(cardanoCliBinary)
 	require.NoError(t, err)
 
 	defer builder.Dispose()
 
-	multiSigInputs := cardano_wallet.TxInputs{
-		Inputs: []cardano_wallet.TxInput{
+	multiSigInputs := cardanowallet.TxInputs{
+		Inputs: []cardanowallet.TxInput{
 			{
 				Hash:  "e99a5bde15aa05f24fcc04b7eabc1520d3397283b1ee720de9fe2653abbb0c9f",
 				Index: 0,
@@ -244,25 +249,25 @@ func createTx(t *testing.T) ([]byte, string) {
 				Index: 2,
 			},
 		},
-		Sum: cardano_wallet.MinUTxODefaultValue*2 + 20,
+		Sum: cardanowallet.MinUTxODefaultValue*2 + 20,
 	}
 
-	multiSigFeeInputs := cardano_wallet.TxInputs{
-		Inputs: []cardano_wallet.TxInput{
+	multiSigFeeInputs := cardanowallet.TxInputs{
+		Inputs: []cardanowallet.TxInput{
 			{
 				Hash:  "098236134e0f2077a6434dd9d7727126fa8b3627bcab3ae030a194d46eded73e",
 				Index: 0,
 			},
 		},
-		Sum: cardano_wallet.MinUTxODefaultValue * 2,
+		Sum: cardanowallet.MinUTxODefaultValue * 2,
 	}
 
 	builder.SetTimeToLive(ttl).SetProtocolParameters(protocolParameters)
 	builder.SetTestNetMagic(testNetMagic)
-	builder.AddOutputs(outputs...).AddOutputs(cardano_wallet.TxOutput{
-		Addr: multiSigAddr,
-	}).AddOutputs(cardano_wallet.TxOutput{
-		Addr: multiSigFeeAddr,
+	builder.AddOutputs(outputs...).AddOutputs(cardanowallet.TxOutput{
+		Addr: multiSigAddr.String(),
+	}).AddOutputs(cardanowallet.TxOutput{
+		Addr: multiSigFeeAddr.String(),
 	})
 	builder.AddInputsWithScript(policyScriptMultiSig, multiSigInputs.Inputs...)
 	builder.AddInputsWithScript(policyScriptFeeMultiSig, multiSigFeeInputs.Inputs...)

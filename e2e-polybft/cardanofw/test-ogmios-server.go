@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
+	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
 
 type TestOgmiosServerConfig struct {
 	ConfigFile string
-	Binary     string
+	NetworkID  wallet.CardanoNetworkType
 	Port       int
 	SocketPath string
 	StdOut     io.Writer
@@ -25,10 +26,6 @@ type TestOgmiosServer struct {
 
 func NewOgmiosTestServer(t *testing.T, config *TestOgmiosServerConfig) (*TestOgmiosServer, error) {
 	t.Helper()
-
-	if config.Binary == "" {
-		config.Binary = resolveOgmiosBinary()
-	}
 
 	srv := &TestOgmiosServer{
 		t:      t,
@@ -59,8 +56,9 @@ func (t *TestOgmiosServer) Start() error {
 		"--node-socket", t.config.SocketPath,
 		"--node-config", t.config.ConfigFile,
 	}
+	binary := ResolveOgmiosBinary(t.config.NetworkID)
 
-	node, err := framework.NewNode(t.config.Binary, args, t.config.StdOut)
+	node, err := framework.NewNode(binary, args, t.config.StdOut)
 	if err != nil {
 		return err
 	}

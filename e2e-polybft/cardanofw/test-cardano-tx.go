@@ -3,7 +3,7 @@ package cardanofw
 import (
 	"context"
 	"fmt"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
@@ -45,6 +45,9 @@ func sendTx(ctx context.Context,
 	}
 
 	cardanoWalletAddr := caddr.String()
+	networkTestMagic := GetNetworkMagic(isPrimeSource)
+	networkID := GetNetworkID(isPrimeSource)
+	cardanoCliBinary := ResolveCardanoCliBinary(networkID)
 
 	protocolParams, err := txProvider.GetProtocolParameters(ctx)
 	if err != nil {
@@ -69,13 +72,21 @@ func sendTx(ctx context.Context,
 		return "", err
 	}
 
-	rawTx, txHash, err := CreateTx(GetNetworkMagic(isPrimeSource), protocolParams, qtd.Slot+ttlSlotNumberInc, metadata,
+	rawTx, txHash, err := CreateTx(
+		cardanoCliBinary,
+		networkTestMagic, protocolParams,
+		qtd.Slot+ttlSlotNumberInc, metadata,
 		outputs, inputs, cardanoWalletAddr)
 	if err != nil {
 		return "", err
 	}
 
-	signedTx, err := wallet.SignTx(rawTx, txHash, cardanoWallet)
+	witness, err := wallet.CreateTxWitness(txHash, cardanoWallet)
+	if err != nil {
+		return "", err
+	}
+
+	signedTx, err := AssembleTxWitnesses(cardanoCliBinary, rawTx, [][]byte{witness})
 	if err != nil {
 		return "", err
 	}
@@ -89,7 +100,7 @@ func GetGenesisWalletFromCluster(
 ) (wallet.IWallet, error) {
 	keyFileName := strings.Join([]string{"utxo", fmt.Sprint(keyID)}, "")
 
-	sKey, err := wallet.NewKey(path.Join(dirPath, "utxo-keys", strings.Join([]string{keyFileName, "skey"}, ".")))
+	sKey, err := wallet.NewKey(filepath.Join(dirPath, "utxo-keys", fmt.Sprintf("%s.skey", keyFileName)))
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +110,7 @@ func GetGenesisWalletFromCluster(
 		return nil, err
 	}
 
-	vKey, err := wallet.NewKey(path.Join(dirPath, "utxo-keys", strings.Join([]string{keyFileName, "vkey"}, ".")))
+	vKey, err := wallet.NewKey(filepath.Join(dirPath, "utxo-keys", fmt.Sprintf("%s.vkey", keyFileName)))
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +124,9 @@ func GetGenesisWalletFromCluster(
 }
 
 // CreateTx creates tx and returns cbor of raw transaction data, tx hash and error
-func CreateTx(testNetMagic uint,
+func CreateTx(
+	cardanoCliBinary string,
+	testNetMagic uint,
 	protocolParams []byte,
 	timeToLive uint64,
 	metadataBytes []byte,
@@ -123,7 +136,7 @@ func CreateTx(testNetMagic uint,
 ) ([]byte, string, error) {
 	outputsSum := wallet.GetOutputsSum(outputs)
 
-	builder, err := wallet.NewTxBuilder()
+	builder, err := wallet.NewTxBuilder(cardanoCliBinary)
 	if err != nil {
 		return nil, "", err
 	}
@@ -168,6 +181,13 @@ func CreateTxWitness(txHash string, key wallet.ISigner) ([]byte, error) {
 }
 
 // AssembleTxWitnesses assembles all witnesses in final cbor of signed tx
-func AssembleTxWitnesses(txRaw []byte, witnesses [][]byte) ([]byte, error) {
-	return wallet.AssembleTxWitnesses(txRaw, witnesses)
+func AssembleTxWitnesses(cardanoCliBinary string, txRaw []byte, witnesses [][]byte) ([]byte, error) {
+	builder, err := wallet.NewTxBuilder(cardanoCliBinary)
+	if err != nil {
+		return nil, err
+	}
+
+	defer builder.Dispose()
+
+	return builder.AssembleTxWitnesses(txRaw, witnesses)
 }

@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -98,7 +97,7 @@ func TestE2E_ApexBridge_DoNothingWithSpecificUser(t *testing.T) {
 }
 
 func TestE2E_ApexBridge(t *testing.T) {
-	ctx, cncl := context.WithCancel(context.Background())
+	ctx, cncl := context.WithTimeout(context.Background(), time.Second*180)
 	defer cncl()
 
 	apex := cardanofw.RunApexBridge(t, ctx)
@@ -112,15 +111,14 @@ func TestE2E_ApexBridge(t *testing.T) {
 	prevAmount, err := cardanofw.GetTokenAmount(ctx, txProviderVector, user.VectorAddress)
 	require.NoError(t, err)
 
-	expectedAmount := prevAmount.Uint64() + sendAmount
+	expectedAmount := prevAmount + sendAmount
 
 	user.BridgeAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
 		apex.Bridge.VectorMultisigFeeAddr, sendAmount, true)
 
-	time.Sleep(time.Second * 60)
-	err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val *big.Int) bool {
-		return val.Cmp(new(big.Int).SetUint64(expectedAmount)) == 0
-	}, 200, time.Second*20)
+	err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+		return val == expectedAmount
+	}, 15, time.Second*10)
 	require.NoError(t, err)
 }
 
@@ -549,11 +547,11 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 			fmt.Printf("%v - Tx sent. hash: %s\n", i+1, txHash)
 
-			expectedAmount := prevAmount.Uint64() + sendAmount
+			expectedAmount := prevAmount + sendAmount
 			fmt.Printf("%v - expectedAmount %v\n", i+1, expectedAmount)
 
-			err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val *big.Int) bool {
-				return val.Cmp(new(big.Int).SetUint64(expectedAmount)) == 0
+			err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+				return val == expectedAmount
 			}, 20, time.Second*10)
 			require.NoError(t, err)
 		}
@@ -572,9 +570,9 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 			fmt.Printf("Tx %v sent. hash: %s\n", i+1, txHash)
 		}
 
-		expectedAmount := prevAmount.Uint64() + uint64(instances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val *big.Int) bool {
-			return val.Cmp(new(big.Int).SetUint64(expectedAmount)) == 0
+		expectedAmount := prevAmount + uint64(instances)*sendAmount
+		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+			return val == expectedAmount
 		}, 20, time.Second*10)
 		require.NoError(t, err)
 	})
@@ -614,9 +612,9 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 		wg.Wait()
 
-		expectedAmount := prevAmount.Uint64() + uint64(instances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val *big.Int) bool {
-			return val.Cmp(new(big.Int).SetUint64(expectedAmount)) == 0
+		expectedAmount := prevAmount + uint64(instances)*sendAmount
+		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+			return val == expectedAmount
 		}, 100, time.Second*10)
 		require.NoError(t, err)
 		fmt.Printf("%v TXs confirmed\n", instances)
@@ -640,9 +638,9 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 			fmt.Printf("Tx %v sent. hash: %s\n", i+1, txHash)
 		}
 
-		expectedAmount := prevAmount.Uint64() + uint64(instances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderPrime, user.PrimeAddress, func(val *big.Int) bool {
-			return val.Cmp(new(big.Int).SetUint64(expectedAmount)) == 0
+		expectedAmount := prevAmount + uint64(instances)*sendAmount
+		err = cardanofw.WaitForAmount(context.Background(), txProviderPrime, user.PrimeAddress, func(val uint64) bool {
+			return val == expectedAmount
 		}, 20, time.Second*10)
 		require.NoError(t, err)
 	})
@@ -682,9 +680,9 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 		wg.Wait()
 
-		expectedAmount := prevAmount.Uint64() + uint64(instances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderPrime, user.PrimeAddress, func(val *big.Int) bool {
-			return val.Cmp(new(big.Int).SetUint64(expectedAmount)) == 0
+		expectedAmount := prevAmount + uint64(instances)*sendAmount
+		err = cardanofw.WaitForAmount(context.Background(), txProviderPrime, user.PrimeAddress, func(val uint64) bool {
+			return val == expectedAmount
 		}, 100, time.Second*10)
 		require.NoError(t, err)
 		fmt.Printf("%v TXs confirmed\n", instances)
@@ -738,9 +736,9 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 		fmt.Printf("Waiting for %v TXs\n", sequentialInstances*parallelInstances)
 
-		expectedAmount := prevAmount.Uint64() + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val *big.Int) bool {
-			return val.Cmp(new(big.Int).SetUint64(expectedAmount)) == 0
+		expectedAmount := prevAmount + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
+		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+			return val == expectedAmount
 		}, 100, time.Second*10)
 		require.NoError(t, err)
 		fmt.Printf("%v TXs confirmed\n", sequentialInstances*parallelInstances)
@@ -763,7 +761,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 		destinationWalletKeys := make([]wallet.IWallet, receivers)
 		destinationWalletAddresses := make([]string, receivers)
-		destinationWalletPrevAmounts := make([]*big.Int, receivers)
+		destinationWalletPrevAmounts := make([]uint64, receivers)
 
 		for i := 0; i < receivers; i++ {
 			destinationWalletKeys[i], err = wallet.GenerateWallet(false)
@@ -820,9 +818,9 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 			go func(receiverIdx int) {
 				defer wgResult.Done()
 
-				expectedAmount := destinationWalletPrevAmounts[receiverIdx].Uint64() + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
-				err = cardanofw.WaitForAmount(context.Background(), txProviderVector, destinationWalletAddresses[receiverIdx], func(val *big.Int) bool {
-					return val.Cmp(new(big.Int).SetUint64(expectedAmount)) == 0
+				expectedAmount := destinationWalletPrevAmounts[receiverIdx] + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
+				err = cardanofw.WaitForAmount(context.Background(), txProviderVector, destinationWalletAddresses[receiverIdx], func(val uint64) bool {
+					return val == expectedAmount
 				}, 100, time.Second*10)
 				require.NoError(t, err)
 				fmt.Printf("%v receiver, %v TXs confirmed\n", receiverIdx, sequentialInstances*parallelInstances)
@@ -854,9 +852,9 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		fmt.Printf("Waiting for %v TXs on vector\n", instances)
-		expectedAmountOnVector := prevAmountOnVector.Uint64() + uint64(instances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val *big.Int) bool {
-			return val.Cmp(new(big.Int).SetUint64(expectedAmountOnVector)) == 0
+		expectedAmountOnVector := prevAmountOnVector + uint64(instances)*sendAmount
+		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+			return val == expectedAmountOnVector
 		}, 100, time.Second*10)
 		require.NoError(t, err)
 
@@ -866,9 +864,9 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 		fmt.Printf("on vector: prevAmount: %v. newAmount: %v\n", prevAmountOnVector, newAmountOnVector)
 
 		fmt.Printf("Waiting for %v TXs on prime\n", instances)
-		expectedAmountOnPrime := prevAmountOnPrime.Uint64() + uint64(instances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderPrime, user.PrimeAddress, func(val *big.Int) bool {
-			return val.Cmp(new(big.Int).SetUint64(expectedAmountOnPrime)) == 0
+		expectedAmountOnPrime := prevAmountOnPrime + uint64(instances)*sendAmount
+		err = cardanofw.WaitForAmount(context.Background(), txProviderPrime, user.PrimeAddress, func(val uint64) bool {
+			return val == expectedAmountOnPrime
 		}, 100, time.Second*10)
 		require.NoError(t, err)
 
@@ -968,17 +966,17 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 			fmt.Printf("Waiting for %v TXs on vector:\n", sequentialInstances*parallelInstances)
 
-			expectedAmountOnVector := prevAmountOnVector.Uint64() + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
-			err := cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val *big.Int) bool {
-				return val.Cmp(new(big.Int).SetUint64(expectedAmountOnVector)) == 0
+			expectedAmountOnVector := prevAmountOnVector + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
+			err := cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val uint64) bool {
+				return val == expectedAmountOnVector
 			}, 100, time.Second*10)
 			assert.NoError(t, err)
 
 			fmt.Printf("TXs on vector expected amount received: %v\n", err)
 
 			// nothing else should be bridged for 2 minutes
-			err = cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val *big.Int) bool {
-				return val.Cmp(new(big.Int).SetUint64(expectedAmountOnVector)) > 0
+			err = cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val uint64) bool {
+				return val > expectedAmountOnVector
 			}, 12, time.Second*10)
 			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on vector")
 
@@ -991,17 +989,17 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 			fmt.Printf("Waiting for %v TXs on prime\n", sequentialInstances*parallelInstances)
 
-			expectedAmountOnPrime := prevAmountOnPrime.Uint64() + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
-			err := cardanofw.WaitForAmount(ctx, txProviderPrime, user.PrimeAddress, func(val *big.Int) bool {
-				return val.Cmp(new(big.Int).SetUint64(expectedAmountOnPrime)) == 0
+			expectedAmountOnPrime := prevAmountOnPrime + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
+			err := cardanofw.WaitForAmount(ctx, txProviderPrime, user.PrimeAddress, func(val uint64) bool {
+				return val == expectedAmountOnPrime
 			}, 100, time.Second*10)
 			assert.NoError(t, err)
 
 			fmt.Printf("TXs on prime expected amount received: %v\n", err)
 
 			// nothing else should be bridged for 2 minutes
-			err = cardanofw.WaitForAmount(ctx, txProviderPrime, user.PrimeAddress, func(val *big.Int) bool {
-				return val.Cmp(new(big.Int).SetUint64(expectedAmountOnPrime)) > 0
+			err = cardanofw.WaitForAmount(ctx, txProviderPrime, user.PrimeAddress, func(val uint64) bool {
+				return val > expectedAmountOnPrime
 			}, 12, time.Second*10)
 			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on prime")
 
@@ -1111,9 +1109,9 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 			fmt.Printf("Waiting for %v TXs on vector:\n", sequentialInstances*parallelInstances)
 
-			expectedAmountOnVector := prevAmountOnVector.Uint64() + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
-			err := cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val *big.Int) bool {
-				return val.Cmp(new(big.Int).SetUint64(expectedAmountOnVector)) == 0
+			expectedAmountOnVector := prevAmountOnVector + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
+			err := cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val uint64) bool {
+				return val == expectedAmountOnVector
 			}, 100, time.Second*10)
 			assert.NoError(t, err)
 
@@ -1124,8 +1122,8 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 			}
 
 			// nothing else should be bridged for 2 minutes
-			err = cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val *big.Int) bool {
-				return val.Cmp(new(big.Int).SetUint64(expectedAmountOnVector)) > 0
+			err = cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val uint64) bool {
+				return val > expectedAmountOnVector
 			}, 12, time.Second*10)
 			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on vector")
 
@@ -1138,9 +1136,9 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 			fmt.Printf("Waiting for %v TXs on prime\n", sequentialInstances*parallelInstances)
 
-			expectedAmountOnPrime := prevAmountOnPrime.Uint64() + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
-			err := cardanofw.WaitForAmount(ctx, txProviderPrime, user.PrimeAddress, func(val *big.Int) bool {
-				return val.Cmp(new(big.Int).SetUint64(expectedAmountOnPrime)) == 0
+			expectedAmountOnPrime := prevAmountOnPrime + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
+			err := cardanofw.WaitForAmount(ctx, txProviderPrime, user.PrimeAddress, func(val uint64) bool {
+				return val == expectedAmountOnPrime
 			}, 100, time.Second*10)
 			assert.NoError(t, err)
 
@@ -1151,8 +1149,8 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 			}
 
 			// nothing else should be bridged for 2 minutes
-			err = cardanofw.WaitForAmount(ctx, txProviderPrime, user.PrimeAddress, func(val *big.Int) bool {
-				return val.Cmp(new(big.Int).SetUint64(expectedAmountOnPrime)) > 0
+			err = cardanofw.WaitForAmount(ctx, txProviderPrime, user.PrimeAddress, func(val uint64) bool {
+				return val > expectedAmountOnPrime
 			}, 12, time.Second*10)
 			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on prime")
 
@@ -1239,9 +1237,9 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 		fmt.Printf("Waiting for %v TXs on vector:\n", sequentialInstances*parallelInstances)
 
-		expectedAmountOnVector := prevAmountOnVector.Uint64() + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val *big.Int) bool {
-			return val.Cmp(new(big.Int).SetUint64(expectedAmountOnVector)) == 0
+		expectedAmountOnVector := prevAmountOnVector + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
+		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+			return val == expectedAmountOnVector
 		}, 100, time.Second*10)
 		require.NoError(t, err)
 		fmt.Printf("%v TXs on vector confirmed\n", sequentialInstances*parallelInstances)
@@ -1253,9 +1251,9 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 		fmt.Printf("Waiting for %v TXs on prime\n", sequentialInstances*parallelInstances)
 
-		expectedAmountOnPrime := prevAmountOnPrime.Uint64() + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderPrime, user.PrimeAddress, func(val *big.Int) bool {
-			return val.Cmp(new(big.Int).SetUint64(expectedAmountOnPrime)) == 0
+		expectedAmountOnPrime := prevAmountOnPrime + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
+		err = cardanofw.WaitForAmount(context.Background(), txProviderPrime, user.PrimeAddress, func(val uint64) bool {
+			return val == expectedAmountOnPrime
 		}, 100, time.Second*10)
 		require.NoError(t, err)
 		fmt.Printf("%v TXs on prime confirmed\n", sequentialInstances*parallelInstances)
@@ -1376,15 +1374,15 @@ func TestE2E_ApexBridge_ValidScenarios_BigTests(t *testing.T) {
 
 		fmt.Printf("All tx sent, waiting for confirmation.\n")
 
-		expectedAmount := prevAmount.Uint64() + uint64(succeededCount)*sendAmount
+		expectedAmount := prevAmount + uint64(succeededCount)*sendAmount
 
-		var newAmount *big.Int
+		var newAmount uint64
 		for i := 0; i < instances; i++ {
 			newAmount, err = cardanofw.GetTokenAmount(ctx, txProviderVector, user.VectorAddress)
 			require.NoError(t, err)
 			fmt.Printf("Current Amount Prime: %v. Expected: %v\n", newAmount, expectedAmount)
 
-			if newAmount.Uint64() == expectedAmount {
+			if newAmount == expectedAmount {
 				break
 			}
 
@@ -1463,22 +1461,22 @@ func TestE2E_ApexBridge_ValidScenarios_BigTests(t *testing.T) {
 
 		fmt.Printf("All tx sent, waiting for confirmation.\n")
 
-		expectedAmount := prevAmount.Uint64() + uint64(succeededCount)*sendAmount
+		expectedAmount := prevAmount + uint64(succeededCount)*sendAmount
 
-		var newAmount *big.Int
+		var newAmount uint64
 		for i := 0; i < instances; i++ {
 			newAmount, err = cardanofw.GetTokenAmount(ctx, txProviderVector, user.VectorAddress)
 			require.NoError(t, err)
 			fmt.Printf("Current Amount Prime: %v. Expected: %v\n", newAmount, expectedAmount)
 
-			if newAmount.Uint64() == expectedAmount {
+			if newAmount == expectedAmount {
 				break
 			}
 
 			time.Sleep(time.Second * 10)
 		}
 
-		fmt.Printf("Success count: %v. prevAmount: %v. newAmount: %v. expectedAmount: %v\n", succeededCount, prevAmount, newAmount.Uint64(), expectedAmount)
+		fmt.Printf("Success count: %v. prevAmount: %v. newAmount: %v. expectedAmount: %v\n", succeededCount, prevAmount, newAmount, expectedAmount)
 	})
 
 	t.Run("Both directions 1000x 60min 90%", func(t *testing.T) {
@@ -1597,8 +1595,8 @@ func TestE2E_ApexBridge_ValidScenarios_BigTests(t *testing.T) {
 
 		fmt.Printf("All tx sent, waiting for confirmation.\n")
 
-		expectedAmountPrime := prevAmountPrime.Uint64() + uint64(succeededCountPrime)*sendAmount
-		expectedAmountVector := prevAmountVector.Uint64() + uint64(succeededCountVector)*sendAmount
+		expectedAmountPrime := prevAmountPrime + uint64(succeededCountPrime)*sendAmount
+		expectedAmountVector := prevAmountVector + uint64(succeededCountVector)*sendAmount
 
 		for i := 0; i < instances; i++ {
 			newAmountPrime, err := cardanofw.GetTokenAmount(ctx, txProviderVector, user.VectorAddress)
@@ -1609,7 +1607,7 @@ func TestE2E_ApexBridge_ValidScenarios_BigTests(t *testing.T) {
 			require.NoError(t, err)
 			fmt.Printf("Current Amount Vector: %v. Expected: %v\n", newAmountVector, expectedAmountVector)
 
-			if newAmountPrime.Uint64() == expectedAmountPrime && newAmountVector.Uint64() == expectedAmountVector {
+			if newAmountPrime == expectedAmountPrime && newAmountVector == expectedAmountVector {
 				break
 			}
 
