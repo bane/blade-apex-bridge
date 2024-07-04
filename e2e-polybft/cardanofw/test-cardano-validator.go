@@ -129,10 +129,12 @@ func (cv *TestCardanoValidator) RegisterChain(
 	multisigAddr string,
 	multisigFeeAddr string,
 	tokenSupply *big.Int,
+	chainType uint8,
 ) error {
 	return RunCommand(ResolveApexBridgeBinary(), []string{
 		"register-chain",
 		"--chain", chainID,
+		"--type", fmt.Sprint(chainType),
 		"--validator-data-dir", cv.server.DataDir(),
 		"--addr", multisigAddr,
 		"--addr-fee", multisigFeeAddr,

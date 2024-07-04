@@ -20,6 +20,9 @@ import (
 )
 
 const (
+	ChainTypeCardano = iota
+	ChainTypeEVM
+
 	InvalidState = "InvalidRequest"
 
 	retryWait       = time.Millisecond * 1000
