@@ -22,7 +22,11 @@ type BridgingRequestMetadataTransaction struct {
 	Amount  uint64   `cbor:"m" json:"m"`
 }
 
-func NewTestApexUser(t *testing.T) *TestApexUser {
+func NewTestApexUser(
+	t *testing.T,
+	primeNetworkType wallet.CardanoNetworkType,
+	vectorNetworkType wallet.CardanoNetworkType,
+) *TestApexUser {
 	t.Helper()
 
 	primeWallet, err := wallet.GenerateWallet(false)
@@ -31,10 +35,10 @@ func NewTestApexUser(t *testing.T) *TestApexUser {
 	vectorWallet, err := wallet.GenerateWallet(false)
 	require.NoError(t, err)
 
-	primeUserAddress, err := GetAddress(true, primeWallet)
+	primeUserAddress, err := GetAddress(primeNetworkType, primeWallet)
 	require.NoError(t, err)
 
-	vectorUserAddress, err := GetAddress(false, vectorWallet)
+	vectorUserAddress, err := GetAddress(vectorNetworkType, vectorWallet)
 	require.NoError(t, err)
 
 	return &TestApexUser{
@@ -45,7 +49,9 @@ func NewTestApexUser(t *testing.T) *TestApexUser {
 	}
 }
 
-func NewTestApexUserWithExistingWallets(t *testing.T, primePrivateKey, vectorPrivateKey string) *TestApexUser {
+func NewTestApexUserWithExistingWallets(t *testing.T, primePrivateKey, vectorPrivateKey string,
+	primeNetworkType wallet.CardanoNetworkType, vectorNetworkType wallet.CardanoNetworkType,
+) *TestApexUser {
 	t.Helper()
 
 	primePrivateKeyBytes, err := wallet.GetKeyBytes(primePrivateKey)
@@ -59,10 +65,10 @@ func NewTestApexUserWithExistingWallets(t *testing.T, primePrivateKey, vectorPri
 	vectorWallet := wallet.NewWallet(
 		wallet.GetVerificationKeyFromSigningKey(vectorPrivateKeyBytes), vectorPrivateKeyBytes)
 
-	primeUserAddress, err := GetAddress(true, primeWallet)
+	primeUserAddress, err := GetAddress(primeNetworkType, primeWallet)
 	require.NoError(t, err)
 
-	vectorUserAddress, err := GetAddress(false, vectorWallet)
+	vectorUserAddress, err := GetAddress(vectorNetworkType, vectorWallet)
 	require.NoError(t, err)
 
 	return &TestApexUser{
@@ -77,13 +83,12 @@ func (u *TestApexUser) SendToUser(
 	t *testing.T,
 	ctx context.Context, txProvider wallet.ITxProvider,
 	sender wallet.IWallet, sendAmount uint64,
-	isPrime bool,
+	networkConfig TestCardanoNetworkConfig,
 ) {
 	t.Helper()
 
 	addr := u.PrimeAddress
-
-	if !isPrime {
+	if !networkConfig.IsPrime() {
 		addr = u.VectorAddress
 	}
 
@@ -91,7 +96,7 @@ func (u *TestApexUser) SendToUser(
 	require.NoError(t, err)
 
 	_, err = SendTx(ctx, txProvider, sender,
-		sendAmount, addr, isPrime, []byte{})
+		sendAmount, addr, networkConfig, []byte{})
 	require.NoError(t, err)
 
 	err = wallet.WaitForAmount(
@@ -105,7 +110,7 @@ func (u *TestApexUser) SendToAddress(
 	t *testing.T,
 	ctx context.Context, txProvider wallet.ITxProvider,
 	sender wallet.IWallet, sendAmount uint64,
-	receiver string, isPrime bool,
+	receiver string, networkConfig TestCardanoNetworkConfig,
 ) {
 	t.Helper()
 
@@ -113,7 +118,7 @@ func (u *TestApexUser) SendToAddress(
 	require.NoError(t, err)
 
 	_, err = SendTx(ctx, txProvider, sender,
-		sendAmount, receiver, isPrime, []byte{})
+		sendAmount, receiver, networkConfig, []byte{})
 	require.NoError(t, err)
 
 	err = wallet.WaitForAmount(
@@ -126,19 +131,20 @@ func (u *TestApexUser) SendToAddress(
 func (u *TestApexUser) BridgeAmount(
 	t *testing.T, ctx context.Context,
 	txProvider wallet.ITxProvider,
-	multisigAddr, feeAddr string, sendAmount uint64, isPrime bool,
+	multisigAddr, feeAddr string, sendAmount uint64,
+	networkConfig TestCardanoNetworkConfig,
 ) string {
 	t.Helper()
 
 	sender := u.PrimeWallet
 	receiverAddr := u.VectorAddress
 
-	if !isPrime {
+	if !networkConfig.IsPrime() {
 		sender = u.VectorWallet
 		receiverAddr = u.PrimeAddress
 	}
 
-	txHash := BridgeAmountFull(t, ctx, txProvider, isPrime,
+	txHash := BridgeAmountFull(t, ctx, txProvider, networkConfig,
 		multisigAddr, feeAddr, sender, receiverAddr, sendAmount)
 
 	return txHash
@@ -167,19 +173,19 @@ func CreateMetaData(sender string, receivers map[string]uint64, destinationChain
 
 func BridgeAmountFull(
 	t *testing.T, ctx context.Context, txProvider wallet.ITxProvider,
-	isPrime bool, multisigAddr, feeAddr string, sender wallet.IWallet,
+	networkConfig TestCardanoNetworkConfig, multisigAddr, feeAddr string, sender wallet.IWallet,
 	receiverAddr string, sendAmount uint64,
 ) string {
 	t.Helper()
 
 	return BridgeAmountFullMultipleReceivers(
-		t, ctx, txProvider, isPrime, multisigAddr, feeAddr, sender,
+		t, ctx, txProvider, networkConfig, multisigAddr, feeAddr, sender,
 		[]string{receiverAddr}, sendAmount,
 	)
 }
 
 func BridgeAmountFullMultipleReceivers(
-	t *testing.T, ctx context.Context, txProvider wallet.ITxProvider, isPrime bool,
+	t *testing.T, ctx context.Context, txProvider wallet.ITxProvider, networkConfig TestCardanoNetworkConfig,
 	multisigAddr, feeAddr string, sender wallet.IWallet,
 	receiverAddrs []string, sendAmount uint64,
 ) string {
@@ -190,7 +196,7 @@ func BridgeAmountFullMultipleReceivers(
 
 	const feeAmount = 1_100_000
 
-	senderAddr, err := GetAddress(true, sender)
+	senderAddr, err := GetAddress(networkConfig.NetworkType, sender)
 	require.NoError(t, err)
 
 	receivers := make(map[string]uint64, len(receiverAddrs)+1)
@@ -200,11 +206,11 @@ func BridgeAmountFullMultipleReceivers(
 		receivers[receiverAddr] = sendAmount
 	}
 
-	bridgingRequestMetadata, err := CreateMetaData(senderAddr.String(), receivers, GetDestinationChainID(isPrime))
+	bridgingRequestMetadata, err := CreateMetaData(senderAddr.String(), receivers, GetDestinationChainID(networkConfig))
 	require.NoError(t, err)
 
 	txHash, err := SendTx(ctx, txProvider, sender,
-		uint64(len(receiverAddrs))*sendAmount+feeAmount, multisigAddr, isPrime, bridgingRequestMetadata)
+		uint64(len(receiverAddrs))*sendAmount+feeAmount, multisigAddr, networkConfig, bridgingRequestMetadata)
 	require.NoError(t, err)
 
 	err = wallet.WaitForTxHashInUtxos(

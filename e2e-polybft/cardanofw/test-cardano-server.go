@@ -102,7 +102,7 @@ func (t TestCardanoServer) ID() int {
 
 func (t TestCardanoServer) SocketPath() string {
 	// socketPath handle for windows \\.\pipe\
-	return fmt.Sprintf("%s/node.sock", t.config.NodeDir)
+	return fmt.Sprintf("%s/node.socket", t.config.NodeDir)
 }
 
 func (t TestCardanoServer) Port() int {

@@ -10,6 +10,7 @@ import (
 )
 
 type TestOgmiosServerConfig struct {
+	ID         int
 	ConfigFile string
 	NetworkID  wallet.CardanoNetworkType
 	Port       int

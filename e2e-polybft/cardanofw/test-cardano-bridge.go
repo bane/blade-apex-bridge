@@ -109,7 +109,9 @@ func NewTestCardanoBridge(
 	return bridge
 }
 
-func (cb *TestCardanoBridge) CardanoCreateWalletsAndAddresses() error {
+func (cb *TestCardanoBridge) CardanoCreateWalletsAndAddresses(
+	primeNetworkConfig TestCardanoNetworkConfig, vectorNetworkConfig TestCardanoNetworkConfig,
+) error {
 	if err := cb.cardanoCreateWallets(); err != nil {
 		return err
 	}
@@ -118,7 +120,7 @@ func (cb *TestCardanoBridge) CardanoCreateWalletsAndAddresses() error {
 		return err
 	}
 
-	return cb.cardanoCreateAddresses()
+	return cb.cardanoCreateAddresses(primeNetworkConfig, vectorNetworkConfig)
 }
 
 func (cb *TestCardanoBridge) StartValidators(t *testing.T, epochSize int) {
@@ -186,10 +188,8 @@ func (cb *TestCardanoBridge) RegisterChains(
 }
 
 func (cb *TestCardanoBridge) GenerateConfigs(
-	primeNetworkAddress string,
-	primeOgmiosURL string,
-	vectorNetworkAddress string,
-	vectorOgmiosURL string,
+	primeCluster *TestCardanoCluster,
+	vectorCluster *TestCardanoCluster,
 ) error {
 	errs := make([]error, len(cb.validators))
 	wg := sync.WaitGroup{}
@@ -206,15 +206,15 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 			}
 
 			errs[indx] = validator.GenerateConfigs(
-				primeNetworkAddress,
-				GetNetworkMagic(true),
-				uint(GetNetworkID(true)),
-				primeOgmiosURL,
+				primeCluster.NetworkURL(),
+				primeCluster.Config.NetworkMagic,
+				uint(primeCluster.Config.NetworkType),
+				primeCluster.OgmiosURL(),
 				cb.primeTTLInc,
-				vectorNetworkAddress,
-				GetNetworkMagic(false),
-				uint(GetNetworkID(false)),
-				vectorOgmiosURL,
+				vectorCluster.NetworkURL(),
+				vectorCluster.Config.NetworkMagic,
+				uint(vectorCluster.Config.NetworkType),
+				vectorCluster.OgmiosURL(),
 				cb.vectorTTLInc,
 				cb.apiPortStart+indx,
 				cb.apiKey,
@@ -321,7 +321,9 @@ func (cb *TestCardanoBridge) cardanoPrepareKeys() (err error) {
 	return err
 }
 
-func (cb *TestCardanoBridge) cardanoCreateAddresses() error {
+func (cb *TestCardanoBridge) cardanoCreateAddresses(
+	primeNetworkConfig TestCardanoNetworkConfig, vectorNetworkConfig TestCardanoNetworkConfig,
+) error {
 	errs := make([]error, 4)
 	wg := sync.WaitGroup{}
 
@@ -330,25 +332,25 @@ func (cb *TestCardanoBridge) cardanoCreateAddresses() error {
 	go func() {
 		defer wg.Done()
 
-		cb.PrimeMultisigAddr, errs[0] = cb.cardanoCreateAddress(GetNetworkID(true), cb.primeMultisigKeys)
+		cb.PrimeMultisigAddr, errs[0] = cb.cardanoCreateAddress(primeNetworkConfig.NetworkType, cb.primeMultisigKeys)
 	}()
 
 	go func() {
 		defer wg.Done()
 
-		cb.PrimeMultisigFeeAddr, errs[1] = cb.cardanoCreateAddress(GetNetworkID(true), cb.primeMultisigFeeKeys)
+		cb.PrimeMultisigFeeAddr, errs[1] = cb.cardanoCreateAddress(primeNetworkConfig.NetworkType, cb.primeMultisigFeeKeys)
 	}()
 
 	go func() {
 		defer wg.Done()
 
-		cb.VectorMultisigAddr, errs[2] = cb.cardanoCreateAddress(GetNetworkID(false), cb.vectorMultisigKeys)
+		cb.VectorMultisigAddr, errs[2] = cb.cardanoCreateAddress(vectorNetworkConfig.NetworkType, cb.vectorMultisigKeys)
 	}()
 
 	go func() {
 		defer wg.Done()
 
-		cb.VectorMultisigFeeAddr, errs[3] = cb.cardanoCreateAddress(GetNetworkID(false), cb.vectorMultisigFeeKeys)
+		cb.VectorMultisigFeeAddr, errs[3] = cb.cardanoCreateAddress(vectorNetworkConfig.NetworkType, cb.vectorMultisigFeeKeys)
 	}()
 
 	wg.Wait()

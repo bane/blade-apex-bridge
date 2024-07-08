@@ -330,34 +330,36 @@ func IsRecoverableError(err error) bool {
 	return strings.Contains(err.Error(), "status code 500")
 }
 
-func GetDestinationChainID(isSourcePrime bool) string {
-	if isSourcePrime {
+func GetDestinationChainID(networkConfig TestCardanoNetworkConfig) string {
+	if networkConfig.IsPrime() {
 		return "vector"
 	}
 
 	return "prime"
 }
 
-func GetNetworkID(isSourcePrime bool) wallet.CardanoNetworkType {
-	// if isSourcePrime { return wallet.TestNetNetwork } return wallet.VectorTestNetNetwork with apex cardano-node
-	return wallet.TestNetNetwork
-}
-
-func GetNetworkMagic(isSourcePrime bool) uint {
-	if isSourcePrime {
-		return 3311
+func GetNetworkMagic(networkType wallet.CardanoNetworkType) uint {
+	switch networkType {
+	case wallet.VectorTestNetNetwork:
+		return wallet.VectorTestNetProtocolMagic
+	case wallet.VectorMainNetNetwork:
+		return wallet.VectorMainNetProtocolMagic
+	case wallet.MainNetNetwork:
+		return wallet.PrimeMainNetProtocolMagic
+	case wallet.TestNetNetwork:
+		return wallet.PrimeTestNetProtocolMagic
+	default:
+		return 0
 	}
-
-	return 1127
 }
 
-func GetAddress(isSourcePrime bool, cardanoWallet wallet.IWallet) (wallet.CardanoAddress, error) {
+func GetAddress(networkType wallet.CardanoNetworkType, cardanoWallet wallet.IWallet) (wallet.CardanoAddress, error) {
 	if len(cardanoWallet.GetStakeVerificationKey()) > 0 {
-		return wallet.NewBaseAddress(GetNetworkID(isSourcePrime),
+		return wallet.NewBaseAddress(networkType,
 			cardanoWallet.GetVerificationKey(), cardanoWallet.GetStakeVerificationKey())
 	}
 
-	return wallet.NewEnterpriseAddress(GetNetworkID(isSourcePrime), cardanoWallet.GetVerificationKey())
+	return wallet.NewEnterpriseAddress(networkType, cardanoWallet.GetVerificationKey())
 }
 
 func GetTestNetMagicArgs(testnetMagic uint) []string {

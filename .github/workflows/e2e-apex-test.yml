@@ -44,6 +44,25 @@ jobs:
         uses: milos-ethernal/cardano-node-action@5a3bce7266cc1500d96e8fa63b3bb97135988482
       - name: Install ogmios
         uses: milos-ethernal/ogmios-action@13e2be0b00da80f26bb8583fa129bd7c08856a49
+      - name: Install Vector Cardano binaries
+        run: |
+          wget https://artifacts.apexfusion.org/vector-node-beta-8.9.3.0.0.0.0.5-linux.tar.gz
+          tar xvzf vector-node-beta-8.9.3.0.0.0.0.5-linux.tar.gz
+          sudo mv bin/vector-node /usr/local/bin/
+          sudo mv bin/vector-cli /usr/local/bin/
+      - name: Install Vector Ogmios binaries
+        run: |
+          wget https://artifacts.apexfusion.org/vector-ogmios-v6.2.0-x86_64-linux.tar.gz
+          tar xvzf vector-ogmios-v6.2.0-x86_64-linux.tar.gz
+          sudo mv vector-ogmios-v6.2.0-x86_64-linux/bin/vector-ogmios /usr/local/bin/
+          sudo rm -rf vector-ogmios-v6.2.0-x86_64-linux
+      - name: Display Vector Cardano version
+        run: |
+          echo "Vector Cardano Node version: $(vector-node version)"
+          echo "Vector Cardano CLI version: $(vector-cli version)"
+      - name: Display Vector Ogmios version
+        run: |
+          echo "Vector Ogmios version: $(vector-ogmios version)"
       - name: Checkout apex-bridge repo
         uses: actions/checkout@v4.1.1
         with:
