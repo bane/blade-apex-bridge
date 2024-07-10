@@ -149,11 +149,13 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 	primeNetworkMagic uint,
 	primeNetworkID uint,
 	primeOgmiosURL string,
+	primeSlotRoundingThreshold uint64,
 	primeTTLInc uint64,
 	vectorNetworkAddress string,
 	vectorNetworkMagic uint,
 	vectorNetworkID uint,
 	vectorOgmiosURL string,
+	vectorSlotRoundingThreshold uint64,
 	vectorTTLInc uint64,
 	apiPort int,
 	apiKey string,
@@ -194,6 +196,14 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 		args = append(args,
 			"--vector-ttl-slot-inc", fmt.Sprint(vectorTTLInc),
 		)
+	}
+
+	if primeSlotRoundingThreshold > 0 {
+		args = append(args, "--prime-slot-rounding-threshold", fmt.Sprint(primeSlotRoundingThreshold))
+	}
+
+	if vectorSlotRoundingThreshold > 0 {
+		args = append(args, "--vector-slot-rounding-threshold", fmt.Sprint(vectorSlotRoundingThreshold))
 	}
 
 	return RunCommand(ResolveApexBridgeBinary(), args, os.Stdout)

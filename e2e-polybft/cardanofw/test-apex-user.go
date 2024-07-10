@@ -150,7 +150,9 @@ func (u *TestApexUser) BridgeAmount(
 	return txHash
 }
 
-func CreateMetaData(sender string, receivers map[string]uint64, destinationChainID string) ([]byte, error) {
+func CreateMetaData(
+	sender string, receivers map[string]uint64, destinationChainID string, feeAmount uint64,
+) ([]byte, error) {
 	var transactions = make([]BridgingRequestMetadataTransaction, 0, len(receivers))
 	for addr, amount := range receivers {
 		transactions = append(transactions, BridgingRequestMetadataTransaction{
@@ -165,6 +167,7 @@ func CreateMetaData(sender string, receivers map[string]uint64, destinationChain
 			"d":  destinationChainID,
 			"s":  SplitString(sender, 40),
 			"tx": transactions,
+			"fa": feeAmount,
 		},
 	}
 
@@ -199,14 +202,13 @@ func BridgeAmountFullMultipleReceivers(
 	senderAddr, err := GetAddress(networkConfig.NetworkType, sender)
 	require.NoError(t, err)
 
-	receivers := make(map[string]uint64, len(receiverAddrs)+1)
-	receivers[feeAddr] = feeAmount
-
+	receivers := make(map[string]uint64, len(receiverAddrs))
 	for _, receiverAddr := range receiverAddrs {
 		receivers[receiverAddr] = sendAmount
 	}
 
-	bridgingRequestMetadata, err := CreateMetaData(senderAddr.String(), receivers, GetDestinationChainID(networkConfig))
+	bridgingRequestMetadata, err := CreateMetaData(
+		senderAddr.String(), receivers, GetDestinationChainID(networkConfig), feeAmount)
 	require.NoError(t, err)
 
 	txHash, err := SendTx(ctx, txProvider, sender,
