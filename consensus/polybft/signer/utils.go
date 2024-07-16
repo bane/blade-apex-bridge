@@ -21,6 +21,7 @@ const (
 	DomainCheckpointManagerString = "DOMAIN_CHECKPOINT_MANAGER"
 	DomainCommonSigningString     = "DOMAIN_COMMON_SIGNING"
 	DomainStateReceiverString     = "DOMAIN_STATE_RECEIVER"
+	DomainApexBridgeEVMString     = "DOMAIN_APEX_BRIDGE_EVM"
 )
 
 var (
@@ -32,6 +33,7 @@ var (
 
 	DomainCommonSigning = crypto.Keccak256([]byte(DomainCommonSigningString))
 	DomainStateReceiver = crypto.Keccak256([]byte(DomainStateReceiverString))
+	DomainApexBridgeEVM = crypto.Keccak256([]byte(DomainApexBridgeEVMString))
 )
 
 // MakeKOSKSignature creates KOSK signature which prevents rogue attack

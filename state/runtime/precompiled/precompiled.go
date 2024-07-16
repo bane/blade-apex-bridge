@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/0xPolygon/polygon-edge/chain"
+	"github.com/0xPolygon/polygon-edge/consensus/polybft/signer"
 	"github.com/0xPolygon/polygon-edge/contracts"
 	"github.com/0xPolygon/polygon-edge/helper/common"
 	"github.com/0xPolygon/polygon-edge/state/runtime"
@@ -82,6 +83,11 @@ func (p *Precompiled) setupContracts() {
 
 	// CardanoVerifySignature precompile
 	p.register(contracts.CardanoVerifySignaturePrecompile.String(), &cardanoVerifySignaturePrecompile{})
+
+	// APEX BLS signatures verification precompile
+	p.register(contracts.ApexBLSSignaturesVerificationPrecompile.String(), &apexBLSSignatureVerification{
+		domain: signer.DomainApexBridgeEVM,
+	})
 }
 
 func (p *Precompiled) register(precompileAddrRaw string, b contract) {
