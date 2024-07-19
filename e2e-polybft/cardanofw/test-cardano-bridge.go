@@ -24,7 +24,6 @@ const (
 
 	BridgeSCAddr = "0xABEF000000000000000000000000000000000000"
 
-	RunAPIOnValidatorID     = 1
 	RunRelayerOnValidatorID = 1
 )
 
@@ -57,6 +56,14 @@ type TestCardanoBridge struct {
 	vectorSlotRoundingThreshold uint64
 	primeTTLInc                 uint64
 	primeSlotRoundingThreshold  uint64
+
+	apiValidatorID int // -1 all validators
+}
+
+func WithAPIValidatorID(apiValidatorID int) CardanoBridgeOption {
+	return func(h *TestCardanoBridge) {
+		h.apiValidatorID = apiValidatorID
+	}
 }
 
 func WithAPIPortStart(apiPortStart int) CardanoBridgeOption {
@@ -94,6 +101,11 @@ func WithTelemetryConfig(tc string) CardanoBridgeOption {
 func NewTestCardanoBridge(
 	dataDirPath string, validatorCount int, opts ...CardanoBridgeOption,
 ) *TestCardanoBridge {
+	const (
+		apiPortStart = 40000
+		apiKey       = "test_api_key"
+	)
+
 	validators := make([]*TestCardanoValidator, validatorCount)
 
 	for i := 0; i < validatorCount; i++ {
@@ -104,6 +116,9 @@ func NewTestCardanoBridge(
 		dataDirPath:    dataDirPath,
 		validatorCount: validatorCount,
 		validators:     validators,
+		apiValidatorID: 1,
+		apiPortStart:   apiPortStart,
+		apiKey:         apiKey,
 	}
 
 	for _, opt := range opts {
@@ -157,6 +172,10 @@ func (cb *TestCardanoBridge) StopValidators() {
 	if cb.cluster != nil {
 		cb.cluster.Stop()
 	}
+}
+
+func (cb *TestCardanoBridge) GetValidatorsCount() int {
+	return len(cb.validators)
 }
 
 func (cb *TestCardanoBridge) RegisterChains(
@@ -236,7 +255,9 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 
 func (cb *TestCardanoBridge) StartValidatorComponents(ctx context.Context) (err error) {
 	for _, validator := range cb.validators {
-		if err = validator.Start(ctx, RunAPIOnValidatorID == validator.ID); err != nil {
+		hasAPI := cb.apiValidatorID == -1 || validator.ID == cb.apiValidatorID
+
+		if err = validator.Start(ctx, hasAPI); err != nil {
 			return err
 		}
 	}
@@ -271,17 +292,32 @@ func (cb TestCardanoBridge) StopRelayer() error {
 }
 
 func (cb *TestCardanoBridge) GetBridgingAPI() (string, error) {
+	apis, err := cb.GetBridgingAPIs()
+	if err != nil {
+		return "", err
+	}
+
+	return apis[0], nil
+}
+
+func (cb *TestCardanoBridge) GetBridgingAPIs() (res []string, err error) {
 	for _, validator := range cb.validators {
-		if validator.ID == RunAPIOnValidatorID {
+		hasAPI := cb.apiValidatorID == -1 || validator.ID == cb.apiValidatorID
+
+		if hasAPI {
 			if validator.APIPort == 0 {
-				return "", fmt.Errorf("api port not defined")
+				return nil, fmt.Errorf("api port not defined")
 			}
 
-			return fmt.Sprintf("http://localhost:%d", validator.APIPort), nil
+			res = append(res, fmt.Sprintf("http://localhost:%d", validator.APIPort))
 		}
 	}
 
-	return "", fmt.Errorf("not running API")
+	if len(res) == 0 {
+		return nil, fmt.Errorf("not running API")
+	}
+
+	return res, nil
 }
 
 func (cb *TestCardanoBridge) cardanoCreateWallets() (err error) {

@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const FundTokenAmount = uint64(100_000_000_000)
+
 type ApexSystem struct {
 	PrimeCluster  *TestCardanoCluster
 	VectorCluster *TestCardanoCluster
@@ -152,12 +154,9 @@ func SetupAndRunApexBridge(
 	t.Helper()
 
 	const (
-		sendAmount     = uint64(100_000_000_000)
 		bladeEpochSize = 5
 		numOfRetries   = 90
 		waitTime       = time.Second * 2
-		apiPort        = 40000
-		apiKey         = "test_api_key"
 	)
 
 	cleanupDataDir := func() {
@@ -165,11 +164,6 @@ func SetupAndRunApexBridge(
 	}
 
 	cleanupDataDir()
-
-	opts = append(opts,
-		WithAPIPortStart(apiPort),
-		WithAPIKey(apiKey),
-	)
 
 	cb := NewTestCardanoBridge(dataDir, bladeValidatorsNum, opts...)
 
@@ -194,23 +188,23 @@ func SetupAndRunApexBridge(
 	primeGenesisWallet, err := GetGenesisWalletFromCluster(primeCluster.Config.TmpDir, 1)
 	require.NoError(t, err)
 
-	_, err = SendTx(ctx, txProviderPrime, primeGenesisWallet, sendAmount,
+	_, err = SendTx(ctx, txProviderPrime, primeGenesisWallet, FundTokenAmount,
 		cb.PrimeMultisigAddr, primeCluster.NetworkConfig(), []byte{})
 	require.NoError(t, err)
 
 	err = wallet.WaitForAmount(context.Background(), txProviderPrime, cb.PrimeMultisigAddr, func(val uint64) bool {
-		return val == sendAmount
+		return val == FundTokenAmount
 	}, numOfRetries, waitTime, IsRecoverableError)
 	require.NoError(t, err)
 
 	fmt.Printf("Prime multisig addr funded\n")
 
-	_, err = SendTx(ctx, txProviderPrime, primeGenesisWallet, sendAmount,
+	_, err = SendTx(ctx, txProviderPrime, primeGenesisWallet, FundTokenAmount,
 		cb.PrimeMultisigFeeAddr, primeCluster.NetworkConfig(), []byte{})
 	require.NoError(t, err)
 
 	err = wallet.WaitForAmount(context.Background(), txProviderPrime, cb.PrimeMultisigFeeAddr, func(val uint64) bool {
-		return val == sendAmount
+		return val == FundTokenAmount
 	}, numOfRetries, waitTime, IsRecoverableError)
 	require.NoError(t, err)
 
@@ -219,23 +213,23 @@ func SetupAndRunApexBridge(
 	vectorGenesisWallet, err := GetGenesisWalletFromCluster(vectorCluster.Config.TmpDir, 1)
 	require.NoError(t, err)
 
-	_, err = SendTx(ctx, txProviderVector, vectorGenesisWallet, sendAmount,
+	_, err = SendTx(ctx, txProviderVector, vectorGenesisWallet, FundTokenAmount,
 		cb.VectorMultisigAddr, vectorCluster.NetworkConfig(), []byte{})
 	require.NoError(t, err)
 
 	err = wallet.WaitForAmount(context.Background(), txProviderVector, cb.VectorMultisigAddr, func(val uint64) bool {
-		return val == sendAmount
+		return val == FundTokenAmount
 	}, numOfRetries, waitTime, IsRecoverableError)
 	require.NoError(t, err)
 
 	fmt.Printf("Vector multisig addr funded\n")
 
-	_, err = SendTx(ctx, txProviderVector, vectorGenesisWallet, sendAmount,
+	_, err = SendTx(ctx, txProviderVector, vectorGenesisWallet, FundTokenAmount,
 		cb.VectorMultisigFeeAddr, vectorCluster.NetworkConfig(), []byte{})
 	require.NoError(t, err)
 
 	err = wallet.WaitForAmount(context.Background(), txProviderVector, cb.VectorMultisigFeeAddr, func(val uint64) bool {
-		return val == sendAmount
+		return val == FundTokenAmount
 	}, numOfRetries, waitTime, IsRecoverableError)
 	require.NoError(t, err)
 
@@ -250,8 +244,8 @@ func SetupAndRunApexBridge(
 	fmt.Printf("Validators ready\n")
 
 	// need params for it to work properly
-	primeTokenSupply := big.NewInt(int64(sendAmount))
-	vectorTokenSupply := big.NewInt(int64(sendAmount))
+	primeTokenSupply := new(big.Int).SetUint64(FundTokenAmount)
+	vectorTokenSupply := new(big.Int).SetUint64(FundTokenAmount)
 	require.NoError(t, cb.RegisterChains(primeTokenSupply, vectorTokenSupply))
 
 	fmt.Printf("Chain registered\n")

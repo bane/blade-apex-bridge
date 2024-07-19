@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Ethernal-Tech/cardano-infrastructure/indexer"
 	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 )
@@ -249,30 +250,40 @@ func WaitForInvalidState(t *testing.T, ctx context.Context, apiURL string, apiKe
 func GetBridgingRequestState(ctx context.Context, requestURL string, apiKey string) (
 	*BridgingRequestStateResponse, error,
 ) {
+	return GetAPIRequestGeneric[*BridgingRequestStateResponse](ctx, requestURL, apiKey)
+}
+
+func GetOracleState(ctx context.Context, requestURL string, apiKey string) (
+	*OracleStateResponse, error,
+) {
+	return GetAPIRequestGeneric[*OracleStateResponse](ctx, requestURL, apiKey)
+}
+
+func GetAPIRequestGeneric[T any](ctx context.Context, requestURL string, apiKey string) (t T, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
-		return nil, err
+		return t, err
 	}
 
 	req.Header.Set("X-API-KEY", apiKey)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return t, err
 	} else if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http status for %s code is %d", requestURL, resp.StatusCode)
+		return t, fmt.Errorf("http status for %s code is %d", requestURL, resp.StatusCode)
 	}
 
 	resBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return t, err
 	}
 
-	var responseModel *BridgingRequestStateResponse
+	var responseModel T
 
 	err = json.Unmarshal(resBody, &responseModel)
 	if err != nil {
-		return nil, err
+		return t, err
 	}
 
 	return responseModel, nil
@@ -284,6 +295,12 @@ type BridgingRequestStateResponse struct {
 	DestinationChainID string `json:"destinationChainId"`
 	Status             string `json:"status"`
 	DestinationTxHash  string `json:"destinationTxHash"`
+}
+
+type OracleStateResponse struct {
+	ChainID string                              `json:"chainID"`
+	Utxos   map[string][]*indexer.TxInputOutput `json:"utxos"`
+	Point   *indexer.BlockPoint                 `json:"point"`
 }
 
 // GetTokenAmount returns token amount for address

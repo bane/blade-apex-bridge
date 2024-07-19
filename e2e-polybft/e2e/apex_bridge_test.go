@@ -101,6 +101,77 @@ func TestE2E_ApexBridge_DoNothingWithSpecificUser(t *testing.T) {
 	time.Sleep(time.Second * 60 * 60) // one hour sleep :)
 }
 
+func TestE2E_ApexBridge_CardanoOracleState(t *testing.T) {
+	const (
+		apiKey = "my_api_key"
+	)
+
+	ctx, cncl := context.WithTimeout(context.Background(), time.Second*180)
+	defer cncl()
+
+	apex := cardanofw.RunApexBridge(t, ctx, cardanofw.WithAPIKey(apiKey), cardanofw.WithAPIValidatorID(-1))
+
+	apiURLs, err := apex.Bridge.GetBridgingAPIs()
+	require.NoError(t, err)
+
+	require.Equal(t, apex.Bridge.GetValidatorsCount(), len(apiURLs))
+
+	ticker := time.NewTicker(time.Second * 4)
+	defer ticker.Stop()
+
+	goodOraclesCount := 0
+
+	for goodOraclesCount < apex.Bridge.GetValidatorsCount() {
+		select {
+		case <-ctx.Done():
+			t.Fatal("timeout")
+		case <-ticker.C:
+		}
+
+		goodOraclesCount = 0
+
+	outerLoop:
+		for _, apiURL := range apiURLs {
+			for _, chainID := range []string{"vector", "prime"} {
+				requestURL := fmt.Sprintf("%s/api/OracleState/Get?chainId=%s", apiURL, chainID)
+
+				currentState, err := cardanofw.GetOracleState(ctx, requestURL, apiKey)
+				if err != nil || currentState == nil {
+					continue
+				}
+
+				multisigAddr, feeAddr := "", ""
+				sumMultisig, sumFee := uint64(0), uint64(0)
+
+				switch chainID {
+				case "prime":
+					multisigAddr, feeAddr = apex.Bridge.PrimeMultisigAddr, apex.Bridge.PrimeMultisigFeeAddr
+				case "vector":
+					multisigAddr, feeAddr = apex.Bridge.VectorMultisigAddr, apex.Bridge.VectorMultisigFeeAddr
+				}
+
+				for _, utxo := range currentState.Utxos[multisigAddr] {
+					sumMultisig += utxo.Output.Amount
+				}
+
+				for _, utxo := range currentState.Utxos[feeAddr] {
+					sumFee += utxo.Output.Amount
+				}
+
+				if sumMultisig != 0 || sumFee != 0 {
+					fmt.Printf("%s sums: %d, %d\n", requestURL, sumMultisig, sumFee)
+				}
+
+				if sumMultisig != cardanofw.FundTokenAmount || sumFee != cardanofw.FundTokenAmount {
+					break outerLoop
+				} else {
+					goodOraclesCount++
+				}
+			}
+		}
+	}
+}
+
 func TestE2E_ApexBridge(t *testing.T) {
 	ctx, cncl := context.WithTimeout(context.Background(), time.Second*180)
 	defer cncl()
