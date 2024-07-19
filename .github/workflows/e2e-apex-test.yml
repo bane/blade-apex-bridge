@@ -67,7 +67,7 @@ jobs:
         uses: actions/checkout@v4.1.1
         with:
           repository: Ethernal-Tech/apex-bridge
-          ref: feat/APEX-271-api-utxos-endpoint
+          ref: main
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
       - name: Build apex-bridge
         run: |

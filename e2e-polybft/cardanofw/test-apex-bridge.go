@@ -32,6 +32,7 @@ type CardanoChainConfig struct {
 func SetupAndRunApexCardanoChains(
 	t *testing.T,
 	ctx context.Context,
+	cardanoNodesNum int,
 	cardanoConfigs []CardanoChainConfig,
 ) []*TestCardanoCluster {
 	t.Helper()
@@ -76,7 +77,7 @@ func SetupAndRunApexCardanoChains(
 		go func(id int) {
 			defer wg.Done()
 
-			clusters[id], clErrors[id] = RunCardanoCluster(t, ctx, id,
+			clusters[id], clErrors[id] = RunCardanoCluster(t, ctx, id, cardanoNodesNum,
 				cardanoConfigs[id].NetworkType, cardanoConfigs[id].GenesisConfigDir,
 				baseLogsDir)
 		}(i)
@@ -95,6 +96,7 @@ func RunCardanoCluster(
 	t *testing.T,
 	ctx context.Context,
 	id int,
+	cardanoNodesNum int,
 	networkType wallet.CardanoNetworkType,
 	genesisConfigDir string,
 	baseLogsDir string,
@@ -110,7 +112,7 @@ func RunCardanoCluster(
 
 	cluster, err := NewCardanoTestCluster(t,
 		WithID(id+1),
-		WithNodesCount(4),
+		WithNodesCount(cardanoNodesNum),
 		WithStartTimeDelay(time.Second*5),
 		WithPort(5100+id*100),
 		WithOgmiosPort(1337+id),
@@ -274,10 +276,11 @@ func RunApexBridge(
 	t.Helper()
 
 	const (
+		cardanoNodesNum    = 4
 		bladeValidatorsNum = 4
 	)
 
-	clusters := SetupAndRunApexCardanoChains(t, ctx, []CardanoChainConfig{
+	clusters := SetupAndRunApexCardanoChains(t, ctx, cardanoNodesNum, []CardanoChainConfig{
 		{NetworkType: wallet.TestNetNetwork, GenesisConfigDir: "prime"},
 		{NetworkType: wallet.VectorTestNetNetwork, GenesisConfigDir: "vector"},
 	})

@@ -48,9 +48,10 @@ type TestCardanoBridge struct {
 
 	cluster *framework.TestCluster
 
-	apiPortStart    int
-	apiKey          string
-	telemetryConfig string
+	apiPortStart                  int
+	apiKey                        string
+	telemetryConfig               string
+	targetOneCardanoClusterServer bool
 
 	vectorTTLInc                uint64
 	vectorSlotRoundingThreshold uint64
@@ -95,6 +96,12 @@ func WithPrimeTTL(threshold, ttlInc uint64) CardanoBridgeOption {
 func WithTelemetryConfig(tc string) CardanoBridgeOption {
 	return func(h *TestCardanoBridge) {
 		h.telemetryConfig = tc // something like "0.0.0.0:5001,localhost:8126"
+	}
+}
+
+func WithTargetOneCardanoClusterServer(targetOneCardanoClusterServer bool) CardanoBridgeOption {
+	return func(h *TestCardanoBridge) {
+		h.targetOneCardanoClusterServer = targetOneCardanoClusterServer
 	}
 }
 
@@ -228,16 +235,43 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 				telemetryConfig = cb.telemetryConfig
 			}
 
+			var (
+				primeNetworkURL    string
+				vectorNetworkURL   string
+				primeNetworkMagic  uint
+				vectorNetworkMagic uint
+				primeNetworkID     uint
+				vectorNetworkID    uint
+			)
+
+			if cb.targetOneCardanoClusterServer {
+				primeNetworkURL = primeCluster.NetworkURL()
+				vectorNetworkURL = vectorCluster.NetworkURL()
+				primeNetworkMagic = primeCluster.Config.NetworkMagic
+				vectorNetworkMagic = vectorCluster.Config.NetworkMagic
+				primeNetworkID = uint(primeCluster.Config.NetworkType)
+				vectorNetworkID = uint(vectorCluster.Config.NetworkType)
+			} else {
+				primeServer := primeCluster.Servers[indx%len(primeCluster.Servers)]
+				vectorServer := vectorCluster.Servers[indx%len(vectorCluster.Servers)]
+				primeNetworkURL = primeServer.NetworkURL()
+				vectorNetworkURL = vectorServer.NetworkURL()
+				primeNetworkMagic = primeServer.config.NetworkMagic
+				vectorNetworkMagic = vectorServer.config.NetworkMagic
+				primeNetworkID = uint(primeServer.config.NetworkID)
+				vectorNetworkID = uint(vectorServer.config.NetworkID)
+			}
+
 			errs[indx] = validator.GenerateConfigs(
-				primeCluster.NetworkURL(),
-				primeCluster.Config.NetworkMagic,
-				uint(primeCluster.Config.NetworkType),
+				primeNetworkURL,
+				primeNetworkMagic,
+				primeNetworkID,
 				primeCluster.OgmiosURL(),
 				cb.primeSlotRoundingThreshold,
 				cb.primeTTLInc,
-				vectorCluster.NetworkURL(),
-				vectorCluster.Config.NetworkMagic,
-				uint(vectorCluster.Config.NetworkType),
+				vectorNetworkURL,
+				vectorNetworkMagic,
+				vectorNetworkID,
 				vectorCluster.OgmiosURL(),
 				cb.vectorSlotRoundingThreshold,
 				cb.vectorTTLInc,

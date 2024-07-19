@@ -113,6 +113,10 @@ func (t TestCardanoServer) URL() string {
 	return fmt.Sprintf("localhost:%d", t.config.Port)
 }
 
+func (c *TestCardanoServer) NetworkURL() string {
+	return fmt.Sprintf("http://localhost:%d", c.config.Port)
+}
+
 func (t TestCardanoServer) getTxProvider() cardanowallet.ITxProvider {
 	if t.txProvider == nil {
 		txProvider, err := cardanowallet.NewTxProviderCli(
