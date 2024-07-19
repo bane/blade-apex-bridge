@@ -121,6 +121,13 @@ update-apex-contracts:
 	go run consensus/polybft/contractsapi/apex-artifacts-gen/main.go && \
 	go run consensus/polybft/contractsapi/bindings-gen/main.go
 
+.PHONY: update-nexus-contracts
+update-nexus-contracts:
+	# TODO
+	# git submodule update --remote --init apex-bridge-smartcontracts && \
+	# cd apex-bridge-smartcontracts/ && npm i && npx hardhat compile && cd .. && \
+	go run consensus/polybft/contractsapi/nexus-artifacts-gen/main.go
+
 .PHONY: help
 help:
 	@echo "Available targets:"

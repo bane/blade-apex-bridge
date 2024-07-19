@@ -56,7 +56,7 @@ const (
 	bridgeBlockListEnabledFlag           = "bridge-block-list-enabled"
 	bladeAdminFlag                       = "blade-admin"
 
-	bootnodePortStart = 30301
+	bootnodePortStart = 30300
 
 	ecdsaAddressLength = 40
 	blsKeyLength       = 256
@@ -117,7 +117,7 @@ func (p *genesisParams) generateChainConfig(o command.OutputFormatter) (*chain.C
 		rewardTokenAddr = contracts.RewardTokenContract
 	}
 
-	initialValidators, err := p.getValidatorAccounts()
+	initialValidators, err := p.getValidatorAccounts(p.bootnodeStartingPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve genesis validators: %w", err)
 	}
@@ -568,7 +568,7 @@ func (p *genesisParams) deployContracts(rewardTokenByteCode []byte,
 }
 
 // getValidatorAccounts gathers validator accounts info either from CLI or from provided local storage
-func (p *genesisParams) getValidatorAccounts() ([]*validator.GenesisValidator, error) {
+func (p *genesisParams) getValidatorAccounts(startingPort int64) ([]*validator.GenesisValidator, error) {
 	// populate validators premine info
 	if len(p.validators) > 0 {
 		validators := make([]*validator.GenesisValidator, len(p.validators))
@@ -623,7 +623,7 @@ func (p *genesisParams) getValidatorAccounts() ([]*validator.GenesisValidator, e
 	}
 
 	validators, err := ReadValidatorsByPrefix(validatorsPath, p.validatorsPrefixPath,
-		p.stakeInfos, p.nativeTokenConfig.IsMintable)
+		p.stakeInfos, p.nativeTokenConfig.IsMintable, startingPort)
 	if err != nil {
 		return nil, err
 	}

@@ -151,6 +151,9 @@ type TestClusterConfig struct {
 	UseTLS      bool
 	TLSCertFile string
 	TLSKeyFile  string
+
+	InitialPort   int64
+	LogsDirSuffix string
 }
 
 func (c *TestClusterConfig) Dir(name string) string {
@@ -196,7 +199,7 @@ func (c *TestClusterConfig) GetStdout(name string, custom ...io.Writer) io.Write
 }
 
 func (c *TestClusterConfig) initLogsDir() {
-	logsDir := path.Join("../..", fmt.Sprintf("e2e-logs-%d", startTime), c.t.Name())
+	logsDir := path.Join("../..", fmt.Sprintf("e2e-logs-%d%s", startTime, c.LogsDirSuffix), c.t.Name())
 	if c.IsPropertyTest {
 		// property tests run cluster multiple times, so each cluster run will be in the main folder
 		// e2e-logs-{someNumber}/NameOfPropertyTest/NameOfPropertyTest-{someNumber}
@@ -234,7 +237,7 @@ type TestCluster struct {
 	Config      *TestClusterConfig
 	Servers     []*TestServer
 	Bridge      *TestBridge
-	initialPort int64
+	currentPort int64
 
 	once         sync.Once
 	failCh       chan struct{}
@@ -278,6 +281,18 @@ func WithValidatorSnapshot(validatorsLen uint64) ClusterOption {
 func WithBridge() ClusterOption {
 	return func(h *TestClusterConfig) {
 		h.HasBridge = true
+	}
+}
+
+func WithInitialPort(initialPort int64) ClusterOption {
+	return func(h *TestClusterConfig) {
+		h.InitialPort = initialPort
+	}
+}
+
+func WithLogsDirSuffix(suffix string) ClusterOption {
+	return func(h *TestClusterConfig) {
+		h.LogsDirSuffix = suffix
 	}
 }
 
@@ -514,6 +529,7 @@ func NewTestCluster(t *testing.T, validatorsCount int, opts ...ClusterOption) *T
 		HasBridge:     false,
 		VotingDelay:   10,
 		ApexBridge:    true,
+		InitialPort:   30300,
 	}
 
 	if config.ValidatorPrefix == "" {
@@ -541,9 +557,9 @@ func NewTestCluster(t *testing.T, validatorsCount int, opts ...ClusterOption) *T
 	cluster := &TestCluster{
 		Servers:     []*TestServer{},
 		Config:      config,
-		initialPort: 30300,
 		failCh:      make(chan struct{}),
 		once:        sync.Once{},
+		currentPort: config.InitialPort,
 	}
 
 	// in case no validators are specified in opts, all nodes will be validators
@@ -647,7 +663,7 @@ func NewTestCluster(t *testing.T, validatorsCount int, opts ...ClusterOption) *T
 		}
 
 		validators, err := genesis.ReadValidatorsByPrefix(
-			cluster.Config.TmpDir, cluster.Config.ValidatorPrefix, nil, true)
+			cluster.Config.TmpDir, cluster.Config.ValidatorPrefix, nil, true, config.InitialPort)
 		require.NoError(t, err)
 
 		if cluster.Config.BootnodeCount > 0 {
@@ -741,6 +757,8 @@ func NewTestCluster(t *testing.T, validatorsCount int, opts ...ClusterOption) *T
 		} else {
 			args = append(args, "--apex=false")
 		}
+
+		args = append(args, "--bootnode-port", fmt.Sprint(config.InitialPort))
 
 		// run genesis command with all the arguments
 		err = cluster.cmdRun(args...)
@@ -964,9 +982,10 @@ func (c *TestCluster) WaitForGeneric(dur time.Duration, fn func(*TestServer) boo
 }
 
 func (c *TestCluster) getOpenPort() int64 {
-	c.initialPort++
+	port := c.currentPort
+	c.currentPort++
 
-	return c.initialPort
+	return port
 }
 
 // runCommand executes command with given arguments

@@ -197,7 +197,8 @@ func GetValidatorKeyFiles(rootDir, filePrefix string) ([]string, error) {
 
 // ReadValidatorsByPrefix reads validators secrets on a given root directory and with given folder prefix
 func ReadValidatorsByPrefix(dir, prefix string,
-	stakeInfos map[types.Address]*big.Int, isNativeTokenMintable bool) ([]*validator.GenesisValidator, error) {
+	stakeInfos map[types.Address]*big.Int, isNativeTokenMintable bool, startingPort int64,
+) ([]*validator.GenesisValidator, error) {
 	validatorKeyFiles, err := GetValidatorKeyFiles(dir, prefix)
 	if err != nil {
 		return nil, err
@@ -227,7 +228,7 @@ func ReadValidatorsByPrefix(dir, prefix string,
 		validators[i] = &validator.GenesisValidator{
 			Address:   types.Address(account.Ecdsa.Address()),
 			BlsKey:    hex.EncodeToString(account.Bls.PublicKey().Marshal()),
-			MultiAddr: fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", "127.0.0.1", bootnodePortStart+int64(i), nodeID),
+			MultiAddr: fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", "127.0.0.1", startingPort+int64(i), nodeID),
 			Stake:     stake,
 		}
 	}

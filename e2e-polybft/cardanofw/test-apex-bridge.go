@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"path"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -21,75 +21,8 @@ const FundTokenAmount = uint64(100_000_000_000)
 type ApexSystem struct {
 	PrimeCluster  *TestCardanoCluster
 	VectorCluster *TestCardanoCluster
+	Nexus         *TestEVMChain
 	Bridge        *TestCardanoBridge
-}
-
-type CardanoChainConfig struct {
-	NetworkType      wallet.CardanoNetworkType
-	GenesisConfigDir string
-}
-
-func SetupAndRunApexCardanoChains(
-	t *testing.T,
-	ctx context.Context,
-	cardanoNodesNum int,
-	cardanoConfigs []CardanoChainConfig,
-) []*TestCardanoCluster {
-	t.Helper()
-
-	clusterCount := len(cardanoConfigs)
-
-	var (
-		clErrors    = make([]error, clusterCount)
-		clusters    = make([]*TestCardanoCluster, clusterCount)
-		wg          sync.WaitGroup
-		baseLogsDir = path.Join("../..", fmt.Sprintf("e2e-logs-cardano-%d", time.Now().UTC().Unix()), t.Name())
-	)
-
-	cleanupFunc := func() {
-		fmt.Printf("Cleaning up cardano chains")
-
-		wg := sync.WaitGroup{}
-		stopErrs := []error(nil)
-
-		for i := 0; i < clusterCount; i++ {
-			if clusters[i] != nil {
-				wg.Add(1)
-
-				go func(cl *TestCardanoCluster) {
-					defer wg.Done()
-
-					stopErrs = append(stopErrs, cl.Stop())
-				}(clusters[i])
-			}
-		}
-
-		wg.Wait()
-
-		fmt.Printf("Done cleaning up cardano chains: %v\n", errors.Join(stopErrs...))
-	}
-
-	t.Cleanup(cleanupFunc)
-
-	for i := 0; i < clusterCount; i++ {
-		wg.Add(1)
-
-		go func(id int) {
-			defer wg.Done()
-
-			clusters[id], clErrors[id] = RunCardanoCluster(t, ctx, id, cardanoNodesNum,
-				cardanoConfigs[id].NetworkType, cardanoConfigs[id].GenesisConfigDir,
-				baseLogsDir)
-		}(i)
-	}
-
-	wg.Wait()
-
-	for i := 0; i < clusterCount; i++ {
-		require.NoError(t, clErrors[i])
-	}
-
-	return clusters
 }
 
 func RunCardanoCluster(
@@ -156,6 +89,7 @@ func SetupAndRunApexBridge(
 	t.Helper()
 
 	const (
+		sendAmount     = uint64(100_000_000_000)
 		bladeEpochSize = 5
 		numOfRetries   = 90
 		waitTime       = time.Second * 2
@@ -169,17 +103,6 @@ func SetupAndRunApexBridge(
 
 	cb := NewTestCardanoBridge(dataDir, bladeValidatorsNum, opts...)
 
-	cleanupFunc := func() {
-		fmt.Printf("Cleaning up apex bridge\n")
-
-		// cleanupDataDir()
-		cb.StopValidators()
-
-		fmt.Printf("Done cleaning up apex bridge\n")
-	}
-
-	t.Cleanup(cleanupFunc)
-
 	require.NoError(t, cb.CardanoCreateWalletsAndAddresses(primeCluster.NetworkConfig(), vectorCluster.NetworkConfig()))
 
 	fmt.Printf("Wallets and addresses created\n")
@@ -190,7 +113,7 @@ func SetupAndRunApexBridge(
 	primeGenesisWallet, err := GetGenesisWalletFromCluster(primeCluster.Config.TmpDir, 1)
 	require.NoError(t, err)
 
-	_, err = SendTx(ctx, txProviderPrime, primeGenesisWallet, FundTokenAmount,
+	res, err := SendTx(ctx, txProviderPrime, primeGenesisWallet, sendAmount,
 		cb.PrimeMultisigAddr, primeCluster.NetworkConfig(), []byte{})
 	require.NoError(t, err)
 
@@ -199,9 +122,9 @@ func SetupAndRunApexBridge(
 	}, numOfRetries, waitTime, IsRecoverableError)
 	require.NoError(t, err)
 
-	fmt.Printf("Prime multisig addr funded\n")
+	fmt.Printf("Prime multisig addr funded: %s\n", res)
 
-	_, err = SendTx(ctx, txProviderPrime, primeGenesisWallet, FundTokenAmount,
+	res, err = SendTx(ctx, txProviderPrime, primeGenesisWallet, sendAmount,
 		cb.PrimeMultisigFeeAddr, primeCluster.NetworkConfig(), []byte{})
 	require.NoError(t, err)
 
@@ -210,12 +133,12 @@ func SetupAndRunApexBridge(
 	}, numOfRetries, waitTime, IsRecoverableError)
 	require.NoError(t, err)
 
-	fmt.Printf("Prime multisig fee addr funded\n")
+	fmt.Printf("Prime multisig fee addr funded: %s\n", res)
 
 	vectorGenesisWallet, err := GetGenesisWalletFromCluster(vectorCluster.Config.TmpDir, 1)
 	require.NoError(t, err)
 
-	_, err = SendTx(ctx, txProviderVector, vectorGenesisWallet, FundTokenAmount,
+	res, err = SendTx(ctx, txProviderVector, vectorGenesisWallet, sendAmount,
 		cb.VectorMultisigAddr, vectorCluster.NetworkConfig(), []byte{})
 	require.NoError(t, err)
 
@@ -224,9 +147,9 @@ func SetupAndRunApexBridge(
 	}, numOfRetries, waitTime, IsRecoverableError)
 	require.NoError(t, err)
 
-	fmt.Printf("Vector multisig addr funded\n")
+	fmt.Printf("Vector multisig addr funded: %s\n", res)
 
-	_, err = SendTx(ctx, txProviderVector, vectorGenesisWallet, FundTokenAmount,
+	res, err = SendTx(ctx, txProviderVector, vectorGenesisWallet, sendAmount,
 		cb.VectorMultisigFeeAddr, vectorCluster.NetworkConfig(), []byte{})
 	require.NoError(t, err)
 
@@ -235,7 +158,7 @@ func SetupAndRunApexBridge(
 	}, numOfRetries, waitTime, IsRecoverableError)
 	require.NoError(t, err)
 
-	fmt.Printf("Vector multisig fee addr funded\n")
+	fmt.Printf("Vector multisig fee addr funded: %s\n", res)
 
 	cb.StartValidators(t, bladeEpochSize)
 
@@ -275,39 +198,114 @@ func RunApexBridge(
 ) *ApexSystem {
 	t.Helper()
 
+	//nolint: godox
+	// TODO: not all chains in every situation should be started, only desired ones (prime, vector, nexus)
 	const (
 		cardanoNodesNum    = 4
 		bladeValidatorsNum = 4
+		nexusValidatorsNum = 4
+		nexusStartingPort  = int64(30400)
 	)
 
-	clusters := SetupAndRunApexCardanoChains(t, ctx, cardanoNodesNum, []CardanoChainConfig{
-		{NetworkType: wallet.TestNetNetwork, GenesisConfigDir: "prime"},
-		{NetworkType: wallet.VectorTestNetNetwork, GenesisConfigDir: "vector"},
+	apexSystem := &ApexSystem{}
+	wg := &sync.WaitGroup{}
+	errorsContainer := [3]error{}
+
+	wg.Add(3)
+
+	go func() {
+		defer wg.Done()
+
+		apexSystem.PrimeCluster, errorsContainer[0] = RunCardanoCluster(
+			t, ctx, 0, cardanoNodesNum, wallet.TestNetNetwork, "prime", getCardanoBaseLogsDir(t, "prime"))
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		apexSystem.VectorCluster, errorsContainer[1] = RunCardanoCluster(
+			t, ctx, 1, cardanoNodesNum, wallet.VectorTestNetNetwork, "vector", getCardanoBaseLogsDir(t, "vector"))
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		apexSystem.Nexus, errorsContainer[2] = SetupAndRunEVMChain(t, nexusValidatorsNum, nexusStartingPort)
+	}()
+
+	t.Cleanup(func() {
+		fmt.Println("Stopping chains...")
+
+		if apexSystem.PrimeCluster != nil {
+			wg.Add(1)
+
+			go func() {
+				defer wg.Done()
+
+				errorsContainer[0] = apexSystem.PrimeCluster.Stop()
+			}()
+		}
+
+		if apexSystem.VectorCluster != nil {
+			wg.Add(1)
+
+			go func() {
+				defer wg.Done()
+
+				errorsContainer[1] = apexSystem.VectorCluster.Stop()
+			}()
+		}
+
+		if apexSystem.Nexus != nil {
+			wg.Add(1)
+
+			go func() {
+				defer wg.Done()
+
+				apexSystem.Nexus.Cluster.Stop()
+			}()
+		}
+
+		if apexSystem.Bridge != nil {
+			wg.Add(1)
+
+			go func() {
+				defer wg.Done()
+
+				fmt.Printf("Cleaning up apex bridge\n")
+				apexSystem.Bridge.StopValidators()
+				fmt.Printf("Done cleaning up apex bridge\n")
+			}()
+		}
+
+		wg.Wait()
+
+		fmt.Printf("Chains has been stopped...%v\n", errors.Join(errorsContainer[:]...))
 	})
 
-	primeCluster := clusters[0]
-	require.NotNil(t, primeCluster)
+	fmt.Println("Starting chains...")
 
-	vectorCluster := clusters[1]
-	require.NotNil(t, vectorCluster)
+	wg.Wait()
 
-	cb := SetupAndRunApexBridge(t,
+	fmt.Println("Chains has been started...")
+
+	require.NoError(t, errors.Join(errorsContainer[:]...))
+
+	//nolint: godox
+	// TODO: apex bridge should receive nexus too, even better whole ApexSystem struct
+	apexSystem.Bridge = SetupAndRunApexBridge(t,
 		ctx,
 		// path.Join(path.Dir(primeCluster.Config.TmpDir), "bridge"),
 		"../../e2e-bridge-data-tmp-"+t.Name(),
 		bladeValidatorsNum,
-		primeCluster,
-		vectorCluster,
+		apexSystem.PrimeCluster,
+		apexSystem.VectorCluster,
 		opts...,
 	)
 
 	fmt.Printf("Apex bridge setup done\n")
 
-	return &ApexSystem{
-		PrimeCluster:  primeCluster,
-		VectorCluster: vectorCluster,
-		Bridge:        cb,
-	}
+	return apexSystem
 }
 
 func (a *ApexSystem) GetPrimeGenesisWallet(t *testing.T) wallet.IWallet {
@@ -390,4 +388,11 @@ func (a *ApexSystem) CreateAndFundExistingUser(
 	fmt.Printf("Vector user address funded\n")
 
 	return user
+}
+
+func getCardanoBaseLogsDir(t *testing.T, name string) string {
+	t.Helper()
+
+	return filepath.Join("../..",
+		fmt.Sprintf("e2e-logs-cardano-%s-%d", name, time.Now().UTC().Unix()), t.Name())
 }

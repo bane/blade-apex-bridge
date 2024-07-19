@@ -40,6 +40,13 @@ func setFlags(cmd *cobra.Command) {
 		apexBridgeDescriptionFlag,
 	)
 
+	cmd.Flags().Int64Var(
+		&params.bootnodeStartingPort,
+		bootnodeStartingPortFlag,
+		bootnodePortStart,
+		"the port of the first Bootnode, incrementing by 1",
+	)
+
 	cmd.Flags().StringVar(
 		&params.genesisPath,
 		dirFlag,
