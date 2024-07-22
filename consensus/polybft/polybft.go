@@ -714,6 +714,7 @@ func (p *Polybft) Close() error {
 
 	close(p.closeCh)
 	p.runtime.close()
+	p.state.db.Close()
 
 	return nil
 }
