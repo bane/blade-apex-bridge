@@ -109,7 +109,7 @@ jobs:
     uses: ./.github/workflows/e2e-apex-test.yml
     needs: build_blade
     if: |
-      inputs.e2e_polybft_test || 
+      inputs.e2e_apex_test || 
       github.event_name == 'pull_request' || 
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'))
     secrets:
