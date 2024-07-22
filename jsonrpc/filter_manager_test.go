@@ -688,6 +688,9 @@ func TestHeadStream_Concurrent(t *testing.T) {
 
 	b := newBlockStream(&block{header: header{Number: 0}})
 
+	// All subscribers start from the same point
+	head := b.getHead()
+
 	// Write co-routine with jitter
 	go func() {
 		seed := time.Now().UTC().UnixNano()
@@ -705,9 +708,6 @@ func TestHeadStream_Concurrent(t *testing.T) {
 
 	// Run n subscribers following and verifying
 	errCh := make(chan error, nReaders)
-
-	// All subscribers start from the same point
-	head := b.getHead()
 
 	for i := 0; i < nReaders; i++ {
 		go func(i int) {
