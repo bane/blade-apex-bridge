@@ -719,7 +719,7 @@ func TestHeadStream_Concurrent(t *testing.T) {
 
 				for _, block := range blocks {
 					if num := uint64(block.Number); num != expect {
-						errCh <- fmt.Errorf("subscriber %05d bad event want=%d, got=%d", i, num, expect)
+						errCh <- fmt.Errorf("subscriber %05d bad event want=%d, got=%d", i, expect, num)
 
 						return
 					}
