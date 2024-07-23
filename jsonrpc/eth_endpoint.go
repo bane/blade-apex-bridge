@@ -1102,20 +1102,14 @@ func (e *Eth) GetProof(address types.Address, storageKeys []string, filter Block
 		return nil, err
 	}
 
-	account, err := snap.GetAccount(address)
-	if err != nil {
-		return nil, err
-	}
+	var (
+		codeHash    types.Hash
+		nonce       = uint64(0)
+		storageHash = snap.GetTreeHash()
+		balance     *argBig
+	)
 
-	var codeHash types.Hash
-
-	nonce := uint64(0)
-
-	storageHash := snap.GetTreeHash()
-
-	var balance *argBig
-	balance = nil
-
+	account, _ := snap.GetAccount(address)
 	if account != nil {
 		balance = argBigPtr(account.Balance)
 		nonce = account.Nonce

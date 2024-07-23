@@ -432,23 +432,6 @@ func TestGetProof_SnapshotError(t *testing.T) {
 	assert.Nil(t, res)
 }
 
-func TestGetProof_AccountError(t *testing.T) {
-	store := newMockStore()
-	snap := new(MockSnapshot)
-	header := &MockHeader{StateRoot: types.Hash{}}
-	address := types.Address{}
-	storageKeys := []string{}
-	blockFilter := BlockNumberOrHash{}
-
-	e := &Eth{store: store}
-	store.On("NewSnapshotAt", header.StateRoot).Return(snap, nil)
-	snap.On("GetAccount", address).Return(nil, errors.New("account error"))
-
-	res, err := e.GetProof(address, storageKeys, blockFilter)
-	assert.Error(t, err)
-	assert.Nil(t, res)
-}
-
 func TestGetProof_StorageProofError(t *testing.T) {
 	store := newMockStore()
 	snap := new(MockSnapshot)
