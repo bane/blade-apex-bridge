@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.etcd.io/bbolt"
 )
 
 // the test initializes polybft and chain mock (map of headers) after which a new header is verified
@@ -217,6 +218,7 @@ func TestPolybft_Close(t *testing.T) {
 		runtime: &consensusRuntime{
 			bridgeManager: &dummyBridgeManager{},
 		},
+		state: &State{db: &bbolt.DB{}},
 	}
 
 	assert.NoError(t, polybft.Close())
