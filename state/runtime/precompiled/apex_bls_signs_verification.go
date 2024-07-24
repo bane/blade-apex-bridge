@@ -23,7 +23,7 @@ var (
 	errApexBLSSignatureVerificationQuorumNotReached = errors.New("quorum not reached")
 	// apexBLSInputDataMultiABIType is the ABI signature of the precompiled contract input data
 	// (hash, signature, blsPublicKeys, bitmap)
-	apexBLSInputDataMultiABIType = abi.MustNewType("tuple(bytes32, bytes, uint256[4][], bytes)")
+	apexBLSInputDataMultiABIType = abi.MustNewType("tuple(bytes32, bytes, uint256[4][], uint256)")
 	// (hash, signature, blsPublicKey)
 	apexBLSInputDataSingleABIType = abi.MustNewType("tuple(bytes32, bytes, uint256[4])")
 )
@@ -73,8 +73,8 @@ func (c *apexBLSSignatureVerification) run(input []byte, caller types.Address, h
 		publicKey := data["2"].([4]*big.Int) //nolint:forcetypeassert
 		publicKeysSerialized = [][4]*big.Int{publicKey}
 	} else {
-		allPublicKeys := data["2"].([][4]*big.Int) //nolint:forcetypeassert
-		bmp := bitmap.Bitmap(data["3"].([]byte))   //nolint:forcetypeassert
+		allPublicKeys := data["2"].([][4]*big.Int)         //nolint:forcetypeassert
+		bmp := bitmap.Bitmap(data["3"].(*big.Int).Bytes()) //nolint:forcetypeassert
 
 		for i, x := range allPublicKeys {
 			if bmp.IsSet(uint64(i)) {

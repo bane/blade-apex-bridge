@@ -26,7 +26,7 @@ func Test_apexBLSSignatureVerification(t *testing.T) {
 	}
 
 	encodeMulti := func(hash []byte, signature []byte, publicKeys [][4]*big.Int, bmp bitmap.Bitmap) []byte {
-		encoded, err := abi.Encode([]interface{}{hash, signature, publicKeys, bmp},
+		encoded, err := abi.Encode([]interface{}{hash, signature, publicKeys, new(big.Int).SetBytes(bmp)},
 			apexBLSInputDataMultiABIType)
 		require.NoError(t, err)
 
