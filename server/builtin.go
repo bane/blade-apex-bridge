@@ -45,7 +45,7 @@ var secretsManagerBackends = map[secrets.SecretsManagerType]secrets.SecretsManag
 	secrets.HashicorpVault: hashicorpvault.SecretsManagerFactory,
 	secrets.AWSSSM:         awsssm.SecretsManagerFactory,
 	secrets.GCPSSM:         gcpssm.SecretsManagerFactory,
-	secrets.ALIBABASSM:     alibabassm.SecretsManagerFactory,
+	secrets.AlibabaSSM:     alibabassm.SecretsManagerFactory,
 }
 
 var genesisCreationFactory = map[ConsensusType]GenesisFactoryHook{
