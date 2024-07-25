@@ -28,7 +28,7 @@ type AlibabaSsmManager struct {
 	// The Alibaba SDK client
 	client *oos20190601.Client
 
-	// The base path to store the secrets in SSM Parameter Store
+	// The base path to store the secrets in OOS Parameter Store
 	basePath string
 }
 
@@ -38,7 +38,7 @@ func SecretsManagerFactory(
 
 	// Check if the node name is present
 	if config.Name == "" {
-		return nil, errors.New("no node name specified for Alibaba SSM secrets manager")
+		return nil, errors.New("no node name specified for Alibaba secrets manager")
 	}
 
 	// Check if the extra map is present
@@ -53,7 +53,7 @@ func SecretsManagerFactory(
 		endpoint: config.ServerURL,
 	}
 
-	// Set the base path to store the secrets in SSM
+	// Set the base path to store the secrets in OOS parameter store
 	alibabaSsmManager.basePath = fmt.Sprintf("%s/%s", config.Extra["ssm-parameter-path"], config.Name)
 
 	// Run the initial setup
@@ -64,7 +64,7 @@ func SecretsManagerFactory(
 	return alibabaSsmManager, nil
 }
 
-// Setup sets up the Alibaba SSM secrets manager
+// Setup sets up the Alibaba secrets manager
 func (a *AlibabaSsmManager) Setup() error {
 	config := &openapi.Config{
 		// Required, please ensure that the environment variables ALIBABA_CLOUD_ACCESS_KEY_ID is set.
@@ -92,7 +92,7 @@ func (a *AlibabaSsmManager) constructSecretPath(name string) string {
 	return fmt.Sprintf("%s/%s", a.basePath, name)
 }
 
-// GetSecret fetches a secret from Alibaba SSM
+// GetSecret fetches a secret from Alibaba OOS parameter store
 func (a *AlibabaSsmManager) GetSecret(name string) ([]byte, error) {
 	getSecretParameterRequest := &oos20190601.GetSecretParameterRequest{
 		RegionId:       tea.String(a.region), // eu-central-1
@@ -123,7 +123,7 @@ func (a *AlibabaSsmManager) GetSecret(name string) ([]byte, error) {
 	return retVal, tryErr
 }
 
-// SetSecret saves a secret to Alibaba SSM
+// SetSecret saves a secret to Alibaba OOS oaarmeter store
 func (a *AlibabaSsmManager) SetSecret(name string, value []byte) error {
 	createSecretParameterRequest := &oos20190601.CreateSecretParameterRequest{
 		RegionId: tea.String(a.region), // eu-central-1
@@ -153,14 +153,14 @@ func (a *AlibabaSsmManager) SetSecret(name string, value []byte) error {
 	return tryErr
 }
 
-// HasSecret checks if the secret is present on Alibabab SSM ParameterStore
+// HasSecret checks if the secret is present on Alibabab OOS parameter store
 func (a *AlibabaSsmManager) HasSecret(name string) bool {
 	_, err := a.GetSecret(name)
 
 	return err == nil
 }
 
-// RemoveSecret removes a secret from Alibaba SSM ParameterStore
+// RemoveSecret removes a secret from Alibaba OOS parameter store
 func (a *AlibabaSsmManager) RemoveSecret(name string) error {
 	deleteSecretParameterRequest := &oos20190601.DeleteSecretParameterRequest{
 		RegionId: tea.String(a.region),

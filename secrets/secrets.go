@@ -75,7 +75,7 @@ const (
 	// GCPSSM pertains to the Google Cloud Computing secret store manager
 	GCPSSM SecretsManagerType = "gcp-ssm"
 
-	// AlibabaSSM pertains to the Alibaba Cloud Computing secret store manager
+	// AlibabaSSM pertains to the Alibaba OOS parameter store
 	AlibabaSSM SecretsManagerType = "alibaba-ssm"
 )
 
