@@ -43,7 +43,7 @@ func SecretsManagerFactory(
 
 	// Check if the extra map is present
 	if config.Extra == nil || config.Extra["region"] == nil || config.Extra["ssm-parameter-path"] == nil {
-		return nil, errors.New("required extra map containing 'region' and 'ssm-parameter-path' not found for aws-ssm")
+		return nil, errors.New("required extra map containing 'region' and 'ssm-parameter-path' not found for alibaba-ssm")
 	}
 
 	// / Set up the base object
