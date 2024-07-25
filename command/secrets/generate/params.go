@@ -30,7 +30,7 @@ const (
 
 var (
 	errUnsupportedType = fmt.Errorf(
-		"unsupported service manager type; only %s, %s, %s and %s are supported for now",
+		"unsupported service manager type; only %s, %s, %s, %s and %s are supported for now",
 		secrets.Local, secrets.HashicorpVault, secrets.AWSSSM, secrets.GCPSSM, secrets.AlibabaSSM)
 )
 

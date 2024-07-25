@@ -50,7 +50,7 @@ func setFlags(cmd *cobra.Command) {
 		typeFlag,
 		string(secrets.HashicorpVault),
 		fmt.Sprintf(
-			"the type of the secrets manager. Available types: %s, %s and %s",
+			"the type of the secrets manager. Available types: %s, %s, %s and %s",
 			secrets.HashicorpVault,
 			secrets.AWSSSM,
 			secrets.GCPSSM,
