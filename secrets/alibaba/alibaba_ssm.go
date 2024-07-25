@@ -95,8 +95,9 @@ func (a *AlibabaSsmManager) constructSecretPath(name string) string {
 // GetSecret fetches a secret from Alibaba SSM
 func (a *AlibabaSsmManager) GetSecret(name string) ([]byte, error) {
 	getSecretParameterRequest := &oos20190601.GetSecretParameterRequest{
-		RegionId: tea.String(a.region), //eu-central-1
-		Name:     tea.String(a.constructSecretPath(name)),
+		RegionId:       tea.String(a.region), //eu-central-1
+		Name:           tea.String(a.constructSecretPath(name)),
+		WithDecryption: tea.Bool(true),
 	}
 	runtime := &util.RuntimeOptions{}
 	retVal, tryErr := func() (_b []byte, _e error) {
