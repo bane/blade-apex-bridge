@@ -73,6 +73,8 @@ func (a *AlibabaSsmManager) Setup() error {
 		AccessKeySecret: tea.String(os.Getenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")),
 		//config.Endpoint = tea.String("oos.eu-central-1.aliyuncs.com")
 		Endpoint: tea.String(a.endpoint),
+		//eu-central-1
+		RegionId: tea.String(a.region),
 	}
 
 	client, err := oos20190601.NewClient(config)
