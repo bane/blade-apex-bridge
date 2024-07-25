@@ -54,6 +54,7 @@ func setFlags(cmd *cobra.Command) {
 			secrets.HashicorpVault,
 			secrets.AWSSSM,
 			secrets.GCPSSM,
+			secrets.AlibabaSSM,
 		),
 	)
 
