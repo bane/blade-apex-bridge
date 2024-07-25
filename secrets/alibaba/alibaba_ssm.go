@@ -19,10 +19,10 @@ type AlibabaSsmManager struct {
 	// Local logger object
 	logger hclog.Logger
 
-	// The AWS region
+	// The Alibaba region
 	region string
 
-	// Custom AWS endpoint, e.g. localstack
+	// Custom Alibaba endpoint, e.g. localstack
 	endpoint string
 
 	// The Alibaba SDK client
@@ -216,7 +216,7 @@ func (a *AlibabaSsmManager) logError(err error) {
 	}
 
 	if m, ok := data.(map[string]interface{}); ok {
-		recommend, _ := m["Recommend"]
+		recommend := m["Recommend"]
 		a.logger.Info("recommend", recommend)
 	}
 }
