@@ -71,9 +71,9 @@ func (a *AlibabaSsmManager) Setup() error {
 		AccessKeyId: tea.String(os.Getenv("ALIBABA_CLOUD_ACCESS_KEY_ID")),
 		// Required, please ensure that the environment variables ALIBABA_CLOUD_ACCESS_KEY_SECRET is set.
 		AccessKeySecret: tea.String(os.Getenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")),
-		//config.Endpoint = tea.String("oos.eu-central-1.aliyuncs.com")
+		// config.Endpoint = tea.String("oos.eu-central-1.aliyuncs.com")
 		Endpoint: tea.String(a.endpoint),
-		//eu-central-1
+		// eu-central-1
 		RegionId: tea.String(a.region),
 	}
 
@@ -95,7 +95,7 @@ func (a *AlibabaSsmManager) constructSecretPath(name string) string {
 // GetSecret fetches a secret from Alibaba SSM
 func (a *AlibabaSsmManager) GetSecret(name string) ([]byte, error) {
 	getSecretParameterRequest := &oos20190601.GetSecretParameterRequest{
-		RegionId:       tea.String(a.region), //eu-central-1
+		RegionId:       tea.String(a.region), // eu-central-1
 		Name:           tea.String(a.constructSecretPath(name)),
 		WithDecryption: tea.Bool(true),
 	}
@@ -126,7 +126,7 @@ func (a *AlibabaSsmManager) GetSecret(name string) ([]byte, error) {
 // SetSecret saves a secret to Alibaba SSM
 func (a *AlibabaSsmManager) SetSecret(name string, value []byte) error {
 	createSecretParameterRequest := &oos20190601.CreateSecretParameterRequest{
-		RegionId: tea.String(a.region), //eu-central-1
+		RegionId: tea.String(a.region), // eu-central-1
 		Name:     tea.String(a.constructSecretPath(name)),
 		Value:    tea.String(string(value)),
 	}
@@ -190,11 +190,9 @@ func (a *AlibabaSsmManager) RemoveSecret(name string) error {
 }
 
 func (a *AlibabaSsmManager) logError(err error) {
-	var e = &tea.SDKError{}
-	if _t, ok := err.(*tea.SDKError); ok { //nolint:errorlint
-		e = _t
-	} else {
-		e.Message = tea.String(err.Error())
+	var e *tea.SDKError
+	if ok := errors.As(err, &e); !ok {
+		e = &tea.SDKError{Message: tea.String(err.Error())}
 	}
 
 	_, err = util.AssertAsString(e.Message)
