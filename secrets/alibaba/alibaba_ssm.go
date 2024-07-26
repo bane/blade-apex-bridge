@@ -231,11 +231,13 @@ func (a *AlibabaSsmManager) logError(err error) {
 func getCredentials() (*aliyun.CredentialModel, error) {
 	config := new(aliyun.Config).
 		// Which type of credential you want
-		SetType("access_key").
-		// AccessKeyId of your account
-		SetAccessKeyId("AccessKeyId").
-		// AccessKeySecret of your account
-		SetAccessKeySecret("AccessKeySecret")
+		SetType("ecs_ram_role").
+		// `roleName` is optional. It will be retrieved automatically if not set.
+		// It is highly recommended to set it up to reduce requests
+		SetRoleName("RoleName").
+		// `EnableIMDSv2` is optional and is recommended to be turned on.
+		// It can be replaced by setting environment variable: ALIBABA_CLOUD_ECS_IMDSV2_ENABLE
+		SetEnableIMDSv2(true)
 
 	creds, err := aliyun.NewCredential(config)
 	if err != nil {
