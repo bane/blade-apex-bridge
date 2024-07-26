@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BRANCH=main # optimization-chain-registration
+BRANCH=evm_base_branch # optimization-chain-registration
 
 cd ./apex-bridge-smartcontracts
 git checkout main

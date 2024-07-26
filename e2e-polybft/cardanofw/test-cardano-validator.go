@@ -184,6 +184,11 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 		"--api-port", fmt.Sprint(apiPort),
 		"--api-keys", apiKey,
 		"--telemetry", telemetryConfig,
+		// POPULATE THIS WITH CORRECT VALUES
+		"--nexus-node-url", "localhost:1000",
+		"--nexus-relayer-addr", "ffaa",
+		"--nexus-sc-address", "ffaabb",
+		"--relayer-data-dir", cv.server.DataDir(),
 	}
 
 	if primeTTLInc > 0 {

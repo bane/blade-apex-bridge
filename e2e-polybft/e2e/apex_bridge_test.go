@@ -137,7 +137,7 @@ func TestE2E_ApexBridge_CardanoOracleState(t *testing.T) {
 
 				currentState, err := cardanofw.GetOracleState(ctx, requestURL, apiKey)
 				if err != nil || currentState == nil {
-					continue
+					break outerLoop
 				}
 
 				multisigAddr, feeAddr := "", ""
@@ -150,19 +150,21 @@ func TestE2E_ApexBridge_CardanoOracleState(t *testing.T) {
 					multisigAddr, feeAddr = apex.Bridge.VectorMultisigAddr, apex.Bridge.VectorMultisigFeeAddr
 				}
 
-				for _, utxo := range currentState.Utxos[multisigAddr] {
-					sumMultisig += utxo.Output.Amount
-				}
-
-				for _, utxo := range currentState.Utxos[feeAddr] {
-					sumFee += utxo.Output.Amount
+				for _, utxo := range currentState.Utxos {
+					switch utxo.Address {
+					case multisigAddr:
+						sumMultisig += utxo.Amount
+					case feeAddr:
+						sumFee += utxo.Amount
+					}
 				}
 
 				if sumMultisig != 0 || sumFee != 0 {
 					fmt.Printf("%s sums: %d, %d\n", requestURL, sumMultisig, sumFee)
 				}
 
-				if sumMultisig != cardanofw.FundTokenAmount || sumFee != cardanofw.FundTokenAmount {
+				if sumMultisig != cardanofw.FundTokenAmount || sumFee != cardanofw.FundTokenAmount ||
+					currentState.BlockSlot == 0 {
 					break outerLoop
 				} else {
 					goodOraclesCount++

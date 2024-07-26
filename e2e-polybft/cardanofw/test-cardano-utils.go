@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Ethernal-Tech/cardano-infrastructure/indexer"
 	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 )
@@ -297,10 +296,19 @@ type BridgingRequestStateResponse struct {
 	DestinationTxHash  string `json:"destinationTxHash"`
 }
 
+type CardanoChainConfigUtxo struct {
+	Hash    [32]byte `json:"id"`
+	Index   uint32   `json:"index"`
+	Address string   `json:"address"`
+	Amount  uint64   `json:"amount"`
+	Slot    uint64   `json:"slot"`
+}
+
 type OracleStateResponse struct {
-	ChainID string                              `json:"chainID"`
-	Utxos   map[string][]*indexer.TxInputOutput `json:"utxos"`
-	Point   *indexer.BlockPoint                 `json:"point"`
+	ChainID   string                   `json:"chainID"`
+	Utxos     []CardanoChainConfigUtxo `json:"utxos"`
+	BlockSlot uint64                   `json:"slot"`
+	BlockHash string                   `json:"hash"`
 }
 
 // GetTokenAmount returns token amount for address
