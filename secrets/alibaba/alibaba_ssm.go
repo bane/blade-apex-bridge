@@ -12,6 +12,7 @@ import (
 	oos20190601 "github.com/alibabacloud-go/oos-20190601/v4/client"
 	util "github.com/alibabacloud-go/tea-utils/v2/service"
 	"github.com/alibabacloud-go/tea/tea"
+	aliyun "github.com/aliyun/credentials-go/credentials"
 	"github.com/hashicorp/go-hclog"
 )
 
@@ -66,10 +67,16 @@ func SecretsManagerFactory(
 
 // Setup sets up the Alibaba secrets manager
 func (a *AlibabaSsmManager) Setup() error {
+	// creds, err := getCredentials()
+	// if err != nil {
+	// 	return err
+	// }
 	config := &openapi.Config{
 		// Required, please ensure that the environment variables ALIBABA_CLOUD_ACCESS_KEY_ID is set.
+		// AccessKeyId: creds.AccessKeyId,
 		AccessKeyId: tea.String(os.Getenv("ALIBABA_CLOUD_ACCESS_KEY_ID")),
 		// Required, please ensure that the environment variables ALIBABA_CLOUD_ACCESS_KEY_SECRET is set.
+		// AccessKeySecret: creds.AccessKeySecret,
 		AccessKeySecret: tea.String(os.Getenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")),
 		// config.Endpoint = tea.String("oos.eu-central-1.aliyuncs.com")
 		Endpoint: tea.String(a.endpoint),
@@ -219,4 +226,21 @@ func (a *AlibabaSsmManager) logError(err error) {
 		recommend := m["Recommend"]
 		a.logger.Info("recommend", recommend)
 	}
+}
+
+func getCredentials() (*aliyun.CredentialModel, error) {
+	config := new(aliyun.Config).
+		// Which type of credential you want
+		SetType("access_key").
+		// AccessKeyId of your account
+		SetAccessKeyId("AccessKeyId").
+		// AccessKeySecret of your account
+		SetAccessKeySecret("AccessKeySecret")
+
+	creds, err := aliyun.NewCredential(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return creds.GetCredential()
 }
