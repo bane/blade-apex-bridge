@@ -1103,22 +1103,22 @@ func (e *Eth) GetProof(address types.Address, storageKeys []string, filter Block
 	}
 
 	var (
-		codeHash    types.Hash
+		codeHash    = crypto.Keccak256Hash(nil)
 		nonce       = uint64(0)
 		storageHash = snap.GetTreeHash()
-		balance     *argBig
+		balance     = argBigPtr(big.NewInt(0))
 	)
 
 	account, _ := snap.GetAccount(address)
 	if account != nil {
 		balance = argBigPtr(account.Balance)
 		nonce = account.Nonce
+		typesHash := types.Hash{}
 
-		if len(storageHash) != 0 {
+		if storageHash != typesHash {
 			codeHash = types.BytesToHash(account.CodeHash)
 		} else {
 			storageHash = types.EmptyRootHash
-			codeHash = crypto.Keccak256Hash(nil)
 		}
 	}
 
@@ -1135,7 +1135,7 @@ func (e *Eth) GetProof(address types.Address, storageKeys []string, filter Block
 
 		proof := []string{}
 
-		if len(storageHash) != 0 {
+		if storageHash != types.EmptyRootHash {
 			pr, storageError := snap.GetStorageProof(header.StateRoot, key)
 			if storageError != nil {
 				return nil, storageError
