@@ -283,7 +283,7 @@ func (m *MockSnapshot) GetCode(hash types.Hash) ([]byte, bool) {
 	return nil, false
 }
 func (m *MockSnapshot) GetTreeHash() types.Hash {
-	return types.Hash{}
+	return hash1
 }
 func (m *MockSnapshot) GetProofByHash(addrHash []byte) ([][]byte, error) {
 	return nil, nil
