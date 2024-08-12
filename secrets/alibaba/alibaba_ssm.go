@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/0xPolygon/polygon-edge/secrets"
@@ -31,6 +30,9 @@ type AlibabaSsmManager struct {
 
 	// The base path to store the secrets in OOS Parameter Store
 	basePath string
+
+	// The role name assigned to OOS service
+	role string
 }
 
 func SecretsManagerFactory(
@@ -43,14 +45,19 @@ func SecretsManagerFactory(
 	}
 
 	// Check if the extra map is present
-	if config.Extra == nil || config.Extra["region"] == nil || config.Extra["ssm-parameter-path"] == nil {
-		return nil, errors.New("required extra map containing 'region' and 'ssm-parameter-path' not found for alibaba-ssm")
+	if config.Extra == nil ||
+		config.Extra["region"] == nil ||
+		config.Extra["ssm-parameter-path"] == nil ||
+		config.Extra["role"] == nil {
+		return nil, errors.New("required extra map containing 'region' and 'ssm-parameter-path' " +
+			"and 'role' not found for alibaba-ssm")
 	}
 
 	// / Set up the base object
 	alibabaSsmManager := &AlibabaSsmManager{
 		logger:   params.Logger.Named(string(secrets.AlibabaSSM)),
 		region:   fmt.Sprintf("%v", config.Extra["region"]),
+		role:     fmt.Sprintf("%v", config.Extra["role"]),
 		endpoint: config.ServerURL,
 	}
 
@@ -67,17 +74,16 @@ func SecretsManagerFactory(
 
 // Setup sets up the Alibaba secrets manager
 func (a *AlibabaSsmManager) Setup() error {
-	// creds, err := getCredentials()
-	// if err != nil {
-	// 	return err
-	// }
+	creds, err := getCredentials(a.role)
+	if err != nil {
+		return err
+	}
+
 	config := &openapi.Config{
-		// Required, please ensure that the environment variables ALIBABA_CLOUD_ACCESS_KEY_ID is set.
-		// AccessKeyId: creds.AccessKeyId,
-		AccessKeyId: tea.String(os.Getenv("ALIBABA_CLOUD_ACCESS_KEY_ID")),
-		// Required, please ensure that the environment variables ALIBABA_CLOUD_ACCESS_KEY_SECRET is set.
-		// AccessKeySecret: creds.AccessKeySecret,
-		AccessKeySecret: tea.String(os.Getenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")),
+		// Required
+		AccessKeyId: creds.AccessKeyId,
+		// Required
+		AccessKeySecret: creds.AccessKeySecret,
 		// config.Endpoint = tea.String("oos.eu-central-1.aliyuncs.com")
 		Endpoint: tea.String(a.endpoint),
 		// eu-central-1
@@ -228,13 +234,13 @@ func (a *AlibabaSsmManager) logError(err error) {
 	}
 }
 
-func getCredentials() (*aliyun.CredentialModel, error) {
+func getCredentials(role string) (*aliyun.CredentialModel, error) {
 	config := new(aliyun.Config).
 		// Which type of credential you want
 		SetType("ecs_ram_role").
 		// `roleName` is optional. It will be retrieved automatically if not set.
 		// It is highly recommended to set it up to reduce requests
-		SetRoleName("RoleName").
+		SetRoleName(role).
 		// `EnableIMDSv2` is optional and is recommended to be turned on.
 		// It can be replaced by setting environment variable: ALIBABA_CLOUD_ECS_IMDSV2_ENABLE
 		SetEnableIMDSv2(true)
