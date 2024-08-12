@@ -79,7 +79,6 @@ func (a *AlibabaSsmManager) Setup() error {
 		return err
 	}
 
-	fmt.Println(creds.AccessKeyId, creds.AccessKeySecret, creds.SecurityToken, creds.Type)
 	config := &openapi.Config{
 		// Required
 		AccessKeyId: creds.AccessKeyId,
