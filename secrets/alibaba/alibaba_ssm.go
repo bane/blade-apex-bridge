@@ -84,6 +84,8 @@ func (a *AlibabaSsmManager) Setup() error {
 		AccessKeyId: creds.AccessKeyId,
 		// Required
 		AccessKeySecret: creds.AccessKeySecret,
+		// Required
+		SecurityToken: creds.SecurityToken,
 		// config.Endpoint = tea.String("oos.eu-central-1.aliyuncs.com")
 		Endpoint: tea.String(a.endpoint),
 		// eu-central-1
