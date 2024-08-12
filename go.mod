@@ -8,6 +8,11 @@ require (
 	github.com/Ethernal-Tech/blockchain-event-tracker v0.0.0-20240628125004-67308570b6e2
 	github.com/Ethernal-Tech/ethgo v0.0.0-20240801172627-47215d9e504c
 	github.com/Ethernal-Tech/merkle-tree v0.0.0-20231213143318-4db9da419e04
+	github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.8
+	github.com/alibabacloud-go/oos-20190601/v4 v4.1.2
+	github.com/alibabacloud-go/tea v1.2.2
+	github.com/alibabacloud-go/tea-utils/v2 v2.0.6
+	github.com/aliyun/credentials-go v1.3.6
 	github.com/armon/go-metrics v0.4.1
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4
@@ -58,6 +63,20 @@ require (
 )
 
 require (
+	github.com/DataDog/go-libddwaf/v3 v3.2.1 // indirect
+	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.4 // indirect
+	github.com/alibabacloud-go/debug v1.0.0 // indirect
+	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
+	github.com/alibabacloud-go/openapi-util v0.1.0 // indirect
+	github.com/alibabacloud-go/tea-utils v1.3.1 // indirect
+	github.com/alibabacloud-go/tea-xml v1.1.3 // indirect
+	github.com/clbanning/mxj/v2 v2.5.5 // indirect
+	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20240503222823-736c933a666d // indirect
+	github.com/tjfoc/gmsm v1.3.2 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
+)
+
+require (
 	cloud.google.com/go/auth v0.7.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.3 // indirect
 	cloud.google.com/go/compute/metadata v0.5.0 // indirect
@@ -67,7 +86,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.1 // indirect
 	github.com/DataDog/datadog-go/v5 v5.3.0 // indirect
-	github.com/DataDog/go-libddwaf/v3 v3.2.1 // indirect
 	github.com/DataDog/go-tuf v1.0.2-0.5.2 // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect
 	github.com/DataDog/sketches-go v1.4.5 // indirect
@@ -124,7 +142,6 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.2 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
-	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20240503222823-736c933a666d // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/ipfs/boxo v0.8.1 // indirect
 	github.com/ipfs/go-cid v0.4.1 // indirect
@@ -176,7 +193,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/opencontainers/runc v1.1.13 // indirect
 	github.com/opencontainers/runtime-spec v1.2.0 // indirect
-	github.com/opentracing/opentracing-go v1.2.0 // indirect
+	github.com/opentracing/opentracing-go v1.2.1-0.20220228012449-10b1cf09e00b // indirect
 	github.com/ory/dockertest v3.3.5+incompatible // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
