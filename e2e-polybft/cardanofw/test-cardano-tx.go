@@ -64,9 +64,10 @@ func sendTx(ctx context.Context,
 			Amount: amount,
 		},
 	}
+	desiredSum := amount + potentialFee + wallet.MinUTxODefaultValue
 
 	inputs, err := wallet.GetUTXOsForAmount(
-		ctx, txProvider, cardanoWalletAddr, amount+potentialFee, wallet.MinUTxODefaultValue)
+		ctx, txProvider, cardanoWalletAddr, desiredSum, desiredSum)
 	if err != nil {
 		return "", err
 	}

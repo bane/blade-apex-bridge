@@ -378,6 +378,21 @@ func GetNetworkMagic(networkType wallet.CardanoNetworkType) uint {
 	}
 }
 
+func GetNetworkName(networkType wallet.CardanoNetworkType) string {
+	switch networkType {
+	case wallet.VectorTestNetNetwork:
+		return "vector"
+	case wallet.VectorMainNetNetwork:
+		return "vector"
+	case wallet.MainNetNetwork:
+		return "prime"
+	case wallet.TestNetNetwork:
+		return "prime"
+	default:
+		return ""
+	}
+}
+
 func GetAddress(networkType wallet.CardanoNetworkType, cardanoWallet wallet.IWallet) (wallet.CardanoAddress, error) {
 	if len(cardanoWallet.GetStakeVerificationKey()) > 0 {
 		return wallet.NewBaseAddress(networkType,

@@ -13,7 +13,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/0xPolygon/polygon-edge/crypto"
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
+	"github.com/0xPolygon/polygon-edge/types"
 	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 )
@@ -21,6 +23,7 @@ import (
 const (
 	ChainIDPrime  = "prime"
 	ChainIDVector = "vector"
+	ChainIDNexus  = "nexus"
 
 	BridgeSCAddr = "0xABEF000000000000000000000000000000000000"
 
@@ -30,8 +33,7 @@ const (
 type CardanoBridgeOption func(*TestCardanoBridge)
 
 type TestCardanoBridge struct {
-	validatorCount int
-	dataDirPath    string
+	dataDirPath string
 
 	validators  []*TestCardanoValidator
 	relayerNode *framework.Node
@@ -46,97 +48,34 @@ type TestCardanoBridge struct {
 	VectorMultisigAddr    string
 	VectorMultisigFeeAddr string
 
+	relayerWallet *crypto.ECDSAKey
+
 	cluster *framework.TestCluster
 
-	apiPortStart                  int
-	apiKey                        string
-	telemetryConfig               string
-	targetOneCardanoClusterServer bool
-
-	vectorTTLInc                uint64
-	vectorSlotRoundingThreshold uint64
-	primeTTLInc                 uint64
-	primeSlotRoundingThreshold  uint64
-
-	apiValidatorID int // -1 all validators
-}
-
-func WithAPIValidatorID(apiValidatorID int) CardanoBridgeOption {
-	return func(h *TestCardanoBridge) {
-		h.apiValidatorID = apiValidatorID
-	}
-}
-
-func WithAPIPortStart(apiPortStart int) CardanoBridgeOption {
-	return func(h *TestCardanoBridge) {
-		h.apiPortStart = apiPortStart
-	}
-}
-
-func WithAPIKey(apiKey string) CardanoBridgeOption {
-	return func(h *TestCardanoBridge) {
-		h.apiKey = apiKey
-	}
-}
-
-func WithVectorTTL(threshold, ttlInc uint64) CardanoBridgeOption {
-	return func(h *TestCardanoBridge) {
-		h.vectorSlotRoundingThreshold = threshold
-		h.vectorTTLInc = ttlInc
-	}
-}
-
-func WithPrimeTTL(threshold, ttlInc uint64) CardanoBridgeOption {
-	return func(h *TestCardanoBridge) {
-		h.primeSlotRoundingThreshold = threshold
-		h.primeTTLInc = ttlInc
-	}
-}
-
-func WithTelemetryConfig(tc string) CardanoBridgeOption {
-	return func(h *TestCardanoBridge) {
-		h.telemetryConfig = tc // something like "0.0.0.0:5001,localhost:8126"
-	}
-}
-
-func WithTargetOneCardanoClusterServer(targetOneCardanoClusterServer bool) CardanoBridgeOption {
-	return func(h *TestCardanoBridge) {
-		h.targetOneCardanoClusterServer = targetOneCardanoClusterServer
-	}
+	config *ApexSystemConfig
 }
 
 func NewTestCardanoBridge(
-	dataDirPath string, validatorCount int, opts ...CardanoBridgeOption,
+	dataDirPath string, apexSystemConfig *ApexSystemConfig,
 ) *TestCardanoBridge {
-	const (
-		apiPortStart = 40000
-		apiKey       = "test_api_key"
-	)
 
-	validators := make([]*TestCardanoValidator, validatorCount)
+	validators := make([]*TestCardanoValidator, apexSystemConfig.BladeValidatorCount)
 
-	for i := 0; i < validatorCount; i++ {
+	for i := 0; i < apexSystemConfig.BladeValidatorCount; i++ {
 		validators[i] = NewTestCardanoValidator(dataDirPath, i+1)
 	}
 
 	bridge := &TestCardanoBridge{
-		dataDirPath:    dataDirPath,
-		validatorCount: validatorCount,
-		validators:     validators,
-		apiValidatorID: 1,
-		apiPortStart:   apiPortStart,
-		apiKey:         apiKey,
-	}
-
-	for _, opt := range opts {
-		opt(bridge)
+		dataDirPath: dataDirPath,
+		validators:  validators,
+		config:      apexSystemConfig,
 	}
 
 	return bridge
 }
 
 func (cb *TestCardanoBridge) CardanoCreateWalletsAndAddresses(
-	primeNetworkConfig TestCardanoNetworkConfig, vectorNetworkConfig TestCardanoNetworkConfig,
+	primeNetworkType, vectorNetworkType wallet.CardanoNetworkType,
 ) error {
 	if err := cb.cardanoCreateWallets(); err != nil {
 		return err
@@ -146,19 +85,57 @@ func (cb *TestCardanoBridge) CardanoCreateWalletsAndAddresses(
 		return err
 	}
 
-	return cb.cardanoCreateAddresses(primeNetworkConfig, vectorNetworkConfig)
+	return cb.cardanoCreateAddresses(primeNetworkType, vectorNetworkType)
 }
 
 func (cb *TestCardanoBridge) StartValidators(t *testing.T, epochSize int) {
 	t.Helper()
 
-	cb.cluster = framework.NewTestCluster(t, cb.validatorCount,
+	cb.cluster = framework.NewTestCluster(t, cb.config.BladeValidatorCount,
 		framework.WithEpochSize(epochSize),
 	)
 
 	for idx, validator := range cb.validators {
 		require.NoError(t, validator.SetClusterAndServer(cb.cluster, cb.cluster.Servers[idx]))
 	}
+
+	err := cb.nexusCreateWalletsAndAddresses()
+	require.NoError(t, err)
+}
+
+func (ec *TestCardanoBridge) nexusCreateWalletsAndAddresses() (err error) {
+	if !ec.config.NexusEnabled || len(ec.validators) == 0 {
+		return nil
+	}
+
+	// relayer is on the first validator only
+	relayerValidator := ec.validators[0]
+
+	if err = relayerValidator.createSpecificWallet("relayer-evm"); err != nil {
+		return err
+	}
+
+	ec.relayerWallet, err = relayerValidator.getRelayerWallet()
+	if err != nil {
+		return err
+	}
+
+	for _, validator := range ec.validators {
+		if err = validator.createSpecificWallet("batcher-evm"); err != nil {
+			return err
+		}
+
+		validator.BatcherBN256PrivateKey, err = validator.getBatcherWallet()
+		if err != nil {
+			return err
+		}
+	}
+
+	return err
+}
+
+func (cb *TestCardanoBridge) GetRelayerWalletAddr() types.Address {
+	return cb.relayerWallet.Address()
 }
 
 func (cb *TestCardanoBridge) GetValidator(t *testing.T, idx int) *TestCardanoValidator {
@@ -188,6 +165,8 @@ func (cb *TestCardanoBridge) GetValidatorsCount() int {
 func (cb *TestCardanoBridge) RegisterChains(
 	primeTokenSupply *big.Int,
 	vectorTokenSupply *big.Int,
+	nexusTokenSupply *big.Int,
+	apex *ApexSystem,
 ) error {
 	errs := make([]error, len(cb.validators))
 	wg := sync.WaitGroup{}
@@ -204,10 +183,22 @@ func (cb *TestCardanoBridge) RegisterChains(
 				return
 			}
 
-			errs[indx] = validator.RegisterChain(
-				ChainIDVector, cb.VectorMultisigAddr, cb.VectorMultisigFeeAddr, vectorTokenSupply, ChainTypeCardano)
-			if errs[indx] != nil {
-				return
+			if cb.config.VectorEnabled {
+				errs[indx] = validator.RegisterChain(
+					ChainIDVector, cb.VectorMultisigAddr, cb.VectorMultisigFeeAddr, vectorTokenSupply, ChainTypeCardano)
+				if errs[indx] != nil {
+					return
+				}
+			}
+
+			if cb.config.NexusEnabled {
+				errs[indx] = validator.RegisterChain(
+					ChainIDNexus,
+					apex.Nexus.contracts.gateway.String(), cb.GetRelayerWalletAddr().String(),
+					nexusTokenSupply, ChainTypeEVM)
+				if errs[indx] != nil {
+					return
+				}
 			}
 		}(validator, i)
 	}
@@ -220,6 +211,7 @@ func (cb *TestCardanoBridge) RegisterChains(
 func (cb *TestCardanoBridge) GenerateConfigs(
 	primeCluster *TestCardanoCluster,
 	vectorCluster *TestCardanoCluster,
+	nexus *TestEVMBridge,
 ) error {
 	errs := make([]error, len(cb.validators))
 	wg := sync.WaitGroup{}
@@ -232,34 +224,58 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 
 			telemetryConfig := ""
 			if indx == 0 {
-				telemetryConfig = cb.telemetryConfig
+				telemetryConfig = cb.config.TelemetryConfig
 			}
 
 			var (
 				primeNetworkURL    string
-				vectorNetworkURL   string
 				primeNetworkMagic  uint
-				vectorNetworkMagic uint
 				primeNetworkID     uint
-				vectorNetworkID    uint
+				vectorOgmiosURL    = "localhost:1000"
+				vectorNetworkURL   = "localhost:5499"
+				vectorNetworkMagic = uint(0)
+				vectorNetworkID    = uint(0)
+				nexusContractAddr  = types.ZeroAddress.String()
+				nexusRelayerWallet = types.ZeroAddress.String()
+				nexusNodeURL       = "localhost:5500"
 			)
 
-			if cb.targetOneCardanoClusterServer {
+			if cb.config.TargetOneCardanoClusterServer {
 				primeNetworkURL = primeCluster.NetworkURL()
-				vectorNetworkURL = vectorCluster.NetworkURL()
 				primeNetworkMagic = primeCluster.Config.NetworkMagic
-				vectorNetworkMagic = vectorCluster.Config.NetworkMagic
 				primeNetworkID = uint(primeCluster.Config.NetworkType)
-				vectorNetworkID = uint(vectorCluster.Config.NetworkType)
 			} else {
 				primeServer := primeCluster.Servers[indx%len(primeCluster.Servers)]
-				vectorServer := vectorCluster.Servers[indx%len(vectorCluster.Servers)]
 				primeNetworkURL = primeServer.NetworkURL()
-				vectorNetworkURL = vectorServer.NetworkURL()
 				primeNetworkMagic = primeServer.config.NetworkMagic
-				vectorNetworkMagic = vectorServer.config.NetworkMagic
 				primeNetworkID = uint(primeServer.config.NetworkID)
-				vectorNetworkID = uint(vectorServer.config.NetworkID)
+			}
+
+			if cb.config.VectorEnabled {
+				vectorOgmiosURL = vectorCluster.OgmiosURL()
+
+				if cb.config.TargetOneCardanoClusterServer {
+					vectorNetworkURL = vectorCluster.NetworkURL()
+					vectorNetworkMagic = vectorCluster.Config.NetworkMagic
+					vectorNetworkID = uint(vectorCluster.Config.NetworkType)
+				} else {
+					vectorServer := vectorCluster.Servers[indx%len(vectorCluster.Servers)]
+					vectorNetworkURL = vectorServer.NetworkURL()
+					vectorNetworkMagic = vectorServer.config.NetworkMagic
+					vectorNetworkID = uint(vectorServer.config.NetworkID)
+				}
+			}
+
+			if cb.config.NexusEnabled {
+				nexusContractAddr = nexus.contracts.gateway.String()
+				nexusRelayerWallet = cb.GetRelayerWalletAddr().String()
+
+				nexusNodeURLIndx := 0
+				if cb.config.TargetOneCardanoClusterServer {
+					nexusNodeURLIndx = indx % len(nexus.Cluster.Servers)
+				}
+
+				nexusNodeURL = nexus.Cluster.Servers[nexusNodeURLIndx].JSONRPCAddr()
 			}
 
 			errs[indx] = validator.GenerateConfigs(
@@ -267,17 +283,20 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 				primeNetworkMagic,
 				primeNetworkID,
 				primeCluster.OgmiosURL(),
-				cb.primeSlotRoundingThreshold,
-				cb.primeTTLInc,
+				cb.config.PrimeSlotRoundingThreshold,
+				cb.config.PrimeTTLInc,
 				vectorNetworkURL,
 				vectorNetworkMagic,
 				vectorNetworkID,
-				vectorCluster.OgmiosURL(),
-				cb.vectorSlotRoundingThreshold,
-				cb.vectorTTLInc,
-				cb.apiPortStart+indx,
-				cb.apiKey,
+				vectorOgmiosURL,
+				cb.config.VectorSlotRoundingThreshold,
+				cb.config.VectorTTLInc,
+				cb.config.APIPortStart+indx,
+				cb.config.APIKey,
 				telemetryConfig,
+				nexusContractAddr,
+				nexusRelayerWallet,
+				nexusNodeURL,
 			)
 		}(validator, i)
 	}
@@ -289,7 +308,7 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 
 func (cb *TestCardanoBridge) StartValidatorComponents(ctx context.Context) (err error) {
 	for _, validator := range cb.validators {
-		hasAPI := cb.apiValidatorID == -1 || validator.ID == cb.apiValidatorID
+		hasAPI := cb.config.APIValidatorID == -1 || validator.ID == cb.config.APIValidatorID
 
 		if err = validator.Start(ctx, hasAPI); err != nil {
 			return err
@@ -336,7 +355,7 @@ func (cb *TestCardanoBridge) GetBridgingAPI() (string, error) {
 
 func (cb *TestCardanoBridge) GetBridgingAPIs() (res []string, err error) {
 	for _, validator := range cb.validators {
-		hasAPI := cb.apiValidatorID == -1 || validator.ID == cb.apiValidatorID
+		hasAPI := cb.config.APIValidatorID == -1 || validator.ID == cb.config.APIValidatorID
 
 		if hasAPI {
 			if validator.APIPort == 0 {
@@ -361,9 +380,11 @@ func (cb *TestCardanoBridge) cardanoCreateWallets() (err error) {
 			return err
 		}
 
-		err = validator.CardanoWalletCreate(ChainIDVector)
-		if err != nil {
-			return err
+		if cb.config.VectorEnabled {
+			err = validator.CardanoWalletCreate(ChainIDVector)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -371,10 +392,11 @@ func (cb *TestCardanoBridge) cardanoCreateWallets() (err error) {
 }
 
 func (cb *TestCardanoBridge) cardanoPrepareKeys() (err error) {
-	cb.primeMultisigKeys = make([]string, cb.validatorCount)
-	cb.primeMultisigFeeKeys = make([]string, cb.validatorCount)
-	cb.vectorMultisigKeys = make([]string, cb.validatorCount)
-	cb.vectorMultisigFeeKeys = make([]string, cb.validatorCount)
+	validatorCount := cb.config.BladeValidatorCount
+	cb.primeMultisigKeys = make([]string, validatorCount)
+	cb.primeMultisigFeeKeys = make([]string, validatorCount)
+	cb.vectorMultisigKeys = make([]string, validatorCount)
+	cb.vectorMultisigFeeKeys = make([]string, validatorCount)
 
 	for idx, validator := range cb.validators {
 		primeWallet, err := validator.GetCardanoWallet(ChainIDPrime)
@@ -385,49 +407,55 @@ func (cb *TestCardanoBridge) cardanoPrepareKeys() (err error) {
 		cb.primeMultisigKeys[idx] = hex.EncodeToString(primeWallet.Multisig.GetVerificationKey())
 		cb.primeMultisigFeeKeys[idx] = hex.EncodeToString(primeWallet.MultisigFee.GetVerificationKey())
 
-		vectorWallet, err := validator.GetCardanoWallet(ChainIDVector)
-		if err != nil {
-			return err
-		}
+		if cb.config.VectorEnabled {
+			vectorWallet, err := validator.GetCardanoWallet(ChainIDVector)
+			if err != nil {
+				return err
+			}
 
-		cb.vectorMultisigKeys[idx] = hex.EncodeToString(vectorWallet.Multisig.GetVerificationKey())
-		cb.vectorMultisigFeeKeys[idx] = hex.EncodeToString(vectorWallet.MultisigFee.GetVerificationKey())
+			cb.vectorMultisigKeys[idx] = hex.EncodeToString(vectorWallet.Multisig.GetVerificationKey())
+			cb.vectorMultisigFeeKeys[idx] = hex.EncodeToString(vectorWallet.MultisigFee.GetVerificationKey())
+		}
 	}
 
 	return err
 }
 
 func (cb *TestCardanoBridge) cardanoCreateAddresses(
-	primeNetworkConfig TestCardanoNetworkConfig, vectorNetworkConfig TestCardanoNetworkConfig,
+	primeNetworkType, vectorNetworkType wallet.CardanoNetworkType,
 ) error {
 	errs := make([]error, 4)
 	wg := sync.WaitGroup{}
 
-	wg.Add(4)
+	wg.Add(2)
 
 	go func() {
 		defer wg.Done()
 
-		cb.PrimeMultisigAddr, errs[0] = cb.cardanoCreateAddress(primeNetworkConfig.NetworkType, cb.primeMultisigKeys)
+		cb.PrimeMultisigAddr, errs[0] = cb.cardanoCreateAddress(primeNetworkType, cb.primeMultisigKeys)
 	}()
 
 	go func() {
 		defer wg.Done()
 
-		cb.PrimeMultisigFeeAddr, errs[1] = cb.cardanoCreateAddress(primeNetworkConfig.NetworkType, cb.primeMultisigFeeKeys)
+		cb.PrimeMultisigFeeAddr, errs[1] = cb.cardanoCreateAddress(primeNetworkType, cb.primeMultisigFeeKeys)
 	}()
 
-	go func() {
-		defer wg.Done()
+	if cb.config.VectorEnabled {
+		wg.Add(2)
 
-		cb.VectorMultisigAddr, errs[2] = cb.cardanoCreateAddress(vectorNetworkConfig.NetworkType, cb.vectorMultisigKeys)
-	}()
+		go func() {
+			defer wg.Done()
 
-	go func() {
-		defer wg.Done()
+			cb.VectorMultisigAddr, errs[2] = cb.cardanoCreateAddress(vectorNetworkType, cb.vectorMultisigKeys)
+		}()
 
-		cb.VectorMultisigFeeAddr, errs[3] = cb.cardanoCreateAddress(vectorNetworkConfig.NetworkType, cb.vectorMultisigFeeKeys)
-	}()
+		go func() {
+			defer wg.Done()
+
+			cb.VectorMultisigFeeAddr, errs[3] = cb.cardanoCreateAddress(vectorNetworkType, cb.vectorMultisigFeeKeys)
+		}()
+	}
 
 	wg.Wait()
 

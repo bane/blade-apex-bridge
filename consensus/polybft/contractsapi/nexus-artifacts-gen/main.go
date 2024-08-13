@@ -22,10 +22,8 @@ const (
 func main() {
 	_, filename, _, _ := runtime.Caller(0) //nolint: dogsled
 	currentPath := path.Dir(filename)
-	//nolint: godox
-	// TODO:Nexus update path
-	proxyscpath := path.Join(currentPath, "../test-contracts")
-	nexusscpath := path.Join(currentPath, "../../../../apex-bridge-smartcontracts/artifacts/contracts/")
+	proxyscpath := path.Join(currentPath, "../../../../apex-evm-gateway/artifacts/@openzeppelin/contracts/proxy/")
+	nexusscpath := path.Join(currentPath, "../../../../apex-evm-gateway/artifacts/contracts/")
 
 	str := `// This is auto-generated file. DO NOT EDIT.
 package contractsapi
@@ -37,25 +35,35 @@ package contractsapi
 		Name string
 	}{
 		{
-			"ERC1967Proxy",
+			"ERC1967/ERC1967Proxy.sol",
 			"ERC1967Proxy",
 		},
 	}
 
-	//nolint: godox
-	// TODO:Nexus list all contracts here Path - artifact.json name, Name outputNameArtifact
 	nexusContracts := []struct {
 		Path string
 		Name string
 	}{
 		{
-			"Claims.sol",
-			"ClaimsTest",
+			"ERC20TokenPredicate.sol",
+			"Nexus_ERC20TokenPredicate",
+		},
+		{
+			"Gateway.sol",
+			"Nexus_Gateway",
+		},
+		{
+			"NativeERC20Mintable.sol",
+			"Nexus_NativeERC20Mintable",
+		},
+		{
+			"Validators.sol",
+			"Nexus_Validators",
 		},
 	}
 
 	for _, v := range proxyContracts {
-		artifactBytes, err := contracts.ReadRawArtifact(proxyscpath, "", getContractName(v.Path))
+		artifactBytes, err := contracts.ReadRawArtifact(proxyscpath, v.Path, getContractName(v.Path))
 		if err != nil {
 			log.Fatal(err)
 		}

@@ -2,6 +2,7 @@ package cardanofw
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,8 +10,12 @@ import (
 	"os"
 	"path/filepath"
 
+	polybftWallet "github.com/0xPolygon/polygon-edge/consensus/polybft/wallet"
+	"github.com/0xPolygon/polygon-edge/crypto"
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
 	"github.com/0xPolygon/polygon-edge/helper/common"
+	"github.com/0xPolygon/polygon-edge/types"
+	bn256 "github.com/Ethernal-Tech/bn256"
 	secretsCardano "github.com/Ethernal-Tech/cardano-infrastructure/secrets"
 	secretsHelper "github.com/Ethernal-Tech/cardano-infrastructure/secrets/helper"
 	cardanoWallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
@@ -20,6 +25,8 @@ const (
 	BridgingConfigsDir = "bridging-configs"
 	BridgingLogsDir    = "bridging-logs"
 	BridgingDBsDir     = "bridging-dbs"
+
+	NexusDir = "nexus-test-logs"
 
 	ValidatorComponentsConfigFileName = "vc_config.json"
 	RelayerConfigFileName             = "relayer_config.json"
@@ -31,12 +38,13 @@ type CardanoWallet struct {
 }
 
 type TestCardanoValidator struct {
-	ID          int
-	APIPort     int
-	dataDirPath string
-	cluster     *framework.TestCluster
-	server      *framework.TestServer
-	node        *framework.Node
+	ID                     int
+	APIPort                int
+	dataDirPath            string
+	cluster                *framework.TestCluster
+	server                 *framework.TestServer
+	node                   *framework.Node
+	BatcherBN256PrivateKey *bn256.PrivateKey
 }
 
 func NewTestCardanoValidator(
@@ -91,6 +99,10 @@ func (cv *TestCardanoValidator) GetRelayerConfig() string {
 	return filepath.Join(cv.GetBridgingConfigsDir(), RelayerConfigFileName)
 }
 
+func (cv *TestCardanoValidator) GetNexusTestDir() string {
+	return filepath.Join(cv.dataDirPath, NexusDir)
+}
+
 func (cv *TestCardanoValidator) CardanoWalletCreate(chainID string) error {
 	return RunCommand(ResolveApexBridgeBinary(), []string{
 		"wallet-create",
@@ -100,10 +112,7 @@ func (cv *TestCardanoValidator) CardanoWalletCreate(chainID string) error {
 }
 
 func (cv *TestCardanoValidator) GetCardanoWallet(chainID string) (*CardanoWallet, error) {
-	secretsMngr, err := secretsHelper.CreateSecretsManager(&secretsCardano.SecretsManagerConfig{
-		Path: cv.dataDirPath,
-		Type: secretsCardano.Local,
-	})
+	secretsMngr, err := cv.getSecretsManager(cv.dataDirPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load wallet: %w", err)
 	}
@@ -160,6 +169,9 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 	apiPort int,
 	apiKey string,
 	telemetryConfig string,
+	nexusGatewayAddr string,
+	nexusRelayerAddr string,
+	nexusNodeURL string,
 ) error {
 	cv.APIPort = apiPort
 
@@ -179,15 +191,15 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 		"--vector-ogmios-url", vectorOgmiosURL,
 		"--bridge-node-url", cv.server.JSONRPCAddr(),
 		"--bridge-sc-address", BridgeSCAddr,
+		"--nexus-sc-address", nexusGatewayAddr,
+		"--nexus-relayer-addr", nexusRelayerAddr,
+		"--nexus-node-url", nexusNodeURL,
+		"--relayer-data-dir", cv.GetNexusTestDir(),
 		"--logs-path", filepath.Join(cv.dataDirPath, BridgingLogsDir),
 		"--dbs-path", filepath.Join(cv.dataDirPath, BridgingDBsDir),
 		"--api-port", fmt.Sprint(apiPort),
 		"--api-keys", apiKey,
 		"--telemetry", telemetryConfig,
-		// POPULATE THIS WITH CORRECT VALUES
-		"--nexus-node-url", "localhost:1000",
-		"--nexus-relayer-addr", "ffaa",
-		"--nexus-sc-address", "ffaabb",
 		"--relayer-data-dir", cv.server.DataDir(),
 	}
 
@@ -235,4 +247,81 @@ func (cv *TestCardanoValidator) Stop() error {
 	}
 
 	return cv.node.Stop()
+}
+
+func (cv *TestCardanoValidator) getValidatorEthAddress() (types.Address, error) {
+	secretsMngr, err := cv.getSecretsManager(cv.server.DataDir())
+	if err != nil {
+		return types.Address{}, fmt.Errorf("failed to create secrets manager: %w", err)
+	}
+
+	key, err := polybftWallet.GetEcdsaFromSecret(secretsMngr)
+	if err != nil {
+		return types.Address{}, fmt.Errorf("failed to load wallet: %w", err)
+	}
+
+	return key.Address(), nil
+}
+
+func (cv *TestCardanoValidator) createSpecificWallet(walletType string) error {
+	return RunCommand(ResolveApexBridgeBinary(), []string{
+		"wallet-create",
+		"--chain", ChainIDNexus,
+		"--validator-data-dir", cv.server.DataDir(),
+		"--type", walletType,
+	}, os.Stdout)
+}
+
+func (cv *TestCardanoValidator) getBatcherWallet() (*bn256.PrivateKey, error) {
+	secretsMngr, err := cv.getSecretsManager(cv.server.DataDir())
+	if err != nil {
+		return nil, fmt.Errorf("failed to load wallet: %w", err)
+	}
+
+	keyName := fmt.Sprintf("%s%s_%s", secretsCardano.OtherKeyLocalPrefix, ChainIDNexus, "batcher_evm_key")
+
+	bytes, err := secretsMngr.GetSecret(keyName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load wallet: %w", err)
+	}
+
+	bn256, err := bn256.UnmarshalPrivateKey(bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal wallet: %w", err)
+	}
+
+	return bn256, nil
+}
+
+func (cv *TestCardanoValidator) getRelayerWallet() (*crypto.ECDSAKey, error) {
+	secretsMngr, err := cv.getSecretsManager(cv.server.DataDir())
+	if err != nil {
+		return nil, fmt.Errorf("failed to load wallet: %w", err)
+	}
+
+	keyName := fmt.Sprintf("%s%s_%s", secretsCardano.OtherKeyLocalPrefix, ChainIDNexus, "relayer_evm_key")
+
+	strBytes, err := secretsMngr.GetSecret(keyName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load wallet: %w", err)
+	}
+
+	ecdsaRaw, err := hex.DecodeString(string(strBytes))
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve ecdsa key: %w", err)
+	}
+
+	pk, err := crypto.NewECDSAKeyFromRawPrivECDSA(ecdsaRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve ecdsa key: %w", err)
+	}
+
+	return pk, nil
+}
+
+func (cv *TestCardanoValidator) getSecretsManager(path string) (secretsCardano.SecretsManager, error) {
+	return secretsHelper.CreateSecretsManager(&secretsCardano.SecretsManagerConfig{
+		Path: path,
+		Type: secretsCardano.Local,
+	})
 }

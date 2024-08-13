@@ -150,6 +150,36 @@ func (u *TestApexUser) BridgeAmount(
 	return txHash
 }
 
+func (u *TestApexUser) BridgeNexusAmount(
+	t *testing.T, ctx context.Context,
+	txProvider wallet.ITxProvider,
+	multisigAddr, feeAddr string, sendAmount uint64,
+	networkConfig TestCardanoNetworkConfig,
+	receiverAddr string,
+) string {
+	t.Helper()
+
+	sender := u.PrimeWallet
+	// receiverAddr := u.VectorAddress
+	// receiverAddr := "0x537Fc153530Cd06f99FEf66474e5Ba1F8Cb69E03"
+	// nexusFeeAddr := "0x537Fc153530Cd06f99FEf66474e5Ba1F8Cb69E03"
+
+	// if !networkConfig.IsPrime() {
+	// 	sender = u.VectorWallet
+	// 	receiverAddr = u.PrimeAddress
+	// }
+
+	// txHash := BridgeAmountFull(t, ctx, txProvider, networkConfig,
+	// 	multisigAddr, nexusFeeAddr, sender, receiverAddr, sendAmount)
+
+	txHash := BridgeAmountFullMultipleReceiversNexus(
+		t, ctx, txProvider, networkConfig, multisigAddr, feeAddr, sender,
+		[]string{receiverAddr}, sendAmount,
+	)
+
+	return txHash
+}
+
 func CreateMetaData(
 	sender string, receivers map[string]uint64, destinationChainID string, feeAmount uint64,
 ) ([]byte, error) {
@@ -209,6 +239,41 @@ func BridgeAmountFullMultipleReceivers(
 
 	bridgingRequestMetadata, err := CreateMetaData(
 		senderAddr.String(), receivers, GetDestinationChainID(networkConfig), feeAmount)
+	require.NoError(t, err)
+
+	txHash, err := SendTx(ctx, txProvider, sender,
+		uint64(len(receiverAddrs))*sendAmount+feeAmount, multisigAddr, networkConfig, bridgingRequestMetadata)
+	require.NoError(t, err)
+
+	err = wallet.WaitForTxHashInUtxos(
+		context.Background(), txProvider, multisigAddr, txHash, 60, time.Second*2, IsRecoverableError)
+	require.NoError(t, err)
+
+	return txHash
+}
+
+func BridgeAmountFullMultipleReceiversNexus(
+	t *testing.T, ctx context.Context, txProvider wallet.ITxProvider, networkConfig TestCardanoNetworkConfig,
+	multisigAddr, feeAddr string, sender wallet.IWallet,
+	receiverAddrs []string, sendAmount uint64,
+) string {
+	t.Helper()
+
+	require.Greater(t, len(receiverAddrs), 0)
+	require.Less(t, len(receiverAddrs), 5)
+
+	const feeAmount = 1_100_000
+
+	senderAddr, err := GetAddress(networkConfig.NetworkType, sender)
+	require.NoError(t, err)
+
+	receivers := make(map[string]uint64, len(receiverAddrs))
+	for _, receiverAddr := range receiverAddrs {
+		receivers[receiverAddr] = sendAmount
+	}
+
+	bridgingRequestMetadata, err := CreateMetaData(
+		senderAddr.String(), receivers, ChainIDNexus, feeAmount)
 	require.NoError(t, err)
 
 	txHash, err := SendTx(ctx, txProvider, sender,
