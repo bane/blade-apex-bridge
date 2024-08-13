@@ -15,7 +15,7 @@ var parserPool fastrlp.ParserPool
 
 var (
 	// codePrefix is the code prefix for leveldb
-	codePrefix = []byte("code")
+	codePrefix = []byte("c")
 
 	// leveldb not found error message
 	levelDBNotFoundMsg = "leveldb: not found"

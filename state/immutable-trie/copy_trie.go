@@ -16,6 +16,10 @@ import (
 
 var emptyCodeHash = crypto.Keccak256(nil)
 
+func getCodeKey(hash types.Hash) []byte {
+	return append([]byte("code"), hash.Bytes()...)
+}
+
 func getCustomNode(hash []byte, storage Storage) (Node, []byte, error) {
 	data, ok, err := storage.Get(hash)
 	if err != nil || !ok {
@@ -99,7 +103,7 @@ func copyTrieNode(node Node, storage Storage, batchWriter Batch, agg []byte, isS
 
 					code, ok := storage.GetCode(hash)
 					if ok {
-						batchWriter.Put(GetCodeKey(hash), code)
+						batchWriter.Put(getCodeKey(hash), code)
 					} else {
 						return fmt.Errorf("can't find code %s", hex.EncodeToString(account.CodeHash))
 					}
