@@ -411,7 +411,7 @@ func (t *TestBridge) mintNativeRootToken(validatorAddresses []types.Address, tok
 	args := []string{
 		"mint-erc20",
 		"--jsonrpc", t.JSONRPCAddr(),
-		"--erc20-token", polybftConfig.Bridge.RootNativeERC20Addr.String(),
+		"--erc20-token", polybftConfig.Bridge[tokenConfig.ChainID].RootNativeERC20Addr.String(),
 	}
 
 	// mint something for every validator
@@ -441,13 +441,15 @@ func (t *TestBridge) mintNativeRootToken(validatorAddresses []types.Address, tok
 }
 
 // premineNativeRootToken will premine token on root for every validator and other addresses in premine flag
-func (t *TestBridge) premineNativeRootToken(tokenConfig *polybft.TokenConfig,
+func (t *TestBridge) premineNativeRootToken(genesisPath string, tokenConfig *polybft.TokenConfig,
 	polybftConfig polybft.PolyBFTConfig) error {
 	if tokenConfig.IsMintable {
 		// if token is mintable, it is premined in genesis command,
 		// so we just return here
 		return nil
 	}
+
+	bridgeConfig := polybftConfig.Bridge[tokenConfig.ChainID]
 
 	validatorSecrets, err := genesis.GetValidatorKeyFiles(t.clusterConfig.TmpDir, t.clusterConfig.ValidatorPrefix)
 	if err != nil {
@@ -462,8 +464,8 @@ func (t *TestBridge) premineNativeRootToken(tokenConfig *polybft.TokenConfig,
 			"--jsonrpc", t.JSONRPCAddr(),
 			"--premine-amount", premineAmount.String(),
 			"--stake-amount", stakedAmount.String(),
-			"--erc20-token", polybftConfig.Bridge.RootNativeERC20Addr.String(),
-			"--blade-manager", polybftConfig.Bridge.BladeManagerAddr.String(),
+			"--erc20-token", bridgeConfig.RootNativeERC20Addr.String(),
+			"--genesis", genesisPath,
 		}
 
 		if secret != "" {
@@ -536,8 +538,7 @@ func (t *TestBridge) premineNativeRootToken(tokenConfig *polybft.TokenConfig,
 }
 
 // finalizeGenesis finalizes genesis on BladeManager contract on root
-func (t *TestBridge) finalizeGenesis(genesisPath string,
-	tokenConfig *polybft.TokenConfig, polybftConfig polybft.PolyBFTConfig) error {
+func (t *TestBridge) finalizeGenesis(genesisPath string, tokenConfig *polybft.TokenConfig) error {
 	if tokenConfig.IsMintable {
 		// we don't need to finalize anything when we have mintable (child originated) token
 		return nil
@@ -549,7 +550,6 @@ func (t *TestBridge) finalizeGenesis(genesisPath string,
 		"--jsonrpc", t.JSONRPCAddr(),
 		"--private-key", bridgeHelper.TestAccountPrivKey,
 		"--genesis", genesisPath,
-		"--blade-manager", polybftConfig.Bridge.BladeManagerAddr.String(),
 	}
 
 	if err := t.cmdRun(args...); err != nil {

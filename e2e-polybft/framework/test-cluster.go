@@ -771,11 +771,11 @@ func NewTestCluster(t *testing.T, validatorsCount int, opts ...ClusterOption) *T
 		err = cluster.Bridge.mintNativeRootToken(addresses, tokenConfig, polybftConfig)
 		require.NoError(t, err)
 
-		err = cluster.Bridge.premineNativeRootToken(tokenConfig, polybftConfig)
+		err = cluster.Bridge.premineNativeRootToken(genesisPath, tokenConfig, polybftConfig)
 		require.NoError(t, err)
 
 		// finalize genesis validators on the rootchain
-		err = cluster.Bridge.finalizeGenesis(genesisPath, tokenConfig, polybftConfig)
+		err = cluster.Bridge.finalizeGenesis(genesisPath, tokenConfig)
 		require.NoError(t, err)
 	}
 

@@ -41,7 +41,7 @@ type PolyBFTConfig struct {
 	InitialValidatorSet []*validator.GenesisValidator `json:"initialValidatorSet"`
 
 	// Bridge is the rootchain bridge configuration
-	Bridge *BridgeConfig `json:"bridge"`
+	Bridge map[uint64]*BridgeConfig `json:"bridge"`
 
 	// EpochSize is size of epoch
 	EpochSize uint64 `json:"epochSize"`
@@ -156,7 +156,7 @@ type BridgeConfig struct {
 }
 
 func (p *PolyBFTConfig) IsBridgeEnabled() bool {
-	return p.Bridge != nil
+	return len(p.Bridge) > 0
 }
 
 // RootchainConfig contains rootchain metadata (such as JSON RPC endpoint and contract addresses)
@@ -211,6 +211,7 @@ type TokenConfig struct {
 	Symbol     string `json:"symbol"`
 	Decimals   uint8  `json:"decimals"`
 	IsMintable bool   `json:"isMintable"`
+	ChainID    uint64 `json:"chainID"`
 }
 
 func ParseRawTokenConfig(rawConfig string) (*TokenConfig, error) {
@@ -247,11 +248,25 @@ func ParseRawTokenConfig(rawConfig string) (*TokenConfig, error) {
 		return nil, errInvalidTokenParams
 	}
 
+	var chainID uint64
+
+	if !isMintable {
+		if len(params) == minNativeTokenParamsNumber+1 {
+			chainID, err = common.ParseUint64orHex(&params[4])
+			if err != nil {
+				return nil, errInvalidTokenParams
+			}
+		} else {
+			return nil, errInvalidTokenParams
+		}
+	}
+
 	return &TokenConfig{
 		Name:       name,
 		Symbol:     symbol,
 		Decimals:   uint8(decimals),
 		IsMintable: isMintable,
+		ChainID:    chainID,
 	}, nil
 }
 
