@@ -183,7 +183,7 @@ func (ec *TestEVMBridge) deployContracts(apexSystem *ApexSystem) error {
 	}
 
 	// Call "setDependencies"
-	err = ec.contracts.gatewaySetDependencies(txRelayer, ec.Admin, apexSystem.Bridge.GetRelayerWalletAddr())
+	err = ec.contracts.gatewaySetDependencies(txRelayer, ec.Admin)
 	if err != nil {
 		return err
 	}
@@ -250,12 +250,10 @@ func deployContractWithProxy(
 func (ca *ContractsAddrs) gatewaySetDependencies(
 	txRelayer txrelayer.TxRelayer,
 	admin *wallet.Account,
-	relayerAddr types.Address,
 ) error {
 	gateway := GatewaySetDependenciesFn{
 		Erc20_:      ca.erc20Predicate,
 		Validators_: ca.validators,
-		Relayer_:    relayerAddr,
 	}
 
 	encoded, err := gateway.EncodeAbi()

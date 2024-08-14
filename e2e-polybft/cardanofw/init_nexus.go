@@ -57,7 +57,6 @@ func InitNexusContracts() (
 type GatewaySetDependenciesFn struct {
 	Erc20_      types.Address `abi:"_eRC20TokenPredicate"`
 	Validators_ types.Address `abi:"_validators"`
-	Relayer_    types.Address `abi:"_relayer"`
 }
 
 func (g *GatewaySetDependenciesFn) Sig() []byte {
