@@ -240,23 +240,20 @@ func (a *AlibabaSsmManager) getSdkConfig() (*openapi.Config, error) {
 			AccessKeySecret: creds.AccessKeySecret,
 			// Required
 			SecurityToken: creds.SecurityToken,
-			// config.Endpoint = tea.String("oos.eu-central-1.aliyuncs.com")
-			Endpoint: tea.String(a.endpoint),
-			// eu-central-1
-			RegionId: tea.String(a.region),
 		}
 	} else {
 		config = &openapi.Config{
-			// Required, please ensure that the environment variables ALICLOUD_ACCESS_KEY is set.
+			// Required, please ensure that the environment variable ALICLOUD_ACCESS_KEY is set.
 			AccessKeyId: tea.String(os.Getenv("ALICLOUD_ACCESS_KEY")),
-			// Required, please ensure that the environment variables ALICLOUD_SECRET_KEY is set.
+			// Required, please ensure that the environment variable ALICLOUD_SECRET_KEY is set.
 			AccessKeySecret: tea.String(os.Getenv("ALICLOUD_SECRET_KEY")),
-			// config.Endpoint = tea.String("oos.eu-central-1.aliyuncs.com")
-			Endpoint: tea.String(a.endpoint),
-			// eu-central-1
-			RegionId: tea.String(a.region),
 		}
 	}
+
+	// oos.eu-central-1.aliyuncs.com
+	config.Endpoint = tea.String(a.endpoint)
+	// eu-central-1
+	config.RegionId = tea.String(a.region)
 
 	return config, nil
 }
