@@ -11,6 +11,8 @@ import (
 
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/wallet"
 	"github.com/0xPolygon/polygon-edge/helper/common"
+	"github.com/0xPolygon/polygon-edge/txrelayer"
+	"github.com/0xPolygon/polygon-edge/types"
 	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 	"github.com/umbracle/ethgo"
@@ -284,16 +286,36 @@ func (a *ApexSystem) CreateAndFundExistingUser(
 	return user
 }
 
-func (a *ApexSystem) CreateAndFundNexusUser(t *testing.T, ctx context.Context, ethAmount uint64) *wallet.Account {
-	t.Helper()
-
+func (a *ApexSystem) CreateAndFundNexusUser(ctx context.Context, ethAmount uint64) (*wallet.Account, error) {
 	user, err := wallet.GenerateAccount()
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
-	txRes := a.Nexus.Cluster.Transfer(t, a.Nexus.Admin.Ecdsa, user.Address(), ethgo.Ether(ethAmount))
-	require.True(t, txRes.Succeed())
+	txRelayer, err := txrelayer.NewTxRelayer(txrelayer.WithClient(a.Nexus.Cluster.Servers[0].JSONRPC()))
+	if err != nil {
+		return nil, err
+	}
 
-	return user
+	mintEncode, _ := NativeERC20Mintable.Abi.Methods["mint"].Encode(map[string]interface{}{
+		"account": user.Address(),
+		"amount":  ethgo.Ether(ethAmount),
+	})
+
+	receipt, err := txRelayer.SendTransaction(
+		types.NewTx(types.NewLegacyTx(
+			types.WithFrom(a.Nexus.Admin.Ecdsa.Address()),
+			types.WithTo(&a.Nexus.contracts.nativeErc20Mintable),
+			types.WithInput(mintEncode),
+		)),
+		a.Nexus.Admin.Ecdsa)
+	if err != nil {
+		return nil, err
+	} else if receipt.Status != uint64(types.ReceiptSuccess) {
+		return nil, fmt.Errorf("fund user tx failed: %d", receipt.Status)
+	}
+
+	return user, nil
 }
 
 func (a *ApexSystem) GetVectorNetworkType() cardanowallet.CardanoNetworkType {

@@ -90,7 +90,6 @@ func (g *ERC20PredicateSetDependenciesFn) DecodeAbi(buf []byte) error {
 
 type NativeERC20SetDependenciesFn struct {
 	Predicate_ types.Address `abi:"predicate_"`
-	Owner_     types.Address `abi:"owner_"`
 	Name_      string        `abi:"name_"`
 	Symbol_    string        `abi:"symbol_"`
 	Decimals_  uint8         `abi:"decimals_"`

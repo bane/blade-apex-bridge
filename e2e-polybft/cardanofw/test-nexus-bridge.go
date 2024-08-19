@@ -86,16 +86,16 @@ func SetupAndRunNexusBridge(
 	require.NoError(t, err)
 }
 
-func (ec *TestEVMBridge) SendTxEvm(privateKey string, receiver string, amount uint64) error {
+func (ec *TestEVMBridge) SendTxEvm(privateKey string, receiver string, amount *big.Int) error {
 	return RunCommand(ResolveApexBridgeBinary(), []string{
 		"sendtx",
 		"--tx-type", "evm",
 		"--gateway-addr", ec.contracts.gateway.String(),
-		"--nexus-url", ec.NodeURL(),
+		"--nexus-url", ec.Cluster.Servers[0].JSONRPCAddr(),
 		"--key", privateKey,
 		"--chain-dst", "prime",
-		"--receiver", fmt.Sprintf("%v:%v", receiver, amount),
-		// feeAmount     uint64
+		"--receiver", fmt.Sprintf("%s:%s", receiver, amount.String()),
+		"--fee", "1000010000000000000",
 	}, os.Stdout)
 }
 
@@ -313,7 +313,6 @@ func (ca *ContractsAddrs) nativeErc20SetDependencies(
 ) error {
 	nativeErc20 := NativeERC20SetDependenciesFn{
 		Predicate_: ca.erc20Predicate,
-		Owner_:     admin.Address(),
 		Name_:      tokenName,
 		Symbol_:    tokenSymbol,
 		Decimals_:  decimals,

@@ -24,7 +24,7 @@ import (
 // eq add line `export PATH=$PATH:~/Apps/cardano` to  `~/.bashrc`
 // cd e2e-polybft/e2e
 // ONLY_RUN_APEX_BRIDGE=true go test -v -timeout 0 -run ^Test_OnlyRunApexBridge$ github.com/0xPolygon/polygon-edge/e2e-polybft/e2e
-func Test_OnlyRunApexBridge(t *testing.T) {
+func Test_OnlyRunApexBridge_WithNexusAndVector(t *testing.T) {
 	if shouldRun := os.Getenv("ONLY_RUN_APEX_BRIDGE"); shouldRun != "true" {
 		t.Skip()
 	}
@@ -39,6 +39,8 @@ func Test_OnlyRunApexBridge(t *testing.T) {
 	apex := cardanofw.RunApexBridge(
 		t, ctx,
 		cardanofw.WithAPIKey(apiKey),
+		cardanofw.WithVectorEnabled(true),
+		cardanofw.WithNexusEnabled(true),
 	)
 
 	oracleAPI, err := apex.Bridge.GetBridgingAPI()
@@ -66,6 +68,16 @@ func Test_OnlyRunApexBridge(t *testing.T) {
 	fmt.Printf("user prime signing key hex: %s\n", primeUserSKHex)
 	fmt.Printf("user vector addr: %s\n", user.VectorAddress)
 	fmt.Printf("user vector signing key hex: %s\n", vectorUserSKHex)
+
+	evmUser, err := apex.CreateAndFundNexusUser(ctx, 10)
+	require.NoError(t, err)
+	pkBytes, err := evmUser.Ecdsa.MarshallPrivateKey()
+	require.NoError(t, err)
+
+	fmt.Printf("nexus user addr: %s\n", evmUser.Address())
+	fmt.Printf("nexus user signing key: %s\n", hex.EncodeToString(pkBytes))
+	fmt.Printf("nexus url: %s\n", apex.Nexus.Cluster.Servers[0].JSONRPCAddr())
+	fmt.Printf("nexus gateway sc addr: %s\n", apex.Nexus.GetGatewayAddress().String())
 
 	signalChannel := make(chan os.Signal, 1)
 	// Notify the signalChannel when the interrupt signal is received (Ctrl+C)
