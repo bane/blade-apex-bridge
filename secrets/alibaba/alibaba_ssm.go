@@ -227,7 +227,17 @@ func (a *AlibabaSsmManager) logError(err error) {
 func (a *AlibabaSsmManager) getSdkConfig() (*openapi.Config, error) {
 	var config *openapi.Config
 
-	if a.role != "" {
+	accessKey := os.Getenv("ALICLOUD_ACCESS_KEY")
+	secretKey := os.Getenv("ALICLOUD_SECRET_KEY")
+
+	if accessKey != "" && secretKey != "" {
+		config = &openapi.Config{
+			// Required, please ensure that the environment variable ALICLOUD_ACCESS_KEY is set.
+			AccessKeyId: tea.String(accessKey),
+			// Required, please ensure that the environment variable ALICLOUD_SECRET_KEY is set.
+			AccessKeySecret: tea.String(secretKey),
+		}
+	} else if a.role != "" {
 		creds, err := getCredentials(a.role)
 		if err != nil {
 			return nil, err
@@ -242,12 +252,7 @@ func (a *AlibabaSsmManager) getSdkConfig() (*openapi.Config, error) {
 			SecurityToken: creds.SecurityToken,
 		}
 	} else {
-		config = &openapi.Config{
-			// Required, please ensure that the environment variable ALICLOUD_ACCESS_KEY is set.
-			AccessKeyId: tea.String(os.Getenv("ALICLOUD_ACCESS_KEY")),
-			// Required, please ensure that the environment variable ALICLOUD_SECRET_KEY is set.
-			AccessKeySecret: tea.String(os.Getenv("ALICLOUD_SECRET_KEY")),
-		}
+		return nil, errors.New("neither access keys nor role is set")
 	}
 
 	// oos.eu-central-1.aliyuncs.com
