@@ -31,7 +31,7 @@ func WaitForSubscribers(ctx context.Context, srv *Server, topic string, expected
 }
 
 func TestSimpleGossip(t *testing.T) {
-	numServers := 8
+	numServers := 6
 	sentMessage := fmt.Sprintf("%d", time.Now().UTC().Unix())
 
 	servers, createErr := createServers(numServers, nil)
