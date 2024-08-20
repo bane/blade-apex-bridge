@@ -225,10 +225,11 @@ func (a *AlibabaSsmManager) logError(err error) {
 }
 
 func (a *AlibabaSsmManager) getSdkConfig() (*openapi.Config, error) {
-	var config *openapi.Config
-
-	accessKey := os.Getenv("ALICLOUD_ACCESS_KEY")
-	secretKey := os.Getenv("ALICLOUD_SECRET_KEY")
+	var (
+		config    *openapi.Config
+		accessKey = os.Getenv("ALICLOUD_ACCESS_KEY")
+		secretKey = os.Getenv("ALICLOUD_SECRET_KEY")
+	)
 
 	switch {
 	case accessKey != "" && secretKey != "":
