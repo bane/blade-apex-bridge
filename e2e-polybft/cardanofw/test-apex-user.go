@@ -3,6 +3,7 @@ package cardanofw
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -156,7 +157,7 @@ func (u *TestApexUser) BridgeNexusAmount(
 	multisigAddr, feeAddr string, sendAmount uint64,
 	networkConfig TestCardanoNetworkConfig,
 	receiverAddr string,
-) string {
+) (string, error) {
 	t.Helper()
 
 	sender := u.PrimeWallet
@@ -172,12 +173,10 @@ func (u *TestApexUser) BridgeNexusAmount(
 	// txHash := BridgeAmountFull(t, ctx, txProvider, networkConfig,
 	// 	multisigAddr, nexusFeeAddr, sender, receiverAddr, sendAmount)
 
-	txHash := BridgeAmountFullMultipleReceiversNexus(
-		t, ctx, txProvider, networkConfig, multisigAddr, feeAddr, sender,
+	return BridgeAmountFullMultipleReceiversNexus(
+		ctx, txProvider, networkConfig, multisigAddr, feeAddr, sender,
 		[]string{receiverAddr}, sendAmount,
 	)
-
-	return txHash
 }
 
 func CreateMetaData(
@@ -253,19 +252,23 @@ func BridgeAmountFullMultipleReceivers(
 }
 
 func BridgeAmountFullMultipleReceiversNexus(
-	t *testing.T, ctx context.Context, txProvider wallet.ITxProvider, networkConfig TestCardanoNetworkConfig,
+	ctx context.Context, txProvider wallet.ITxProvider, networkConfig TestCardanoNetworkConfig,
 	multisigAddr, feeAddr string, sender wallet.IWallet,
 	receiverAddrs []string, sendAmount uint64,
-) string {
-	t.Helper()
+) (string, error) {
+	const (
+		maxReceivers = 4
+		feeAmount    = 1_100_000
+	)
 
-	require.Greater(t, len(receiverAddrs), 0)
-	require.Less(t, len(receiverAddrs), 5)
-
-	const feeAmount = 1_100_000
+	if len(receiverAddrs) == 0 || len(receiverAddrs) > maxReceivers {
+		return "", fmt.Errorf("invalid receivers length, len: %d", len(receiverAddrs))
+	}
 
 	senderAddr, err := GetAddress(networkConfig.NetworkType, sender)
-	require.NoError(t, err)
+	if err != nil {
+		return "", err
+	}
 
 	receivers := make(map[string]uint64, len(receiverAddrs))
 	for _, receiverAddr := range receiverAddrs {
@@ -274,15 +277,16 @@ func BridgeAmountFullMultipleReceiversNexus(
 
 	bridgingRequestMetadata, err := CreateMetaData(
 		senderAddr.String(), receivers, ChainIDNexus, feeAmount)
-	require.NoError(t, err)
+	if err != nil {
+		return "", err
+	}
 
 	txHash, err := SendTx(ctx, txProvider, sender,
 		uint64(len(receiverAddrs))*sendAmount+feeAmount, multisigAddr, networkConfig, bridgingRequestMetadata)
-	require.NoError(t, err)
+	if err != nil {
+		return "", err
+	}
 
-	err = wallet.WaitForTxHashInUtxos(
+	return txHash, wallet.WaitForTxHashInUtxos(
 		context.Background(), txProvider, multisigAddr, txHash, 60, time.Second*2, IsRecoverableError)
-	require.NoError(t, err)
-
-	return txHash
 }
