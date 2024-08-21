@@ -276,8 +276,8 @@ func GenesisPostHookFactory(config *chain.Chain, engineName string) func(txn *st
 						return err
 					}
 
-					if err = callContract(contracts.SystemCaller, contracts.RootMintableERC20PredicateContract, input,
-						"RootMintableERC20PredicateAccessList", transition); err != nil {
+					if err = callContract(contracts.SystemCaller, contracts.RootERC20PredicateContract, input,
+						"RootERC20PredicateAccessList", transition); err != nil {
 						return err
 					}
 
@@ -288,8 +288,8 @@ func GenesisPostHookFactory(config *chain.Chain, engineName string) func(txn *st
 						return err
 					}
 
-					if err = callContract(contracts.SystemCaller, contracts.RootMintableERC721PredicateContract, input,
-						"RootMintableERC721PredicateAccessList", transition); err != nil {
+					if err = callContract(contracts.SystemCaller, contracts.RootERC721PredicateContract, input,
+						"RootERC721PredicateAccessList", transition); err != nil {
 						return err
 					}
 
@@ -300,8 +300,8 @@ func GenesisPostHookFactory(config *chain.Chain, engineName string) func(txn *st
 						return err
 					}
 
-					if err = callContract(contracts.SystemCaller, contracts.RootMintableERC1155PredicateContract, input,
-						"RootMintableERC1155PredicateAccessList", transition); err != nil {
+					if err = callContract(contracts.SystemCaller, contracts.RootERC1155PredicateContract, input,
+						"RootERC1155PredicateAccessList", transition); err != nil {
 						return err
 					}
 
@@ -347,8 +347,8 @@ func GenesisPostHookFactory(config *chain.Chain, engineName string) func(txn *st
 						return err
 					}
 
-					if err = callContract(contracts.SystemCaller, contracts.RootMintableERC20PredicateContract, input,
-						"RootMintableERC20Predicate", transition); err != nil {
+					if err = callContract(contracts.SystemCaller, contracts.RootERC20PredicateContract, input,
+						"RootERC20Predicate", transition); err != nil {
 						return err
 					}
 
@@ -358,8 +358,8 @@ func GenesisPostHookFactory(config *chain.Chain, engineName string) func(txn *st
 						return err
 					}
 
-					if err = callContract(contracts.SystemCaller, contracts.RootMintableERC721PredicateContract, input,
-						"RootMintableERC721Predicate", transition); err != nil {
+					if err = callContract(contracts.SystemCaller, contracts.RootERC721PredicateContract, input,
+						"RootERC721Predicate", transition); err != nil {
 						return err
 					}
 
@@ -369,10 +369,11 @@ func GenesisPostHookFactory(config *chain.Chain, engineName string) func(txn *st
 						return err
 					}
 
-					if err = callContract(contracts.SystemCaller, contracts.RootMintableERC1155PredicateContract, input,
-						"RootMintableERC1155Predicate", transition); err != nil {
+					if err = callContract(contracts.SystemCaller, contracts.RootERC1155PredicateContract, input,
+						"RootERC1155Predicate", transition); err != nil {
 						return err
 					}
+
 				}
 			}
 		}

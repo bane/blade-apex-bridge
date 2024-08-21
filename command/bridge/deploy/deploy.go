@@ -30,6 +30,7 @@ const (
 
 	stateSenderName                   = "StateSender"
 	checkpointManagerName             = "CheckpointManager"
+	gatewayName                       = "Gateway"
 	blsName                           = "BLS"
 	bn256G2Name                       = "BN256G2"
 	exitHelperName                    = "ExitHelper"
@@ -74,12 +75,15 @@ var (
 		getProxyNameForImpl(exitHelperName): func(rootchainConfig *polybft.RootchainConfig, addr types.Address) {
 			rootchainConfig.ExitHelperAddress = addr
 		},
+		getProxyNameForImpl(gatewayName): func(rootchainConfig *polybft.RootchainConfig, addr types.Address) {
+			rootchainConfig.Gateway = addr
+		},
 		getProxyNameForImpl(rootERC20PredicateName): func(rootchainConfig *polybft.RootchainConfig, addr types.Address) {
 			rootchainConfig.RootERC20PredicateAddress = addr
 		},
 		getProxyNameForImpl(childERC20MintablePredicateName): func(
 			rootchainConfig *polybft.RootchainConfig, addr types.Address) {
-			rootchainConfig.ChildMintableERC20PredicateAddress = addr
+			rootchainConfig.ChildERC20PredicateAddress = addr
 		},
 		rootERC20Name: func(rootchainConfig *polybft.RootchainConfig, addr types.Address) {
 			rootchainConfig.RootNativeERC20Address = addr
@@ -92,7 +96,7 @@ var (
 		},
 		getProxyNameForImpl(childERC721MintablePredicateName): func(
 			rootchainConfig *polybft.RootchainConfig, addr types.Address) {
-			rootchainConfig.ChildMintableERC721PredicateAddress = addr
+			rootchainConfig.ChildERC721PredicateAddress = addr
 		},
 		erc721TemplateName: func(rootchainConfig *polybft.RootchainConfig, addr types.Address) {
 			rootchainConfig.ChildERC721Address = addr
@@ -102,7 +106,7 @@ var (
 		},
 		getProxyNameForImpl(childERC1155MintablePredicateName): func(
 			rootchainConfig *polybft.RootchainConfig, addr types.Address) {
-			rootchainConfig.ChildMintableERC1155PredicateAddress = addr
+			rootchainConfig.ChildERC1155PredicateAddress = addr
 		},
 		erc1155TemplateName: func(rootchainConfig *polybft.RootchainConfig, addr types.Address) {
 			rootchainConfig.ChildERC1155Address = addr
@@ -127,7 +131,7 @@ var (
 				return nil
 			}
 
-			validatorSet, err := getValidatorSetForCheckpointManager(fmt, genesisValidators)
+			validatorSet, err := getValidatorSet(fmt, genesisValidators)
 			if err != nil {
 				return err
 			}
@@ -161,10 +165,9 @@ var (
 			key crypto.Key,
 			chainID int64) error {
 			inputParams := &contractsapi.InitializeRootERC20PredicateFn{
-				NewStateSender:         config.StateSenderAddress,
-				NewExitHelper:          config.ExitHelperAddress,
-				NewChildERC20Predicate: contracts.ChildERC20PredicateContract,
-				NewChildTokenTemplate:  contracts.ChildERC20Contract,
+				NewGateway:                  config.Gateway,
+				NewChildERC20Predicate:      contracts.ChildERC20PredicateContract,
+				NewDestinationTokenTemplate: contracts.ChildERC20Contract,
 				// root native token address should be non-zero only if native token is non-mintable on a childchain
 				NewNativeTokenRoot: config.RootNativeERC20Address,
 			}
@@ -178,15 +181,14 @@ var (
 			config *polybft.RootchainConfig,
 			key crypto.Key,
 			chainID int64) error {
-			initParams := &contractsapi.InitializeChildMintableERC20PredicateFn{
-				NewStateSender:        config.StateSenderAddress,
-				NewExitHelper:         config.ExitHelperAddress,
-				NewRootERC20Predicate: contracts.RootMintableERC20PredicateContract,
-				NewChildTokenTemplate: config.ChildERC20Address,
+			initParams := &contractsapi.InitializeChildERC20PredicateFn{
+				NewGateway:                  config.Gateway,
+				NewRootERC20Predicate:       contracts.RootERC20PredicateContract,
+				NewDestinationTokenTemplate: config.ChildERC20Address,
 			}
 
 			return initContract(fmt, relayer, initParams,
-				config.ChildMintableERC20PredicateAddress, childERC20MintablePredicateName, key)
+				config.ChildERC20PredicateAddress, childERC20MintablePredicateName, key)
 		},
 		getProxyNameForImpl(rootERC721PredicateName): func(fmt command.OutputFormatter,
 			relayer txrelayer.TxRelayer,
@@ -195,10 +197,9 @@ var (
 			key crypto.Key,
 			chainID int64) error {
 			initParams := &contractsapi.InitializeRootERC721PredicateFn{
-				NewStateSender:          config.StateSenderAddress,
-				NewExitHelper:           config.ExitHelperAddress,
-				NewChildERC721Predicate: contracts.ChildERC721PredicateContract,
-				NewChildTokenTemplate:   contracts.ChildERC721Contract,
+				NewGateway:                  config.Gateway,
+				NewChildERC721Predicate:     contracts.ChildERC721PredicateContract,
+				NewDestinationTokenTemplate: contracts.ChildERC721Contract,
 			}
 
 			return initContract(fmt, relayer, initParams,
@@ -210,15 +211,14 @@ var (
 			config *polybft.RootchainConfig,
 			key crypto.Key,
 			chainID int64) error {
-			initParams := &contractsapi.InitializeChildMintableERC721PredicateFn{
-				NewStateSender:         config.StateSenderAddress,
-				NewExitHelper:          config.ExitHelperAddress,
-				NewRootERC721Predicate: contracts.RootMintableERC721PredicateContract,
-				NewChildTokenTemplate:  config.ChildERC721Address,
+			initParams := &contractsapi.InitializeChildERC721PredicateFn{
+				NewGateway:                  config.Gateway,
+				NewRootERC721Predicate:      contracts.RootERC721PredicateContract,
+				NewDestinationTokenTemplate: config.ChildERC721Address,
 			}
 
 			return initContract(fmt, relayer, initParams,
-				config.ChildMintableERC721PredicateAddress, childERC721MintablePredicateName, key)
+				config.ChildERC721PredicateAddress, childERC721MintablePredicateName, key)
 		},
 		getProxyNameForImpl(rootERC1155PredicateName): func(fmt command.OutputFormatter,
 			relayer txrelayer.TxRelayer,
@@ -227,10 +227,9 @@ var (
 			key crypto.Key,
 			chainID int64) error {
 			initParams := &contractsapi.InitializeRootERC1155PredicateFn{
-				NewStateSender:           config.StateSenderAddress,
-				NewExitHelper:            config.ExitHelperAddress,
-				NewChildERC1155Predicate: contracts.ChildERC1155PredicateContract,
-				NewChildTokenTemplate:    contracts.ChildERC1155Contract,
+				NewGateway:                  config.Gateway,
+				NewChildERC1155Predicate:    contracts.ChildERC1155PredicateContract,
+				NewDestinationTokenTemplate: contracts.ChildERC1155Contract,
 			}
 
 			return initContract(fmt, relayer, initParams,
@@ -242,15 +241,14 @@ var (
 			config *polybft.RootchainConfig,
 			key crypto.Key,
 			chainID int64) error {
-			initParams := &contractsapi.InitializeChildMintableERC1155PredicateFn{
-				NewStateSender:          config.StateSenderAddress,
-				NewExitHelper:           config.ExitHelperAddress,
-				NewRootERC1155Predicate: contracts.RootMintableERC1155PredicateContract,
-				NewChildTokenTemplate:   config.ChildERC1155Address,
+			initParams := &contractsapi.InitializeChildERC1155PredicateFn{
+				NewGateway:                  config.Gateway,
+				NewRootERC1155Predicate:     contracts.RootERC1155PredicateContract,
+				NewDestinationTokenTemplate: config.ChildERC1155Address,
 			}
 
 			return initContract(fmt, relayer, initParams,
-				config.ChildMintableERC1155PredicateAddress, childERC1155MintablePredicateName, key)
+				config.ChildERC1155PredicateAddress, childERC1155MintablePredicateName, key)
 		},
 		getProxyNameForImpl(bladeManagerName): func(fmt command.OutputFormatter,
 			relayer txrelayer.TxRelayer,
@@ -276,6 +274,26 @@ var (
 
 			return initContract(fmt, relayer, initParams,
 				config.BladeManagerAddress, bladeManagerName, key)
+		},
+		getProxyNameForImpl(gatewayName): func(fmt command.OutputFormatter,
+			relayer txrelayer.TxRelayer,
+			genesisValidators []*validator.GenesisValidator,
+			config *polybft.RootchainConfig,
+			key crypto.Key,
+			chainID int64) error {
+			validatorSet, err := getValidatorSet(fmt, genesisValidators)
+			if err != nil {
+				return err
+			}
+
+			inputParams := &contractsapi.InitializeGatewayFn{
+				NewBls:     config.BLSAddress,
+				NewBn256G2: config.BN256G2Address,
+				Validators: validatorSet,
+			}
+
+			return initContract(fmt, relayer, inputParams, config.Gateway,
+				gatewayName, key)
 		},
 	}
 )
@@ -382,7 +400,7 @@ func runCommand(cmd *cobra.Command, _ []string) {
 	}
 
 	if consensusCfg.Bridge[chainID.Uint64()] != nil {
-		code, err := client.GetCode(consensusCfg.Bridge[chainID.Uint64()].StateSenderAddr, jsonrpc.LatestBlockNumberOrHash)
+		code, err := client.GetCode(consensusCfg.Bridge[chainID.Uint64()].GatewayAddr, jsonrpc.LatestBlockNumberOrHash)
 		if err != nil {
 			outputter.SetError(fmt.Errorf("failed to check if rootchain contracts are deployed: %w", err))
 
@@ -419,7 +437,7 @@ func runCommand(cmd *cobra.Command, _ []string) {
 	consensusCfg.Bridge[chainID.Uint64()] = deploymentResultInfo.RootchainCfg.ToBridgeConfig()
 
 	consensusCfg.Bridge[chainID.Uint64()].EventTrackerStartBlocks = map[types.Address]uint64{
-		deploymentResultInfo.RootchainCfg.StateSenderAddress: blockNum,
+		deploymentResultInfo.RootchainCfg.Gateway: blockNum,
 	}
 
 	// write updated consensus configuration
@@ -513,6 +531,11 @@ func deployContracts(outputter command.OutputFormatter, client *jsonrpc.EthClien
 			},
 		},
 		{
+			name:     gatewayName,
+			artifact: contractsapi.Gateway,
+			hasProxy: true,
+		},
+		{
 			name:     blsName,
 			artifact: contractsapi.BLS,
 			hasProxy: true,
@@ -534,7 +557,7 @@ func deployContracts(outputter command.OutputFormatter, client *jsonrpc.EthClien
 		},
 		{
 			name:     childERC20MintablePredicateName,
-			artifact: contractsapi.ChildMintableERC20Predicate,
+			artifact: contractsapi.ChildERC20Predicate,
 			hasProxy: true,
 		},
 		{
@@ -548,7 +571,7 @@ func deployContracts(outputter command.OutputFormatter, client *jsonrpc.EthClien
 		},
 		{
 			name:     childERC721MintablePredicateName,
-			artifact: contractsapi.ChildMintableERC721Predicate,
+			artifact: contractsapi.ChildERC721Predicate,
 			hasProxy: true,
 		},
 		{
@@ -562,7 +585,7 @@ func deployContracts(outputter command.OutputFormatter, client *jsonrpc.EthClien
 		},
 		{
 			name:     childERC1155MintablePredicateName,
-			artifact: contractsapi.ChildMintableERC1155Predicate,
+			artifact: contractsapi.ChildERC1155Predicate,
 			hasProxy: true,
 		},
 		{
@@ -770,9 +793,9 @@ func getProxyNameForImpl(input string) string {
 	return input + ProxySufix
 }
 
-// getValidatorSetForCheckpointManager converts given validators to generic map
+// getValidatorSet converts given validators to generic map
 // which is used for ABI encoding validator set being sent to the CheckpointManager contract
-func getValidatorSetForCheckpointManager(o command.OutputFormatter,
+func getValidatorSet(o command.OutputFormatter,
 	validators []*validator.GenesisValidator) ([]*contractsapi.Validator, error) {
 	accSet := make(validator.AccountSet, len(validators))
 
