@@ -87,16 +87,29 @@ func SetupAndRunNexusBridge(
 }
 
 func (ec *TestEVMBridge) SendTxEvm(privateKey string, receiver string, amount *big.Int) error {
-	return RunCommand(ResolveApexBridgeBinary(), []string{
+	return ec.SendTxEvmMultipleReceivers(privateKey, []string{receiver}, amount)
+}
+
+func (ec *TestEVMBridge) SendTxEvmMultipleReceivers(privateKey string, receivers []string, amount *big.Int) error {
+	params := []string{
 		"sendtx",
 		"--tx-type", "evm",
 		"--gateway-addr", ec.contracts.gateway.String(),
 		"--nexus-url", ec.Cluster.Servers[0].JSONRPCAddr(),
 		"--key", privateKey,
 		"--chain-dst", "prime",
-		"--receiver", fmt.Sprintf("%s:%s", receiver, amount.String()),
 		"--fee", "1000010000000000000",
-	}, os.Stdout)
+	}
+
+	receiversParam := make([]string, 0)
+	for i := 0; i < len(receivers); i++ {
+		receiversParam = append(receiversParam, "--receiver")
+		receiversParam = append(receiversParam, fmt.Sprintf("%s:%s", receivers[i], amount))
+	}
+
+	params = append(params, receiversParam...)
+
+	return RunCommand(ResolveApexBridgeBinary(), params, os.Stdout)
 }
 
 func GetEthAmount(ctx context.Context, evmChain *TestEVMBridge, wallet *wallet.Account) (*big.Int, error) {
@@ -124,7 +137,7 @@ func WaitForEthAmount(
 	}, isRecoverableError...)
 }
 
-func (ec TestEVMBridge) NodeURL() string {
+func (ec *TestEVMBridge) NodeURL() string {
 	return fmt.Sprintf("http://localhost:%d", ec.Config.NexusStartingPort)
 }
 

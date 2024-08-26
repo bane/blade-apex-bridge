@@ -161,17 +161,6 @@ func (u *TestApexUser) BridgeNexusAmount(
 	t.Helper()
 
 	sender := u.PrimeWallet
-	// receiverAddr := u.VectorAddress
-	// receiverAddr := "0x537Fc153530Cd06f99FEf66474e5Ba1F8Cb69E03"
-	// nexusFeeAddr := "0x537Fc153530Cd06f99FEf66474e5Ba1F8Cb69E03"
-
-	// if !networkConfig.IsPrime() {
-	// 	sender = u.VectorWallet
-	// 	receiverAddr = u.PrimeAddress
-	// }
-
-	// txHash := BridgeAmountFull(t, ctx, txProvider, networkConfig,
-	// 	multisigAddr, nexusFeeAddr, sender, receiverAddr, sendAmount)
 
 	return BridgeAmountFullMultipleReceiversNexus(
 		ctx, txProvider, networkConfig, multisigAddr, feeAddr, sender,

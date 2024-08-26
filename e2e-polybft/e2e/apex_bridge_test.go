@@ -210,7 +210,7 @@ func TestE2E_ApexBridge(t *testing.T) {
 	user.BridgeAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
 		apex.Bridge.VectorMultisigFeeAddr, sendAmount, apex.PrimeCluster.NetworkConfig())
 
-	err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+	err = cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val uint64) bool {
 		return val == expectedAmount
 	}, 15, time.Second*10)
 	require.NoError(t, err)
@@ -638,7 +638,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 			expectedAmount := prevAmount + sendAmount
 			fmt.Printf("%v - expectedAmount %v\n", i+1, expectedAmount)
 
-			err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+			err = cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val uint64) bool {
 				return val == expectedAmount
 			}, 20, time.Second*10)
 			require.NoError(t, err)
@@ -659,7 +659,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 		}
 
 		expectedAmount := prevAmount + uint64(instances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+		err = cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val uint64) bool {
 			return val == expectedAmount
 		}, 20, time.Second*10)
 		require.NoError(t, err)
@@ -701,7 +701,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 		wg.Wait()
 
 		expectedAmount := prevAmount + uint64(instances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+		err = cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val uint64) bool {
 			return val == expectedAmount
 		}, 100, time.Second*10)
 		require.NoError(t, err)
@@ -727,7 +727,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 		}
 
 		expectedAmount := prevAmount + uint64(instances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderPrime, user.PrimeAddress, func(val uint64) bool {
+		err = cardanofw.WaitForAmount(ctx, txProviderPrime, user.PrimeAddress, func(val uint64) bool {
 			return val == expectedAmount
 		}, 20, time.Second*10)
 		require.NoError(t, err)
@@ -769,7 +769,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 		wg.Wait()
 
 		expectedAmount := prevAmount + uint64(instances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderPrime, user.PrimeAddress, func(val uint64) bool {
+		err = cardanofw.WaitForAmount(ctx, txProviderPrime, user.PrimeAddress, func(val uint64) bool {
 			return val == expectedAmount
 		}, 100, time.Second*10)
 		require.NoError(t, err)
@@ -825,7 +825,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 		fmt.Printf("Waiting for %v TXs\n", sequentialInstances*parallelInstances)
 
 		expectedAmount := prevAmount + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+		err = cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val uint64) bool {
 			return val == expectedAmount
 		}, 100, time.Second*10)
 		require.NoError(t, err)
@@ -907,7 +907,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 				defer wgResult.Done()
 
 				expectedAmount := destinationWalletPrevAmounts[receiverIdx] + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
-				err = cardanofw.WaitForAmount(context.Background(), txProviderVector, destinationWalletAddresses[receiverIdx], func(val uint64) bool {
+				err = cardanofw.WaitForAmount(ctx, txProviderVector, destinationWalletAddresses[receiverIdx], func(val uint64) bool {
 					return val == expectedAmount
 				}, 100, time.Second*10)
 				require.NoError(t, err)
@@ -941,7 +941,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 		fmt.Printf("Waiting for %v TXs on vector\n", instances)
 		expectedAmountOnVector := prevAmountOnVector + uint64(instances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+		err = cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val uint64) bool {
 			return val == expectedAmountOnVector
 		}, 100, time.Second*10)
 		require.NoError(t, err)
@@ -953,7 +953,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 		fmt.Printf("Waiting for %v TXs on prime\n", instances)
 		expectedAmountOnPrime := prevAmountOnPrime + uint64(instances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderPrime, user.PrimeAddress, func(val uint64) bool {
+		err = cardanofw.WaitForAmount(ctx, txProviderPrime, user.PrimeAddress, func(val uint64) bool {
 			return val == expectedAmountOnPrime
 		}, 100, time.Second*10)
 		require.NoError(t, err)
@@ -1326,7 +1326,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 		fmt.Printf("Waiting for %v TXs on vector:\n", sequentialInstances*parallelInstances)
 
 		expectedAmountOnVector := prevAmountOnVector + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderVector, user.VectorAddress, func(val uint64) bool {
+		err = cardanofw.WaitForAmount(ctx, txProviderVector, user.VectorAddress, func(val uint64) bool {
 			return val == expectedAmountOnVector
 		}, 100, time.Second*10)
 		require.NoError(t, err)
@@ -1340,7 +1340,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 		fmt.Printf("Waiting for %v TXs on prime\n", sequentialInstances*parallelInstances)
 
 		expectedAmountOnPrime := prevAmountOnPrime + uint64(sequentialInstances)*uint64(parallelInstances)*sendAmount
-		err = cardanofw.WaitForAmount(context.Background(), txProviderPrime, user.PrimeAddress, func(val uint64) bool {
+		err = cardanofw.WaitForAmount(ctx, txProviderPrime, user.PrimeAddress, func(val uint64) bool {
 			return val == expectedAmountOnPrime
 		}, 100, time.Second*10)
 		require.NoError(t, err)
