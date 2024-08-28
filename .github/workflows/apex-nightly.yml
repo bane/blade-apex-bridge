@@ -16,6 +16,7 @@ jobs:
       unit_test: true
       e2e_polybft_test: true
       e2e_apex_test: true
+      e2e_apex_big_test: ${{ vars.RUN_E2E_BIG_TESTS }}
     secrets:
       PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
   notification_apex_nightly:

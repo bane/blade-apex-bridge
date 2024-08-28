@@ -2,6 +2,11 @@
 name: E2E ApexBridge Tests
 on: # yamllint disable-line rule:truthy
   workflow_call:
+    inputs:
+      e2e_apex_big_test:
+        description: E2E ApexBridge Big Tests
+        type: string
+        required: true
     outputs:
       workflow_output:
         description: E2E ApexBridge Tests output
@@ -81,6 +86,8 @@ jobs:
         run: ls -l /etc/ssl/private/localhost.key
       - name: Run tests
         run: make test-e2e-apex-bridge
+        env: 
+          RUN_E2E_BIG_TESTS: ${{ inputs.e2e_apex_big_test }}
       - name: Run tests failed
         if: failure()
         id: run_e2e_apex_failure
