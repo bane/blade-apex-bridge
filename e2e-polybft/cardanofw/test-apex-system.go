@@ -11,6 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type RunCardanoClusterConfig struct {
+	ID                 int
+	NodesCount         int
+	NetworkType        cardanowallet.CardanoNetworkType
+	InitialFundsKeys   []string
+	InitialFundsAmount uint64
+}
+
 type ApexSystem struct {
 	PrimeCluster  *TestCardanoCluster
 	VectorCluster *TestCardanoCluster
@@ -36,8 +44,10 @@ type ApexSystemConfig struct {
 	TelemetryConfig               string
 	TargetOneCardanoClusterServer bool
 
-	CardanoNodesNum     int
 	BladeValidatorCount int
+
+	PrimeClusterConfig  *RunCardanoClusterConfig
+	VectorClusterConfig *RunCardanoClusterConfig
 
 	// Nexus EVM
 	NexusEnabled bool
@@ -110,6 +120,18 @@ func WithNexusStartintPort(port int64) ApexSystemOptions {
 	}
 }
 
+func WithPrimeClusterConfig(config *RunCardanoClusterConfig) ApexSystemOptions {
+	return func(h *ApexSystemConfig) {
+		h.PrimeClusterConfig = config
+	}
+}
+
+func WithVectorClusterConfig(config *RunCardanoClusterConfig) ApexSystemOptions {
+	return func(h *ApexSystemConfig) {
+		h.VectorClusterConfig = config
+	}
+}
+
 func (as *ApexSystemConfig) ServiceCount() int {
 	// Prime
 	count := 1
@@ -131,8 +153,18 @@ func newApexSystemConfig(opts ...ApexSystemOptions) *ApexSystemConfig {
 		APIPortStart:   40000,
 		APIKey:         "test_api_key",
 
-		CardanoNodesNum:     4,
 		BladeValidatorCount: 4,
+
+		PrimeClusterConfig: &RunCardanoClusterConfig{
+			ID:          0,
+			NodesCount:  4,
+			NetworkType: cardanowallet.TestNetNetwork,
+		},
+		VectorClusterConfig: &RunCardanoClusterConfig{
+			ID:          1,
+			NodesCount:  4,
+			NetworkType: cardanowallet.VectorTestNetNetwork,
+		},
 
 		NexusValidatorCount: 4,
 		NexusStartingPort:   int64(30400),
@@ -165,16 +197,14 @@ func RunApexBridge(
 	go func() {
 		defer wg.Done()
 
-		apexSystem.PrimeCluster, errorsContainer[0] = RunCardanoCluster(
-			t, ctx, 0, apexConfig.CardanoNodesNum, cardanowallet.TestNetNetwork)
+		apexSystem.PrimeCluster, errorsContainer[0] = RunCardanoCluster(t, ctx, apexConfig.PrimeClusterConfig)
 	}()
 
 	if apexConfig.VectorEnabled {
 		go func() {
 			defer wg.Done()
 
-			apexSystem.VectorCluster, errorsContainer[1] = RunCardanoCluster(
-				t, ctx, 1, apexConfig.CardanoNodesNum, cardanowallet.VectorTestNetNetwork)
+			apexSystem.VectorCluster, errorsContainer[1] = RunCardanoCluster(t, ctx, apexConfig.VectorClusterConfig)
 		}()
 	}
 
@@ -182,8 +212,7 @@ func RunApexBridge(
 		go func() {
 			defer wg.Done()
 
-			apexSystem.Nexus, errorsContainer[2] = RunEVMChain(
-				t, apexConfig)
+			apexSystem.Nexus, errorsContainer[2] = RunEVMChain(t, apexConfig)
 		}()
 	}
 

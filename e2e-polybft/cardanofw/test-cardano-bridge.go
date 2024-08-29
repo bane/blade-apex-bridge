@@ -228,25 +228,25 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 			}
 
 			var (
-				primeNetworkURL    string
+				primeNetworkAddr   string
 				primeNetworkMagic  uint
 				primeNetworkID     uint
-				vectorOgmiosURL    = "localhost:1000"
-				vectorNetworkURL   = "localhost:5499"
+				vectorOgmiosURL    = "http://localhost:1000"
+				vectorNetworkAddr  = "localhost:5499"
 				vectorNetworkMagic = uint(0)
 				vectorNetworkID    = uint(0)
 				nexusContractAddr  = types.ZeroAddress.String()
 				nexusRelayerWallet = types.ZeroAddress.String()
-				nexusNodeURL       = "localhost:5500"
+				nexusNodeURL       = "http://localhost:5500"
 			)
 
 			if cb.config.TargetOneCardanoClusterServer {
-				primeNetworkURL = primeCluster.NetworkURL()
+				primeNetworkAddr = primeCluster.NetworkAddress()
 				primeNetworkMagic = primeCluster.Config.NetworkMagic
 				primeNetworkID = uint(primeCluster.Config.NetworkType)
 			} else {
 				primeServer := primeCluster.Servers[indx%len(primeCluster.Servers)]
-				primeNetworkURL = primeServer.NetworkURL()
+				primeNetworkAddr = primeServer.NetworkAddress()
 				primeNetworkMagic = primeServer.config.NetworkMagic
 				primeNetworkID = uint(primeServer.config.NetworkID)
 			}
@@ -255,12 +255,12 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 				vectorOgmiosURL = vectorCluster.OgmiosURL()
 
 				if cb.config.TargetOneCardanoClusterServer {
-					vectorNetworkURL = vectorCluster.NetworkURL()
+					vectorNetworkAddr = vectorCluster.NetworkAddress()
 					vectorNetworkMagic = vectorCluster.Config.NetworkMagic
 					vectorNetworkID = uint(vectorCluster.Config.NetworkType)
 				} else {
 					vectorServer := vectorCluster.Servers[indx%len(vectorCluster.Servers)]
-					vectorNetworkURL = vectorServer.NetworkURL()
+					vectorNetworkAddr = vectorServer.NetworkAddress()
 					vectorNetworkMagic = vectorServer.config.NetworkMagic
 					vectorNetworkID = uint(vectorServer.config.NetworkID)
 				}
@@ -279,13 +279,13 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 			}
 
 			errs[indx] = validator.GenerateConfigs(
-				primeNetworkURL,
+				primeNetworkAddr,
 				primeNetworkMagic,
 				primeNetworkID,
 				primeCluster.OgmiosURL(),
 				cb.config.PrimeSlotRoundingThreshold,
 				cb.config.PrimeTTLInc,
-				vectorNetworkURL,
+				vectorNetworkAddr,
 				vectorNetworkMagic,
 				vectorNetworkID,
 				vectorOgmiosURL,

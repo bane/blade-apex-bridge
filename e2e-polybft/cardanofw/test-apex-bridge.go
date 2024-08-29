@@ -23,30 +23,29 @@ const FundTokenAmount = uint64(100_000_000_000)
 func RunCardanoCluster(
 	t *testing.T,
 	ctx context.Context,
-	id int,
-	cardanoNodesNum int,
-	networkType cardanowallet.CardanoNetworkType,
+	config *RunCardanoClusterConfig,
 ) (*TestCardanoCluster, error) {
 	t.Helper()
 
-	networkMagic := GetNetworkMagic(networkType)
-	networkName := GetNetworkName(networkType)
-	logsDir := fmt.Sprintf("%s/%d", getCardanoBaseLogsDir(t, networkName), id)
+	networkMagic := GetNetworkMagic(config.NetworkType)
+	networkName := GetNetworkName(config.NetworkType)
+	logsDir := fmt.Sprintf("%s/%d", getCardanoBaseLogsDir(t, networkName), config.ID)
 
 	if err := common.CreateDirSafe(logsDir, 0750); err != nil {
 		return nil, err
 	}
 
 	cluster, err := NewCardanoTestCluster(t,
-		WithID(id+1),
-		WithNodesCount(cardanoNodesNum),
+		WithID(config.ID+1),
+		WithNodesCount(config.NodesCount),
 		WithStartTimeDelay(time.Second*5),
-		WithPort(5100+id*100),
-		WithOgmiosPort(1337+id),
+		WithPort(5100+config.ID*100),
+		WithOgmiosPort(1337+config.ID),
 		WithLogsDir(logsDir),
 		WithNetworkMagic(networkMagic),
-		WithNetworkType(networkType),
+		WithNetworkType(config.NetworkType),
 		WithConfigGenesisDir(networkName),
+		WithInitialFunds(config.InitialFundsKeys, config.InitialFundsAmount),
 	)
 	if err != nil {
 		return nil, err
@@ -58,7 +57,7 @@ func RunCardanoCluster(
 		return nil, err
 	}
 
-	if err := cluster.StartOgmios(t, id); err != nil {
+	if err := cluster.StartOgmios(t, config.ID); err != nil {
 		return nil, err
 	}
 
@@ -66,7 +65,7 @@ func RunCardanoCluster(
 		return nil, err
 	}
 
-	fmt.Printf("Cluster %d is ready\n", id)
+	fmt.Printf("Cluster %d is ready\n", config.ID)
 
 	return cluster, nil
 }
