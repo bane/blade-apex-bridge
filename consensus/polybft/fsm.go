@@ -97,8 +97,8 @@ type fsm struct {
 	// isFirstBlockOfEpoch indicates if this is the start of new epoch
 	isFirstBlockOfEpoch bool
 
-	// proposerCommitmentToRegister is a commitment that is registered via state transaction by proposer
-	proposerCommitmentToRegister *CommitmentMessageSigned
+	// proposerBridgeBatchToRegister is a batch that is registered via state transaction by proposer
+	proposerBridgeBatchToRegister map[uint64]*BridgeBatchSigned
 
 	// logger instance
 	logger hclog.Logger
@@ -156,8 +156,8 @@ func (f *fsm) BuildProposal(currentRound uint64) ([]byte, error) {
 		}
 	}
 
-	if f.config.IsBridgeEnabled() {
-		if err := f.applyBridgeCommitmentTx(); err != nil {
+	if f.config.IsBridgeEnabled() && f.isEndOfSprint {
+		if err := f.applyBridgeBatchTx(); err != nil {
 			return nil, err
 		}
 	}
@@ -172,6 +172,12 @@ func (f *fsm) BuildProposal(currentRound uint64) ([]byte, error) {
 		}
 
 		extra.Validators = f.newValidatorsDelta
+
+		if f.config.IsBridgeEnabled() && !f.newValidatorsDelta.IsEmpty() {
+			if err := f.applyValidatorSetCommitTx(nextValidators, extra); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	currentValidatorsHash, err := f.validators.Accounts().Hash()
@@ -240,30 +246,47 @@ func (f *fsm) BuildProposal(currentRound uint64) ([]byte, error) {
 	return stateBlock.Block.MarshalRLP(), nil
 }
 
-// applyBridgeCommitmentTx builds state transaction which contains data for bridge commitment registration
-func (f *fsm) applyBridgeCommitmentTx() error {
-	if f.proposerCommitmentToRegister != nil {
-		bridgeCommitmentTx, err := f.createBridgeCommitmentTx()
+// applyBridgeBatchTx builds state transaction which contains data for bridge batch registration
+func (f *fsm) applyBridgeBatchTx() error {
+	for _, proposerBridgeBatchToRegister := range f.proposerBridgeBatchToRegister {
+		bridgeBatchTx, err := f.createBridgeBatchTx(proposerBridgeBatchToRegister)
 		if err != nil {
-			return fmt.Errorf("creation of bridge commitment transaction failed: %w", err)
+			return fmt.Errorf("creation of bridge batch transaction failed: %w", err)
 		}
 
-		if err := f.blockBuilder.WriteTx(bridgeCommitmentTx); err != nil {
-			return fmt.Errorf("failed to apply bridge commitment state transaction. Error: %w", err)
+		if err := f.blockBuilder.WriteTx(bridgeBatchTx); err != nil {
+			return fmt.Errorf("failed to apply bridge batch state transaction. Error: %w", err)
 		}
 	}
 
 	return nil
 }
 
-// createBridgeCommitmentTx builds bridge commitment registration transaction
-func (f *fsm) createBridgeCommitmentTx() (*types.Transaction, error) {
-	inputData, err := f.proposerCommitmentToRegister.EncodeAbi()
+// createBridgeBatchTx builds bridge batch registration transaction
+func (f *fsm) createBridgeBatchTx(signedBridgeBatch *BridgeBatchSigned) (*types.Transaction, error) {
+	inputData, err := signedBridgeBatch.EncodeAbi()
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode input data for bridge commitment registration: %w", err)
+		return nil, fmt.Errorf("failed to encode input data for bridge batch registration: %w", err)
 	}
 
-	return createStateTransactionWithData(contracts.StateReceiverContract, inputData), nil
+	return createStateTransactionWithData(contracts.BridgeStorageContract, inputData), nil
+}
+
+// applyValidatorSetCommitTx build validator set commit transaction and apply it
+func (f *fsm) applyValidatorSetCommitTx(nextValidators validator.AccountSet, extra *Extra) error {
+	commitValidatorSetInput, err := createCommitValidatorSetInput(nextValidators, extra)
+	if err != nil {
+		return err
+	}
+
+	input, err := commitValidatorSetInput.EncodeAbi()
+	if err != nil {
+		return err
+	}
+
+	tx := createStateTransactionWithData(contracts.BridgeStorageContract, input)
+
+	return f.blockBuilder.WriteTx(tx)
 }
 
 // getValidatorsTransition applies delta to the current validators,
@@ -455,7 +478,7 @@ func (f *fsm) ValidateSender(msg *proto.IbftMessage) error {
 
 func (f *fsm) VerifyStateTransactions(transactions []*types.Transaction) error {
 	var (
-		commitmentTxExists        bool
+		bridgeBatchTxExists       bool
 		commitEpochTxExists       bool
 		distributeRewardsTxExists bool
 	)
@@ -471,18 +494,18 @@ func (f *fsm) VerifyStateTransactions(transactions []*types.Transaction) error {
 		}
 
 		switch stateTxData := decodedStateTx.(type) {
-		case *CommitmentMessageSigned:
+		case *BridgeBatchSigned:
 			if !f.isEndOfSprint {
-				return fmt.Errorf("found commitment tx in block which should not contain it (tx hash=%s)", tx.Hash())
+				return fmt.Errorf("found bridge batch tx in a non-sprint block (tx hash=%s)", tx.Hash())
 			}
 
-			if commitmentTxExists {
-				return fmt.Errorf("only one commitment tx is allowed per block (tx hash=%s)", tx.Hash())
+			if bridgeBatchTxExists {
+				return fmt.Errorf("only one bridge batch tx is allowed per block (tx hash=%s)", tx.Hash())
 			}
 
-			commitmentTxExists = true
+			bridgeBatchTxExists = true
 
-			if err = verifyBridgeCommitmentTx(f.Height(), tx.Hash(), stateTxData, f.validators); err != nil {
+			if err = verifyBridgeBatchTx(f.Height(), tx.Hash(), stateTxData, f.validators); err != nil {
 				return err
 			}
 		case *contractsapi.CommitEpochEpochManagerFn:
@@ -664,11 +687,11 @@ func (f *fsm) verifyDistributeRewardsTx(distributeRewardsTx *types.Transaction) 
 	return errDistributeRewardsTxNotExpected
 }
 
-// verifyBridgeCommitmentTx validates bridge commitment transaction
-func verifyBridgeCommitmentTx(blockNumber uint64, txHash types.Hash,
-	commitment *CommitmentMessageSigned,
+// verifyBridgeBatchTx validates bridge batch transaction
+func verifyBridgeBatchTx(blockNumber uint64, txHash types.Hash,
+	signedBridgeBatch *BridgeBatchSigned,
 	validators validator.ValidatorSet) error {
-	signers, err := validators.Accounts().GetFilteredValidators(commitment.AggSignature.Bitmap)
+	signers, err := validators.Accounts().GetFilteredValidators(signedBridgeBatch.AggSignature.Bitmap)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve signers for state tx (%s): %w", txHash, err)
 	}
@@ -677,17 +700,17 @@ func verifyBridgeCommitmentTx(blockNumber uint64, txHash types.Hash,
 		return fmt.Errorf("quorum size not reached for state tx (%s)", txHash)
 	}
 
-	commitmentHash, err := commitment.Hash()
+	batchHash, err := signedBridgeBatch.Hash()
 	if err != nil {
 		return err
 	}
 
-	signature, err := bls.UnmarshalSignature(commitment.AggSignature.AggregatedSignature)
+	signature, err := bls.UnmarshalSignature(signedBridgeBatch.AggSignature.AggregatedSignature)
 	if err != nil {
 		return fmt.Errorf("error for state tx (%s) while unmarshaling signature: %w", txHash, err)
 	}
 
-	verified := signature.VerifyAggregated(signers.GetBlsKeys(), commitmentHash.Bytes(), signer.DomainStateReceiver)
+	verified := signature.VerifyAggregated(signers.GetBlsKeys(), batchHash.Bytes(), signer.DomainStateReceiver)
 	if !verified {
 		return fmt.Errorf("invalid signature for state tx (%s)", txHash)
 	}
@@ -739,6 +762,27 @@ func validateHeaderFields(parent *types.Header, header *types.Header, blockTimeD
 	}
 
 	return nil
+}
+
+// createCommitValidatorSetInput creates input for valdidatoeSetCommit
+func createCommitValidatorSetInput(
+	validators validator.AccountSet,
+	extra *Extra) (*contractsapi.CommitValidatorSetBridgeStorageFn, error) {
+	signature, err := bls.UnmarshalSignature(extra.Committed.AggregatedSignature)
+	if err != nil {
+		return nil, err
+	}
+
+	signatureBig, err := signature.ToBigInt()
+	if err != nil {
+		return nil, err
+	}
+
+	return &contractsapi.CommitValidatorSetBridgeStorageFn{
+		NewValidatorSet: validators.ToAPIBinding(),
+		Signature:       signatureBig,
+		Bitmap:          extra.Committed.Bitmap,
+	}, nil
 }
 
 // createStateTransactionWithData creates a state transaction

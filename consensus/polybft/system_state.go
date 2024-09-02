@@ -24,8 +24,8 @@ type ValidatorInfo struct {
 type SystemState interface {
 	// GetEpoch retrieves current epoch number from the smart contract
 	GetEpoch() (uint64, error)
-	// GetNextCommittedIndex retrieves next committed bridge state sync index
-	GetNextCommittedIndex() (uint64, error)
+	// GetNextCommittedIndex retrieves next committed bridge message index
+	GetNextCommittedIndex(sourceChainID uint64) (uint64, error)
 }
 
 var _ SystemState = &SystemStateImpl{}
@@ -37,15 +37,18 @@ type SystemStateImpl struct {
 }
 
 // NewSystemState initializes new instance of systemState which abstracts smart contracts functions
-func NewSystemState(valSetAddr types.Address, stateRcvAddr types.Address, provider contract.Provider) *SystemStateImpl {
+func NewSystemState(
+	valSetAddr types.Address,
+	bridgeStorageAddr types.Address,
+	provider contract.Provider) *SystemStateImpl {
 	s := &SystemStateImpl{}
 	s.validatorContract = contract.NewContract(
 		ethgo.Address(valSetAddr),
 		contractsapi.EpochManager.Abi, contract.WithProvider(provider),
 	)
 	s.sidechainBridgeContract = contract.NewContract(
-		ethgo.Address(stateRcvAddr),
-		contractsapi.StateReceiver.Abi,
+		ethgo.Address(bridgeStorageAddr),
+		contractsapi.BridgeStorage.Abi,
 		contract.WithProvider(provider),
 	)
 
@@ -67,9 +70,12 @@ func (s *SystemStateImpl) GetEpoch() (uint64, error) {
 	return epochNumber.Uint64(), nil
 }
 
-// GetNextCommittedIndex retrieves next committed bridge state sync index
-func (s *SystemStateImpl) GetNextCommittedIndex() (uint64, error) {
-	rawResult, err := s.sidechainBridgeContract.Call("lastCommittedId", ethgo.Latest)
+// GetNextCommittedIndex retrieves next committed bridge message index
+func (s *SystemStateImpl) GetNextCommittedIndex(sourceChainID uint64) (uint64, error) {
+	rawResult, err := s.sidechainBridgeContract.Call(
+		"lastCommitted",
+		ethgo.Latest,
+		new(big.Int).SetUint64(sourceChainID))
 	if err != nil {
 		return 0, err
 	}

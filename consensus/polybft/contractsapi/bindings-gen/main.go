@@ -116,7 +116,7 @@ func main() {
 			gensc.ChildERC20PredicateACL,
 			false,
 			[]string{
-				"initialize(address,address,address,address,bool,bool,address)",
+				"initialize(address,address,address,address,uint256,bool,bool,address)",
 				"withdrawTo",
 			},
 			[]string{},
@@ -427,14 +427,17 @@ func main() {
 			[]string{},
 		},
 		{
-			"ValidatorSetStorage",
-			gensc.ValidatorSetStorage,
+			"BridgeStorage",
+			gensc.BridgeStorage,
 			false,
 			[]string{
 				"initialize",
+				"commitBatch",
 				"commitValidatorSet",
 			},
-			[]string{},
+			[]string{
+				"NewBatch",
+			},
 		},
 		{
 			"Gateway",
@@ -445,19 +448,7 @@ func main() {
 			},
 			[]string{
 				"BridgeMessageResult",
-				"BridgeMessageEvent",
-			},
-		},
-		{
-			"BridgeStorage",
-			gensc.BridgeStorage,
-			false,
-			[]string{
-				"initialize",
-				"commitBatch",
-			},
-			[]string{
-				"NewBatch",
+				"BridgeMsg",
 			},
 		},
 	}

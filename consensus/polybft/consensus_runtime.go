@@ -29,15 +29,15 @@ import (
 )
 
 const (
-	maxCommitmentSize = 10
+	maxNumberOfEvents = 10
 	stateFileName     = "consensusState.db"
 )
 
 var (
 	// errNotAValidator represents "node is not a validator" error message
 	errNotAValidator = errors.New("node is not a validator")
-	// errQuorumNotReached represents "quorum not reached for commitment message" error message
-	errQuorumNotReached = errors.New("quorum not reached for commitment message")
+	// errQuorumNotReached represents "quorum not reached for batch" error message
+	errQuorumNotReached = errors.New("quorum not reached for batch")
 )
 
 // txPoolInterface is an abstraction of transaction pool
@@ -127,8 +127,8 @@ type consensusRuntime struct {
 
 	eventProvider *EventProvider
 
-	// bridgeManager handles storing, processing and executing bridge events
-	bridgeManager BridgeManager
+	// bridgeManagers handles storing, processing and executing bridge events
+	bridgeManagers map[uint64]BridgeManager
 
 	// governanceManager is used for handling governance events gotten from proposals execution
 	// also handles updating client configuration based on governance proposals
@@ -159,22 +159,23 @@ func newConsensusRuntime(log hcf.Logger, config *runtimeConfig) (*consensusRunti
 		proposerCalculator: proposerCalculator,
 		logger:             log.Named("consensus_runtime"),
 		eventProvider:      NewEventProvider(config.blockchain),
+		bridgeManagers:     make(map[uint64]BridgeManager),
 	}
-
-	var bridgeManager BridgeManager
 
 	if runtime.IsBridgeEnabled() {
 		for chainID := range config.GenesisConfig.Bridge {
+			var bridgeManager BridgeManager
+
 			bridgeManager, err = newBridgeManager(runtime, config, runtime.eventProvider, log, chainID)
 			if err != nil {
 				return nil, err
 			}
+
+			runtime.bridgeManagers[chainID] = bridgeManager
 		}
 	} else {
-		bridgeManager = &dummyBridgeManager{}
+		runtime.bridgeManagers[0] = &dummyBridgeManager{}
 	}
-
-	runtime.bridgeManager = bridgeManager
 
 	if err := runtime.initStakeManager(log, dbTx); err != nil {
 		return nil, err
@@ -199,7 +200,9 @@ func newConsensusRuntime(log hcf.Logger, config *runtimeConfig) (*consensusRunti
 
 // close is used to tear down allocated resources
 func (c *consensusRuntime) close() {
-	c.bridgeManager.Close()
+	for _, bridgeManager := range c.bridgeManagers {
+		bridgeManager.Close()
+	}
 }
 
 // initStakeManager initializes stake manager
@@ -345,10 +348,12 @@ func (c *consensusRuntime) OnBlockInserted(fullBlock *types.FullBlock) {
 	}
 
 	// handle bridge events
-	if err := c.bridgeManager.PostBlock(postBlock); err != nil {
-		c.logger.Error("failed to post block in bridge manager", "err", err)
+	for _, bridgeManager := range c.bridgeManagers {
+		if err := bridgeManager.PostBlock(postBlock); err != nil {
+			c.logger.Error("failed to post block in bridge manager", "err", err)
 
-		return
+			return
+		}
 	}
 
 	// handle governance events that happened in block
@@ -421,35 +426,34 @@ func (c *consensusRuntime) FSM() error {
 
 	valSet := validator.NewValidatorSet(epoch.Validators, c.logger)
 
-	exitRootHash, err := c.bridgeManager.BuildExitEventRoot(epoch.Number)
-	if err != nil {
-		return fmt.Errorf("could not build exit root hash for fsm: %w", err)
-	}
-
 	ff := &fsm{
-		config:              epoch.CurrentClientConfig,
-		forks:               c.config.Forks,
-		parent:              parent,
-		backend:             c.config.blockchain,
-		polybftBackend:      c.config.polybftBackend,
-		exitEventRootHash:   exitRootHash,
-		epochNumber:         epoch.Number,
-		blockBuilder:        blockBuilder,
-		validators:          valSet,
-		isEndOfEpoch:        isEndOfEpoch,
-		isEndOfSprint:       isEndOfSprint,
-		isFirstBlockOfEpoch: isFirstBlockOfEpoch,
-		proposerSnapshot:    proposerSnapshot,
-		logger:              c.logger.Named("fsm"),
+		config:                        epoch.CurrentClientConfig,
+		forks:                         c.config.Forks,
+		parent:                        parent,
+		backend:                       c.config.blockchain,
+		polybftBackend:                c.config.polybftBackend,
+		epochNumber:                   epoch.Number,
+		blockBuilder:                  blockBuilder,
+		validators:                    valSet,
+		isEndOfEpoch:                  isEndOfEpoch,
+		isEndOfSprint:                 isEndOfSprint,
+		isFirstBlockOfEpoch:           isFirstBlockOfEpoch,
+		proposerSnapshot:              proposerSnapshot,
+		logger:                        c.logger.Named("fsm"),
+		proposerBridgeBatchToRegister: make(map[uint64]*BridgeBatchSigned),
 	}
 
 	if isEndOfSprint {
-		commitment, err := c.bridgeManager.Commitment(pendingBlockNumber)
-		if err != nil {
-			return err
-		}
+		for chainID, bridgeManager := range c.bridgeManagers {
+			bridgeBatch, err := bridgeManager.BridgeBatch(pendingBlockNumber)
+			if err != nil {
+				return err
+			}
 
-		ff.proposerCommitmentToRegister = commitment
+			if bridgeBatch != nil {
+				ff.proposerBridgeBatchToRegister[chainID] = bridgeBatch
+			}
+		}
 	}
 
 	if isEndOfEpoch {
@@ -524,8 +528,10 @@ func (c *consensusRuntime) restartEpoch(header *types.Header, dbTx *bolt.Tx) (*e
 		c.logger.Error("Could not clean previous epochs from db.", "error", err)
 	}
 
-	if err := c.state.EpochStore.insertEpoch(epochNumber, dbTx); err != nil {
-		return nil, fmt.Errorf("an error occurred while inserting new epoch in db. Reason: %w", err)
+	for chainID := range c.bridgeManagers {
+		if err := c.state.EpochStore.insertEpoch(epochNumber, dbTx, chainID); err != nil {
+			return nil, fmt.Errorf("an error occurred while inserting new epoch in db. Reason: %w", err)
+		}
 	}
 
 	c.logger.Info(
@@ -545,8 +551,10 @@ func (c *consensusRuntime) restartEpoch(header *types.Header, dbTx *bolt.Tx) (*e
 		Forks:             c.config.Forks,
 	}
 
-	if err := c.bridgeManager.PostEpoch(reqObj); err != nil {
-		return nil, err
+	for _, bridgeManager := range c.bridgeManagers {
+		if err := bridgeManager.PostEpoch(reqObj); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := c.governanceManager.PostEpoch(reqObj); err != nil {
@@ -709,16 +717,6 @@ func (c *consensusRuntime) calculateDistributeRewardsInput(
 	}
 
 	return distributeRewards, nil
-}
-
-// GenerateExitProof generates proof of exit and is a bridge endpoint store function
-func (c *consensusRuntime) GenerateExitProof(exitID uint64) (types.Proof, error) {
-	return c.bridgeManager.GenerateProof(exitID, Exit)
-}
-
-// GetStateSyncProof returns the proof for the state sync
-func (c *consensusRuntime) GetStateSyncProof(stateSyncID uint64) (types.Proof, error) {
-	return c.bridgeManager.GenerateProof(stateSyncID, StateSync)
 }
 
 // setIsActiveValidator updates the activeValidatorFlag field
@@ -1018,6 +1016,7 @@ func (c *consensusRuntime) BuildCommitMessage(proposalHash []byte, view *proto.V
 // RoundStarts represents the round start callback
 func (c *consensusRuntime) RoundStarts(view *proto.View) error {
 	c.logger.Info("RoundStarts", "height", view.Height, "round", view.Round)
+
 	if view.Round > 0 {
 		c.config.txPool.ReinsertProposed()
 	} else {
