@@ -19,13 +19,6 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-type proofType int
-
-const (
-	StateSync proofType = iota
-	Exit
-)
-
 const (
 	// defaultMaxBlocksToWaitForResend specifies how many blocks should be wait
 	// in order to try again to send transaction
@@ -41,11 +34,6 @@ var (
 	checkpointSubmittedEventSig = new(contractsapi.CheckpointSubmittedEvent).Sig()
 	exitProcessedEventSig       = new(contractsapi.ExitProcessedEvent).Sig()
 )
-
-// BridgeBackend is an interface that defines functions required by bridge components
-type BridgeBackend interface {
-	Runtime
-}
 
 // RelayerEventMetaData keeps information about a relayer event
 type RelayerEventMetaData struct {
@@ -170,6 +158,7 @@ type BridgeManager interface {
 	PostEpoch(req *PostEpochRequest) error
 	BuildExitEventRoot(epoch uint64) (types.Hash, error)
 	BridgeBatch(pendingBlockNumber uint64) (*BridgeBatchSigned, error)
+	InsertEpoch(epoch uint64, tx *bolt.Tx) error
 }
 
 var _ BridgeManager = (*dummyBridgeManager)(nil)
@@ -186,9 +175,7 @@ func (d *dummyBridgeManager) BuildExitEventRoot(epoch uint64) (types.Hash, error
 func (d *dummyBridgeManager) BridgeBatch(pendingBlockNumber uint64) (*BridgeBatchSigned, error) {
 	return nil, nil
 }
-func (d *dummyBridgeManager) GenerateProof(eventID uint64, pType proofType) (types.Proof, error) {
-	return types.Proof{}, nil
-}
+func (d *dummyBridgeManager) InsertEpoch(epoch uint64, tx *bolt.Tx) error { return nil }
 
 var _ BridgeManager = (*bridgeManager)(nil)
 
@@ -200,14 +187,16 @@ type bridgeManager struct {
 	stateSyncRelayer   StateSyncRelayer
 	exitEventRelayer   ExitRelayer
 
+	eventTracker       *tracker.EventTracker
 	eventTrackerConfig *eventTrackerConfig
 	logger             hclog.Logger
 	chainID            uint64
+	state              *State
 }
 
 // newBridgeManager creates a new instance of bridgeManager
 func newBridgeManager(
-	bridgeBackend BridgeBackend,
+	runtime Runtime,
 	runtimeConfig *runtimeConfig,
 	eventProvider *EventProvider,
 	logger hclog.Logger,
@@ -215,6 +204,8 @@ func newBridgeManager(
 	if !runtimeConfig.GenesisConfig.IsBridgeEnabled() {
 		return &dummyBridgeManager{}, nil
 	}
+
+	var err error
 
 	stateSenderAddr := runtimeConfig.GenesisConfig.Bridge[chainID].StateSenderAddr
 	bridgeManager := &bridgeManager{
@@ -229,9 +220,10 @@ func newBridgeManager(
 			startBlock:            runtimeConfig.GenesisConfig.Bridge[chainID].EventTrackerStartBlocks[stateSenderAddr],
 			trackerPollInterval:   runtimeConfig.GenesisConfig.BlockTrackerPollInterval.Duration,
 		},
+		state: runtimeConfig.State,
 	}
 
-	if err := bridgeManager.initBridgeEventManager(bridgeBackend, runtimeConfig, logger); err != nil {
+	if err := bridgeManager.initBridgeEventManager(runtime, runtimeConfig, logger); err != nil {
 		return nil, err
 	}
 
@@ -243,7 +235,7 @@ func newBridgeManager(
 		return nil, err
 	}
 
-	if err := bridgeManager.initTracker(runtimeConfig); err != nil {
+	if bridgeManager.eventTracker, err = bridgeManager.initTracker(runtimeConfig); err != nil {
 		return nil, fmt.Errorf("failed to init event tracker. Error: %w", err)
 	}
 
@@ -292,12 +284,13 @@ func (b *bridgeManager) BridgeBatch(pendingBlockNumber uint64) (*BridgeBatchSign
 func (b *bridgeManager) Close() {
 	b.stateSyncRelayer.Close()
 	b.exitEventRelayer.Close()
+	b.eventTracker.Close()
 }
 
 // initBridgeEventManager initializes bridge event manager
 // if bridge is not enabled, then a dummy bridge event manager will be used
 func (b *bridgeManager) initBridgeEventManager(
-	bridgeBackend BridgeBackend,
+	runtime Runtime,
 	runtimeConfig *runtimeConfig,
 	logger hclog.Logger) error {
 	bridgeEventManager := newBridgeEventManager(
@@ -308,7 +301,7 @@ func (b *bridgeManager) initBridgeEventManager(
 			topic:             runtimeConfig.bridgeTopic,
 			maxNumberOfEvents: maxNumberOfEvents,
 		},
-		bridgeBackend,
+		runtime,
 		b.chainID,
 	)
 
@@ -380,10 +373,10 @@ func (b *bridgeManager) initStateSyncRelayer(
 }
 
 // initTracker starts a new event tracker (to receive bridge events)
-func (b *bridgeManager) initTracker(runtimeConfig *runtimeConfig) error {
+func (b *bridgeManager) initTracker(runtimeConfig *runtimeConfig) (*tracker.EventTracker, error) {
 	store, err := store.NewBoltDBEventTrackerStore(path.Join(runtimeConfig.DataDir, "/bridge.db"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	eventTracker, err := tracker.NewEventTracker(
@@ -405,10 +398,10 @@ func (b *bridgeManager) initTracker(runtimeConfig *runtimeConfig) error {
 	)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return eventTracker.Start()
+	return eventTracker, eventTracker.Start()
 }
 
 // AddLog saves the received log from event tracker if it matches a bridge message event ABI
@@ -425,4 +418,13 @@ func (b *bridgeManager) AddLog(chainID *big.Int, eventLog *ethgo.Log) error {
 
 		return nil
 	}
+}
+
+// InsertEpoch inserts a new epoch to db with its meta data
+func (b *bridgeManager) InsertEpoch(epochNumber uint64, dbTx *bolt.Tx) error {
+	if err := b.state.EpochStore.insertEpoch(epochNumber, dbTx, b.chainID); err != nil {
+		return fmt.Errorf("an error occurred while inserting new epoch in db, chainID: %d. Reason: %w", b.chainID, err)
+	}
+
+	return nil
 }
