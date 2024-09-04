@@ -8,9 +8,12 @@ import (
 )
 
 const (
-	apexBridgeFlag             = "apex"
-	apexBridgeFlagDefaultValue = true
-	apexBridgeDescriptionFlag  = "turn off London fork and some other settings needed for apex bridge"
+	apexConfigFlag            = "apex-config"
+	apexConfigDescriptionFlag = "change behaviour of blade (0 - apex bridge (default) | 1 - blade | 2 - nexus chain)"
+
+	ApexConfigDefault     = 0
+	ApexConfigNormalBlade = 1
+	ApexConfigNexus       = 2
 )
 
 func getApexContracts() []*contractInfo {
@@ -53,10 +56,19 @@ func getApexProxyAddresses() (retVal []types.Address) {
 }
 
 func (p *genesisParams) processConfigApex(chainConfig *chain.Chain) {
-	if !p.apexBridge {
-		return
+	switch p.apexConfig {
+	case ApexConfigDefault:
+		chainConfig.Params.Forks.RemoveFork(chain.Governance).RemoveFork(chain.London)
+		chainConfig.Params.BurnContract = nil
+	case ApexConfigNexus:
+		chainConfig.Genesis.GasLimit = 0x500000
+		chainConfig.Params.BurnContract = map[uint64]types.Address{
+			0: types.ZeroAddress,
+		}
+		chainConfig.Params.Forks.
+			RemoveFork(chain.Governance).
+			RemoveFork(chain.EIP3855).
+			RemoveFork(chain.Berlin).
+			RemoveFork(chain.EIP3607)
 	}
-
-	chainConfig.Params.Forks.RemoveFork(chain.Governance).RemoveFork(chain.London)
-	chainConfig.Params.BurnContract = nil
 }

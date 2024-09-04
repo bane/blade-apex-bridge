@@ -139,7 +139,7 @@ type genesisParams struct {
 
 	bootnodeStartingPort int64
 
-	apexBridge bool
+	apexConfig uint8
 }
 
 func (p *genesisParams) validateFlags() error {

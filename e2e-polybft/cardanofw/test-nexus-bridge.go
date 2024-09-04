@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/0xPolygon/polygon-edge/command/genesis"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/wallet"
 	"github.com/0xPolygon/polygon-edge/contracts"
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
@@ -16,6 +17,7 @@ import (
 	"github.com/0xPolygon/polygon-edge/types"
 	ci "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
+	"github.com/umbracle/ethgo"
 )
 
 const (
@@ -61,6 +63,8 @@ func RunEVMChain(
 		framework.WithInitialPort(config.NexusStartingPort),
 		framework.WithLogsDirSuffix(ChainIDNexus),
 		framework.WithBladeAdmin(admin.Address().String()),
+		framework.WithApexConfig(genesis.ApexConfigNexus),
+		framework.WithBurnContract(config.NexusBurnContractInfo),
 	)
 
 	cluster.WaitForReady(t)
@@ -84,6 +88,12 @@ func SetupAndRunNexusBridge(
 
 	err := apexSystem.Nexus.deployContracts(apexSystem)
 	require.NoError(t, err)
+
+	apexSystem.Nexus.Cluster.Transfer(t,
+		apexSystem.Nexus.Admin.Ecdsa,
+		apexSystem.Bridge.GetRelayerWalletAddr(),
+		ethgo.Ether(1),
+	)
 }
 
 func (ec *TestEVMBridge) SendTxEvm(privateKey string, receiver string, amount *big.Int) error {

@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/0xPolygon/polygon-edge/consensus/polybft"
+	"github.com/0xPolygon/polygon-edge/types"
 	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 )
@@ -52,8 +54,9 @@ type ApexSystemConfig struct {
 	// Nexus EVM
 	NexusEnabled bool
 
-	NexusValidatorCount int
-	NexusStartingPort   int64
+	NexusValidatorCount   int
+	NexusStartingPort     int64
+	NexusBurnContractInfo *polybft.BurnContractInfo
 }
 
 type ApexSystemOptions func(*ApexSystemConfig)
@@ -120,6 +123,12 @@ func WithNexusStartintPort(port int64) ApexSystemOptions {
 	}
 }
 
+func WithNexusBurningContract(contractInfo *polybft.BurnContractInfo) ApexSystemOptions {
+	return func(h *ApexSystemConfig) {
+		h.NexusBurnContractInfo = contractInfo
+	}
+}
+
 func WithPrimeClusterConfig(config *RunCardanoClusterConfig) ApexSystemOptions {
 	return func(h *ApexSystemConfig) {
 		h.PrimeClusterConfig = config
@@ -171,6 +180,10 @@ func newApexSystemConfig(opts ...ApexSystemOptions) *ApexSystemConfig {
 
 		VectorEnabled: true,
 		NexusEnabled:  false,
+		NexusBurnContractInfo: &polybft.BurnContractInfo{
+			BlockNumber: 0,
+			Address:     types.ZeroAddress,
+		},
 	}
 
 	for _, opt := range opts {

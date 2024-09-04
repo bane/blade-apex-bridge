@@ -119,10 +119,6 @@ func TestE2E_ApexBridgeWithNexus(t *testing.T) {
 			nexusAddress.String(), sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddr)
 		require.NoError(t, err)
 
-		ethBalanceAfter, err := cardanofw.GetEthAmount(ctx, apex.Nexus, user)
-		fmt.Printf("ETH Amount AFTER  TX %d\n", ethBalanceAfter)
-		require.NoError(t, err)
-
 		fmt.Printf("Tx sent. hash: %s\n", txHash)
 
 		err = cardanofw.WaitForEthAmount(ctx, apex.Nexus, user, func(val *big.Int) bool {
@@ -133,7 +129,7 @@ func TestE2E_ApexBridgeWithNexus(t *testing.T) {
 		}, 30, time.Second*30)
 		require.NoError(t, err)
 
-		ethBalanceAfter, err = cardanofw.GetEthAmount(ctx, apex.Nexus, user)
+		ethBalanceAfter, err := cardanofw.GetEthAmount(ctx, apex.Nexus, user)
 		fmt.Printf("ETH Amount AFTER AFTER TX %d\n", ethBalanceAfter)
 		require.NoError(t, err)
 	})
@@ -515,7 +511,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 			cardanoUser.PrimeAddress,
 			sendAmountWei, fee,
 		)
-		require.ErrorContains(t, err, "no known transport for URL scheme")
+		require.ErrorContains(t, err, "Error: invalid --nexus-url flag")
 	})
 
 	t.Run("Sender not enough funds", func(t *testing.T) {

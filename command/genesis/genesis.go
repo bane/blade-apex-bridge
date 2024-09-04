@@ -32,12 +32,12 @@ func GetCommand() *cobra.Command {
 }
 
 func setFlags(cmd *cobra.Command) {
-	// apex flag
-	cmd.Flags().BoolVar(
-		&params.apexBridge,
-		apexBridgeFlag,
-		apexBridgeFlagDefaultValue,
-		apexBridgeDescriptionFlag,
+	// apex config flag
+	cmd.Flags().Uint8Var(
+		&params.apexConfig,
+		apexConfigFlag,
+		ApexConfigDefault,
+		apexConfigDescriptionFlag,
 	)
 
 	cmd.Flags().Int64Var(
