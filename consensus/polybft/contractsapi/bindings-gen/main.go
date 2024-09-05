@@ -42,66 +42,6 @@ func main() {
 		events              []string
 	}{
 		{
-			"StateReceiver",
-			gensc.StateReceiver,
-			false,
-			[]string{
-				"commit",
-				"execute",
-				"batchExecute",
-			},
-			[]string{
-				"StateSyncResult",
-				"NewCommitment",
-			},
-		},
-		{
-			"StateSender",
-			gensc.StateSender,
-			false,
-			[]string{
-				"syncState",
-			},
-			[]string{
-				"StateSynced",
-			},
-		},
-		{
-			"L2StateSender",
-			gensc.L2StateSender,
-			false,
-			[]string{},
-			[]string{
-				"L2StateSynced",
-			},
-		},
-		{
-			"CheckpointManager",
-			gensc.CheckpointManager,
-			true,
-			[]string{
-				"submit",
-				"initialize",
-				"getCheckpointBlock",
-			},
-			[]string{
-				"CheckpointSubmitted",
-			},
-		},
-		{
-			"ExitHelper",
-			gensc.ExitHelper,
-			false,
-			[]string{
-				"initialize",
-				"exit",
-				"batchExit",
-			},
-			[]string{
-				"ExitProcessed",
-			},
-		},
-		{
 			"ChildERC20Predicate",
 			gensc.ChildERC20Predicate,
 			false,
@@ -445,6 +385,7 @@ func main() {
 			false,
 			[]string{
 				"initialize",
+				"receiveBatch",
 			},
 			[]string{
 				"BridgeMessageResult",

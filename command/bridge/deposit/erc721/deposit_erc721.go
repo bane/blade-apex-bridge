@@ -196,14 +196,14 @@ func runCommand(cmd *cobra.Command, _ []string) {
 	}
 
 	if dp.ChildChainMintable {
-		exitEventIDs, err := common.ExtractExitEventIDs(receipt)
+		bridgeMsgEventIDs, err := common.ExtractBridgeMessageIDs(receipt)
 		if err != nil {
-			outputter.SetError(fmt.Errorf("failed to extract exit event: %w", err))
+			outputter.SetError(fmt.Errorf("failed to extract bridgeMsg event: %w", err))
 
 			return
 		}
 
-		res.ExitEventIDs = exitEventIDs
+		res.BridgeMsgEventIDs = bridgeMsgEventIDs
 	}
 
 	// populate child token address if a token is mapped alongside with deposit

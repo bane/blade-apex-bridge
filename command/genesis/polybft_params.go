@@ -383,11 +383,6 @@ func (p *genesisParams) deployContracts(rewardTokenByteCode []byte,
 			address:  contracts.BridgeStorageContractV1,
 		},
 		{
-			// State receiver contract
-			artifact: contractsapi.StateReceiver,
-			address:  contracts.StateReceiverContractV1,
-		},
-		{
 			// ChildERC20 token contract
 			artifact: contractsapi.ChildERC20,
 			address:  contracts.ChildERC20Contract,
@@ -411,16 +406,6 @@ func (p *genesisParams) deployContracts(rewardTokenByteCode []byte,
 			// BLS256 contract
 			artifact: contractsapi.BLS256,
 			address:  contracts.BLS256ContractV1,
-		},
-		{
-			// Merkle contract
-			artifact: contractsapi.Merkle,
-			address:  contracts.MerkleContractV1,
-		},
-		{
-			// L2StateSender contract
-			artifact: contractsapi.L2StateSender,
-			address:  contracts.L2StateSenderContractV1,
 		},
 		{
 			artifact: contractsapi.EpochManager,

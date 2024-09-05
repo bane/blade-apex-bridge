@@ -8,7 +8,6 @@ import (
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/contractsapi"
 	"github.com/0xPolygon/polygon-edge/crypto"
 	"github.com/0xPolygon/polygon-edge/types"
-	merkle "github.com/Ethernal-Tech/merkle-tree"
 )
 
 // PendingBridgeBatch holds pending bridge batch for epoch
@@ -157,22 +156,4 @@ func getBridgeBatchSignedTx(txs []*types.Transaction) (*BridgeBatchSigned, error
 	}
 
 	return nil, nil
-}
-
-// createMerkleTree creates a merkle tree from provided bridge message events
-// if only one bridge message event is provided, a second, empty leaf will be added to merkle tree
-// so that we can have a batch with a single bridge message event
-func createMerkleTree(bridgeMessageEvent []*contractsapi.BridgeMsgEvent) (*merkle.MerkleTree, error) {
-	bridgeMessageData := make([][]byte, len(bridgeMessageEvent))
-
-	for i, event := range bridgeMessageEvent {
-		data, err := event.Encode()
-		if err != nil {
-			return nil, err
-		}
-
-		bridgeMessageData[i] = data
-	}
-
-	return merkle.NewMerkleTree(bridgeMessageData)
 }

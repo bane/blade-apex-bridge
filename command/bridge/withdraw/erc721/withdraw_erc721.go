@@ -138,14 +138,14 @@ func run(cmd *cobra.Command, _ []string) {
 	}
 
 	if !wp.ChildChainMintable {
-		exitEventIDs, err := common.ExtractExitEventIDs(receipt)
+		bridgeMsgEventIDs, err := common.ExtractBridgeMessageIDs(receipt)
 		if err != nil {
-			outputter.SetError(fmt.Errorf("failed to extract exit event: %w", err))
+			outputter.SetError(fmt.Errorf("failed to extract bridge message event: %w", err))
 
 			return
 		}
 
-		res.ExitEventIDs = exitEventIDs
+		res.BridgeMsgEventIDs = bridgeMsgEventIDs
 	}
 
 	outputter.SetCommandResult(res)
