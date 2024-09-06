@@ -534,7 +534,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 			cardanoUser.PrimeAddress,
 			sendAmountWei, fee,
 		)
-		require.ErrorContains(t, err, "unable to apply transaction even for the highest gas limit")
+		require.ErrorContains(t, err, "insufficient funds for execution")
 	})
 
 	t.Run("Big receiver amount", func(t *testing.T) {
@@ -557,7 +557,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 			cardanoUser.PrimeAddress,
 			sendAmountWei, fee,
 		)
-		require.ErrorContains(t, err, "unable to apply transaction even for the highest gas limit")
+		require.ErrorContains(t, err, "insufficient funds for execution")
 	})
 }
 
