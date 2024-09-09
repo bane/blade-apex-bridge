@@ -45,16 +45,16 @@ package contractsapi
 		Name string
 	}{
 		{
-			"ERC20TokenPredicate.sol",
-			"Nexus_ERC20TokenPredicate",
+			"NativeTokenPredicate.sol",
+			"Nexus_NativeTokenPredicate",
 		},
 		{
 			"Gateway.sol",
 			"Nexus_Gateway",
 		},
 		{
-			"NativeERC20Mintable.sol",
-			"Nexus_NativeERC20Mintable",
+			"NativeTokenWallet.sol",
+			"Nexus_NativeTokenWallet",
 		},
 		{
 			"Validators.sol",

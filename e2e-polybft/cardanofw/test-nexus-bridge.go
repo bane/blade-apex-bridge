@@ -22,7 +22,6 @@ import (
 
 const (
 	FundEthTokenAmount = uint64(100_000)
-	tokenName          = "APEX"
 )
 
 type NexusBridgeOption func(*TestEVMBridge)
@@ -41,10 +40,10 @@ func (ec *TestEVMBridge) GetGatewayAddress() types.Address {
 }
 
 type ContractsAddrs struct {
-	erc20Predicate      types.Address
-	nativeErc20Mintable types.Address
-	validators          types.Address
-	gateway             types.Address
+	nativeTokenPredicate types.Address
+	nativeTokenWallet    types.Address
+	validators           types.Address
+	gateway              types.Address
 }
 
 func RunEVMChain(
@@ -88,6 +87,12 @@ func SetupAndRunNexusBridge(
 
 	err := apexSystem.Nexus.deployContracts(apexSystem)
 	require.NoError(t, err)
+
+	apexSystem.Nexus.Cluster.Transfer(t,
+		apexSystem.Nexus.Admin.Ecdsa,
+		apexSystem.Nexus.contracts.nativeTokenWallet,
+		ethgo.Ether(FundEthTokenAmount),
+	)
 
 	apexSystem.Nexus.Cluster.Transfer(t,
 		apexSystem.Nexus.Admin.Ecdsa,
@@ -165,18 +170,18 @@ func (ec *TestEVMBridge) deployContracts(apexSystem *ApexSystem) error {
 	}
 
 	// Deploy contracts with proxy & call "initialize"
-	erc20PredicateInit, _ := ERC20TokenPredicate.Abi.Methods["initialize"].Encode(map[string]interface{}{})
+	nativeTokenPredicateInit, _ := NativeTokenPredicate.Abi.Methods["initialize"].Encode(map[string]interface{}{})
 
-	ec.contracts.erc20Predicate, err =
-		deployContractWithProxy(txRelayer, ec.Admin, ERC20TokenPredicate, erc20PredicateInit)
+	ec.contracts.nativeTokenPredicate, err =
+		deployContractWithProxy(txRelayer, ec.Admin, NativeTokenPredicate, nativeTokenPredicateInit)
 	if err != nil {
 		return err
 	}
 
-	nativeErc20MintableInit, _ := NativeERC20Mintable.Abi.Methods["initialize"].Encode(map[string]interface{}{})
+	nativeTokenWalletInit, _ := NativeTokenWallet.Abi.Methods["initialize"].Encode(map[string]interface{}{})
 
-	ec.contracts.nativeErc20Mintable, err =
-		deployContractWithProxy(txRelayer, ec.Admin, NativeERC20Mintable, nativeErc20MintableInit)
+	ec.contracts.nativeTokenWallet, err =
+		deployContractWithProxy(txRelayer, ec.Admin, NativeTokenWallet, nativeTokenWalletInit)
 	if err != nil {
 		return err
 	}
@@ -211,12 +216,12 @@ func (ec *TestEVMBridge) deployContracts(apexSystem *ApexSystem) error {
 		return err
 	}
 
-	err = ec.contracts.erc20predicateSetDependencies(txRelayer, ec.Admin)
+	err = ec.contracts.nativeTokenPredicateSetDependencies(txRelayer, ec.Admin)
 	if err != nil {
 		return err
 	}
 
-	err = ec.contracts.nativeErc20SetDependencies(txRelayer, ec.Admin, tokenName, tokenName, 18, big.NewInt(0))
+	err = ec.contracts.nativeTokenWalletSetDependencies(txRelayer, ec.Admin, big.NewInt(0))
 	if err != nil {
 		return err
 	}
@@ -275,8 +280,8 @@ func (ca *ContractsAddrs) gatewaySetDependencies(
 	admin *wallet.Account,
 ) error {
 	gateway := GatewaySetDependenciesFn{
-		Erc20_:      ca.erc20Predicate,
-		Validators_: ca.validators,
+		NativeTokenPredicate_: ca.nativeTokenPredicate,
+		Validators_:           ca.validators,
 	}
 
 	encoded, err := gateway.EncodeAbi()
@@ -299,16 +304,16 @@ func (ca *ContractsAddrs) gatewaySetDependencies(
 	return nil
 }
 
-func (ca *ContractsAddrs) erc20predicateSetDependencies(
+func (ca *ContractsAddrs) nativeTokenPredicateSetDependencies(
 	txRelayer txrelayer.TxRelayer,
 	admin *wallet.Account,
 ) error {
-	erc20Predicate := ERC20PredicateSetDependenciesFn{
-		Gateway_:     ca.gateway,
-		NativeToken_: ca.nativeErc20Mintable,
+	nativeTokenPredicate := NativeTokenPredicateSetDependenciesFn{
+		Gateway_:           ca.gateway,
+		NativeTokenWallet_: ca.nativeTokenWallet,
 	}
 
-	encoded, err := erc20Predicate.EncodeAbi()
+	encoded, err := nativeTokenPredicate.EncodeAbi()
 	if err != nil {
 		return err
 	}
@@ -316,7 +321,7 @@ func (ca *ContractsAddrs) erc20predicateSetDependencies(
 	receipt, err := txRelayer.SendTransaction(
 		types.NewTx(types.NewLegacyTx(
 			types.WithFrom(admin.Address()),
-			types.WithTo(&ca.erc20Predicate),
+			types.WithTo(&ca.nativeTokenPredicate),
 			types.WithInput(encoded),
 		)), admin.Ecdsa)
 	if err != nil {
@@ -328,21 +333,17 @@ func (ca *ContractsAddrs) erc20predicateSetDependencies(
 	return nil
 }
 
-func (ca *ContractsAddrs) nativeErc20SetDependencies(
+func (ca *ContractsAddrs) nativeTokenWalletSetDependencies(
 	txRelayer txrelayer.TxRelayer,
 	admin *wallet.Account,
-	tokenName string, tokenSymbol string,
-	decimals uint8, tokenSupply *big.Int,
+	tokenSupply *big.Int,
 ) error {
-	nativeErc20 := NativeERC20SetDependenciesFn{
-		Predicate_: ca.erc20Predicate,
-		Name_:      tokenName,
-		Symbol_:    tokenSymbol,
-		Decimals_:  decimals,
+	nativeTokenWallet := NativeTokenWalletSetDependenciesFn{
+		Predicate_: ca.nativeTokenPredicate,
 		Supply_:    tokenSupply,
 	}
 
-	encoded, err := nativeErc20.EncodeAbi()
+	encoded, err := nativeTokenWallet.EncodeAbi()
 	if err != nil {
 		return err
 	}
@@ -350,7 +351,7 @@ func (ca *ContractsAddrs) nativeErc20SetDependencies(
 	receipt, err := txRelayer.SendTransaction(
 		types.NewTx(types.NewLegacyTx(
 			types.WithFrom(admin.Address()),
-			types.WithTo(&ca.nativeErc20Mintable),
+			types.WithTo(&ca.nativeTokenWallet),
 			types.WithInput(encoded),
 		)), admin.Ecdsa)
 	if err != nil {

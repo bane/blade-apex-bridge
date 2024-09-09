@@ -18,10 +18,10 @@ var (
 	ERC1967Proxy *contracts.Artifact
 
 	// Nexus smart contracts
-	ERC20TokenPredicate *contracts.Artifact
-	Gateway             *contracts.Artifact
-	NativeERC20Mintable *contracts.Artifact
-	Validators          *contracts.Artifact
+	NativeTokenPredicate *contracts.Artifact
+	Gateway              *contracts.Artifact
+	NativeTokenWallet    *contracts.Artifact
+	Validators           *contracts.Artifact
 )
 
 func InitNexusContracts() (
@@ -31,7 +31,7 @@ func InitNexusContracts() (
 		return
 	}
 
-	ERC20TokenPredicate, err = contracts.DecodeArtifact([]byte(contractsapi.Nexus_ERC20TokenPredicateArtifact))
+	NativeTokenPredicate, err = contracts.DecodeArtifact([]byte(contractsapi.Nexus_NativeTokenPredicateArtifact))
 	if err != nil {
 		return
 	}
@@ -41,7 +41,7 @@ func InitNexusContracts() (
 		return
 	}
 
-	NativeERC20Mintable, err = contracts.DecodeArtifact([]byte(contractsapi.Nexus_NativeERC20MintableArtifact))
+	NativeTokenWallet, err = contracts.DecodeArtifact([]byte(contractsapi.Nexus_NativeTokenWalletArtifact))
 	if err != nil {
 		return
 	}
@@ -55,8 +55,8 @@ func InitNexusContracts() (
 }
 
 type GatewaySetDependenciesFn struct {
-	Erc20_      types.Address `abi:"_eRC20TokenPredicate"`
-	Validators_ types.Address `abi:"_validators"`
+	NativeTokenPredicate_ types.Address `abi:"_nativeTokenPredicate"`
+	Validators_           types.Address `abi:"_validators"`
 }
 
 func (g *GatewaySetDependenciesFn) Sig() []byte {
@@ -71,41 +71,38 @@ func (g *GatewaySetDependenciesFn) DecodeAbi(buf []byte) error {
 	return decodeMethod(Gateway.Abi.Methods["setDependencies"], buf, g)
 }
 
-type ERC20PredicateSetDependenciesFn struct {
-	Gateway_     types.Address `abi:"_gateway"`
-	NativeToken_ types.Address `abi:"_nativeToken"`
+type NativeTokenPredicateSetDependenciesFn struct {
+	Gateway_           types.Address `abi:"_gateway"`
+	NativeTokenWallet_ types.Address `abi:"_nativeTokenWallet"`
 }
 
-func (g *ERC20PredicateSetDependenciesFn) Sig() []byte {
-	return ERC20TokenPredicate.Abi.Methods["setDependencies"].ID()
+func (g *NativeTokenPredicateSetDependenciesFn) Sig() []byte {
+	return NativeTokenPredicate.Abi.Methods["setDependencies"].ID()
 }
 
-func (g *ERC20PredicateSetDependenciesFn) EncodeAbi() ([]byte, error) {
-	return ERC20TokenPredicate.Abi.Methods["setDependencies"].Encode(g)
+func (g *NativeTokenPredicateSetDependenciesFn) EncodeAbi() ([]byte, error) {
+	return NativeTokenPredicate.Abi.Methods["setDependencies"].Encode(g)
 }
 
-func (g *ERC20PredicateSetDependenciesFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(ERC20TokenPredicate.Abi.Methods["setDependencies"], buf, g)
+func (g *NativeTokenPredicateSetDependenciesFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(NativeTokenPredicate.Abi.Methods["setDependencies"], buf, g)
 }
 
-type NativeERC20SetDependenciesFn struct {
-	Predicate_ types.Address `abi:"predicate_"`
-	Name_      string        `abi:"name_"`
-	Symbol_    string        `abi:"symbol_"`
-	Decimals_  uint8         `abi:"decimals_"`
-	Supply_    *big.Int      `abi:"tokenSupply_"`
+type NativeTokenWalletSetDependenciesFn struct {
+	Predicate_ types.Address `abi:"_predicate"`
+	Supply_    *big.Int      `abi:"_tokenSupply"`
 }
 
-func (g *NativeERC20SetDependenciesFn) Sig() []byte {
-	return NativeERC20Mintable.Abi.Methods["setDependencies"].ID()
+func (g *NativeTokenWalletSetDependenciesFn) Sig() []byte {
+	return NativeTokenWallet.Abi.Methods["setDependencies"].ID()
 }
 
-func (g *NativeERC20SetDependenciesFn) EncodeAbi() ([]byte, error) {
-	return NativeERC20Mintable.Abi.Methods["setDependencies"].Encode(g)
+func (g *NativeTokenWalletSetDependenciesFn) EncodeAbi() ([]byte, error) {
+	return NativeTokenWallet.Abi.Methods["setDependencies"].Encode(g)
 }
 
-func (g *NativeERC20SetDependenciesFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(NativeERC20Mintable.Abi.Methods["setDependencies"], buf, g)
+func (g *NativeTokenWalletSetDependenciesFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(NativeTokenWallet.Abi.Methods["setDependencies"], buf, g)
 }
 
 type ValidatorChainData struct {
