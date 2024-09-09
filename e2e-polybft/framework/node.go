@@ -12,14 +12,18 @@ import (
 const (
 	numberOfInterruptsOnForceStop       = 5
 	shutdownGracePeriodOnForceStopInSec = 10
+
+	ExecutionStatusRunning  = 0
+	ExecutionStatusFinished = 1
+	ExecutionStatusSignaled = 2
 )
 
 type Node struct {
-	shuttingDown    atomic.Bool
 	cmd             *exec.Cmd
 	doneCh          chan struct{}
 	exitResult      *exitResult
 	shouldForceStop bool
+	executionStatus int32
 }
 
 func NewNode(binary string, args []string, stdout io.Writer) (*Node, error) {
@@ -27,7 +31,18 @@ func NewNode(binary string, args []string, stdout io.Writer) (*Node, error) {
 }
 
 func NewNodeWithContext(ctx context.Context, binary string, args []string, stdout io.Writer) (*Node, error) {
-	return newNode(exec.CommandContext(ctx, binary, args...), stdout)
+	node, err := newNode(exec.Command(binary, args...), stdout)
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+
+		_ = node.Stop()
+	}()
+
+	return node, nil
 }
 
 func newNode(cmd *exec.Cmd, stdout io.Writer) (*Node, error) {
@@ -62,8 +77,9 @@ func (n *Node) Wait() <-chan struct{} {
 func (n *Node) run() {
 	err := n.cmd.Wait()
 
+	notSignaled := atomic.CompareAndSwapInt32(&n.executionStatus, ExecutionStatusRunning, ExecutionStatusFinished)
 	n.exitResult = &exitResult{
-		Signaled: n.IsShuttingDown(),
+		Signaled: !notSignaled,
 		Err:      err,
 	}
 	close(n.doneCh)
@@ -71,11 +87,11 @@ func (n *Node) run() {
 }
 
 func (n *Node) IsShuttingDown() bool {
-	return n.shuttingDown.Load()
+	return atomic.LoadInt32(&n.executionStatus) != ExecutionStatusRunning
 }
 
 func (n *Node) Stop() error {
-	if n.cmd == nil {
+	if !atomic.CompareAndSwapInt32(&n.executionStatus, ExecutionStatusRunning, ExecutionStatusSignaled) {
 		// the server is already stopped
 		return nil
 	}
@@ -83,8 +99,6 @@ func (n *Node) Stop() error {
 	if err := n.cmd.Process.Signal(os.Interrupt); err != nil {
 		return err
 	}
-
-	n.shuttingDown.Store(true)
 
 	if n.shouldForceStop {
 		// give it time to shutdown gracefully
