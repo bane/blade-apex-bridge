@@ -38,27 +38,27 @@ func TestPolybft_VerifyHeader(t *testing.T) {
 	updateHeaderExtra := func(header *types.Header,
 		validators *validator.ValidatorSetDelta,
 		parentSignature *Signature,
-		checkpointData *CheckpointData,
+		blockMeta *BlockMetaData,
 		committedAccounts []*wallet.Account) *Signature {
 		extra := &Extra{
-			Validators: validators,
-			Parent:     parentSignature,
-			Checkpoint: checkpointData,
-			Committed:  &Signature{},
+			Validators:    validators,
+			Parent:        parentSignature,
+			BlockMetaData: blockMeta,
+			Committed:     &Signature{},
 		}
 
-		if extra.Checkpoint == nil {
-			extra.Checkpoint = &CheckpointData{}
+		if extra.BlockMetaData == nil {
+			extra.BlockMetaData = &BlockMetaData{}
 		}
 
 		header.ExtraData = extra.MarshalRLPTo(nil)
 		header.ComputeHash()
 
 		if len(committedAccounts) > 0 {
-			checkpointHash, err := extra.Checkpoint.Hash(0, header.Number, header.Hash)
+			blockMetaHash, err := extra.BlockMetaData.Hash(header.Hash)
 			require.NoError(t, err)
 
-			extra.Committed = createSignature(t, committedAccounts, checkpointHash, signer.DomainCheckpointManager)
+			extra.Committed = createSignature(t, committedAccounts, blockMetaHash, signer.DomainBridge)
 			header.ExtraData = extra.MarshalRLPTo(nil)
 		}
 
@@ -102,7 +102,7 @@ func TestPolybft_VerifyHeader(t *testing.T) {
 		require.NoError(t, err)
 
 		header := &types.Header{Number: i}
-		updateHeaderExtra(header, delta, nil, &CheckpointData{EpochNumber: 1}, nil)
+		updateHeaderExtra(header, delta, nil, &BlockMetaData{EpochNumber: 1}, nil)
 
 		// add headers from 1 to 9 to map (blockchain imitation)
 		headersMap.addHeader(header)
@@ -139,7 +139,7 @@ func TestPolybft_VerifyHeader(t *testing.T) {
 		Number:    polyBftConfig.EpochSize,
 		Timestamp: uint64(time.Now().UTC().Unix()),
 	}
-	parentCommitment := updateHeaderExtra(parentHeader, parentDelta, nil, &CheckpointData{EpochNumber: 1}, accountSetParent)
+	parentCommitment := updateHeaderExtra(parentHeader, parentDelta, nil, &BlockMetaData{EpochNumber: 1}, accountSetParent)
 
 	// add parent header to map
 	headersMap.addHeader(parentHeader)
@@ -156,10 +156,8 @@ func TestPolybft_VerifyHeader(t *testing.T) {
 		Difficulty: 1,
 	}
 	updateHeaderExtra(currentHeader, currentDelta, nil,
-		&CheckpointData{
-			EpochNumber:           2,
-			CurrentValidatorsHash: types.StringToHash("Foo"),
-			NextValidatorsHash:    types.StringToHash("Bar"),
+		&BlockMetaData{
+			EpochNumber: 2,
 		}, nil)
 
 	currentHeader.Hash[0] = currentHeader.Hash[0] + 1
@@ -167,20 +165,16 @@ func TestPolybft_VerifyHeader(t *testing.T) {
 
 	// omit Parent field (parent signature) intentionally
 	updateHeaderExtra(currentHeader, currentDelta, nil,
-		&CheckpointData{
-			EpochNumber:           1,
-			CurrentValidatorsHash: types.StringToHash("Foo"),
-			NextValidatorsHash:    types.StringToHash("Bar")},
+		&BlockMetaData{
+			EpochNumber: 1},
 		accountSetCurrent)
 
 	// since parent signature is intentionally disregarded the following error is expected
 	assert.ErrorContains(t, polybft.VerifyHeader(currentHeader), "failed to verify signatures for parent of block")
 
 	updateHeaderExtra(currentHeader, currentDelta, parentCommitment,
-		&CheckpointData{
-			EpochNumber:           1,
-			CurrentValidatorsHash: types.StringToHash("Foo"),
-			NextValidatorsHash:    types.StringToHash("Bar")},
+		&BlockMetaData{
+			EpochNumber: 1},
 		accountSetCurrent)
 
 	assert.NoError(t, polybft.VerifyHeader(currentHeader))

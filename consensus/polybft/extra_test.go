@@ -101,12 +101,9 @@ func TestExtra_Encoding(t *testing.T) {
 			&Extra{
 				Parent:    &Signature{AggregatedSignature: parentSig, Bitmap: bmp},
 				Committed: &Signature{AggregatedSignature: committedSig, Bitmap: bmp},
-				Checkpoint: &CheckpointData{
-					BlockRound:            0,
-					EpochNumber:           3,
-					CurrentValidatorsHash: types.BytesToHash(generateRandomBytes(t)),
-					NextValidatorsHash:    types.BytesToHash(generateRandomBytes(t)),
-					EventRoot:             types.BytesToHash(generateRandomBytes(t)),
+				BlockMetaData: &BlockMetaData{
+					BlockRound:  0,
+					EpochNumber: 3,
 				},
 			},
 		},
@@ -198,7 +195,7 @@ func TestExtra_UnmarshalRLPWith_NegativeCases(t *testing.T) {
 		key, err := wallet.GenerateAccount()
 		require.NoError(t, err)
 
-		parentSignature := createSignature(t, []*wallet.Account{key}, types.BytesToHash([]byte("This is test hash")), signer.DomainCheckpointManager)
+		parentSignature := createSignature(t, []*wallet.Account{key}, types.BytesToHash([]byte("This is test hash")), signer.DomainBridge)
 		extraMarshalled.Set(parentSignature.MarshalRLPWith(ar))
 
 		// Committed
@@ -208,7 +205,7 @@ func TestExtra_UnmarshalRLPWith_NegativeCases(t *testing.T) {
 		require.Error(t, extra.UnmarshalRLPWith(extraMarshalled))
 	})
 
-	t.Run("Incorrect Checkpoint data marshalled", func(t *testing.T) {
+	t.Run("Incorrect BlockMeta data marshalled", func(t *testing.T) {
 		t.Parallel()
 
 		ar := &fastrlp.Arena{}
@@ -221,17 +218,17 @@ func TestExtra_UnmarshalRLPWith_NegativeCases(t *testing.T) {
 		key, err := wallet.GenerateAccount()
 		require.NoError(t, err)
 
-		parentSignature := createSignature(t, []*wallet.Account{key}, types.BytesToHash(generateRandomBytes(t)), signer.DomainCheckpointManager)
+		parentSignature := createSignature(t, []*wallet.Account{key}, types.BytesToHash(generateRandomBytes(t)), signer.DomainBridge)
 		extraMarshalled.Set(parentSignature.MarshalRLPWith(ar))
 
 		// Committed
-		committedSignature := createSignature(t, []*wallet.Account{key}, types.BytesToHash(generateRandomBytes(t)), signer.DomainCheckpointManager)
+		committedSignature := createSignature(t, []*wallet.Account{key}, types.BytesToHash(generateRandomBytes(t)), signer.DomainBridge)
 		extraMarshalled.Set(committedSignature.MarshalRLPWith(ar))
 
-		// Checkpoint data
-		checkpointDataArr := ar.NewArray()
-		checkpointDataArr.Set(ar.NewBytes(generateRandomBytes(t)))
-		extraMarshalled.Set(checkpointDataArr)
+		// Block meta data
+		BlockMetaArr := ar.NewArray()
+		BlockMetaArr.Set(ar.NewBytes(generateRandomBytes(t)))
+		extraMarshalled.Set(BlockMetaArr)
 
 		extra := &Extra{}
 		require.Error(t, extra.UnmarshalRLPWith(extraMarshalled))
@@ -263,24 +260,22 @@ func TestExtra_ValidateFinalizedData_UnhappyPath(t *testing.T) {
 	// missing Committed field
 	extra := &Extra{}
 	err := extra.ValidateFinalizedData(
-		header, parent, nil, chainID, nil, signer.DomainCheckpointManager, hclog.NewNullLogger())
+		header, parent, nil, chainID, nil, signer.DomainBridge, hclog.NewNullLogger())
 	require.ErrorContains(t, err, fmt.Sprintf("failed to verify signatures for block %d, because signatures are not present", headerNum))
 
-	// missing Checkpoint field
+	// missing Block field
 	extra = &Extra{Committed: &Signature{}}
 	err = extra.ValidateFinalizedData(
-		header, parent, nil, chainID, polyBackendMock, signer.DomainCheckpointManager, hclog.NewNullLogger())
-	require.ErrorContains(t, err, fmt.Sprintf("failed to verify signatures for block %d, because checkpoint data are not present", headerNum))
+		header, parent, nil, chainID, polyBackendMock, signer.DomainBridge, hclog.NewNullLogger())
+	require.ErrorContains(t, err, fmt.Sprintf("failed to verify signatures for block %d, because block meta data are not present", headerNum))
 
-	// failed to retrieve validators from snapshot
-	checkpoint := &CheckpointData{
+	blockMeta := &BlockMetaData{
 		EpochNumber: 10,
 		BlockRound:  2,
-		EventRoot:   types.BytesToHash(generateRandomBytes(t)),
 	}
-	extra = &Extra{Committed: &Signature{}, Checkpoint: checkpoint}
+	extra = &Extra{Committed: &Signature{}, BlockMetaData: blockMeta}
 	err = extra.ValidateFinalizedData(
-		header, parent, nil, chainID, polyBackendMock, signer.DomainCheckpointManager, hclog.NewNullLogger())
+		header, parent, nil, chainID, polyBackendMock, signer.DomainBridge, hclog.NewNullLogger())
 	require.ErrorContains(t, err,
 		fmt.Sprintf("failed to validate header for block %d. could not retrieve block validators:validators not found", headerNum))
 
@@ -288,23 +283,23 @@ func TestExtra_ValidateFinalizedData_UnhappyPath(t *testing.T) {
 	polyBackendMock = new(polybftBackendMock)
 	polyBackendMock.On("GetValidators", mock.Anything, mock.Anything).Return(validators.GetPublicIdentities())
 
-	noQuorumSignature := createSignature(t, validators.GetPrivateIdentities("0", "1"), types.BytesToHash([]byte("FooBar")), signer.DomainCheckpointManager)
-	extra = &Extra{Committed: noQuorumSignature, Checkpoint: checkpoint}
-	checkpointHash, err := checkpoint.Hash(chainID, headerNum, header.Hash)
+	noQuorumSignature := createSignature(t, validators.GetPrivateIdentities("0", "1"), types.BytesToHash([]byte("FooBar")), signer.DomainBridge)
+	extra = &Extra{Committed: noQuorumSignature, BlockMetaData: blockMeta}
+	blockMetaHash, err := blockMeta.Hash(header.Hash)
 	require.NoError(t, err)
 
 	err = extra.ValidateFinalizedData(
-		header, parent, nil, chainID, polyBackendMock, signer.DomainCheckpointManager, hclog.NewNullLogger())
+		header, parent, nil, chainID, polyBackendMock, signer.DomainBridge, hclog.NewNullLogger())
 	require.ErrorContains(t, err,
-		fmt.Sprintf("failed to verify signatures for block %d (proposal hash %s): quorum not reached", headerNum, checkpointHash))
+		fmt.Sprintf("failed to verify signatures for block %d (proposal hash %s): quorum not reached", headerNum, blockMetaHash))
 
 	// incorrect parent extra size
-	validSignature := createSignature(t, validators.GetPrivateIdentities(), checkpointHash, signer.DomainCheckpointManager)
-	extra = &Extra{Committed: validSignature, Checkpoint: checkpoint}
+	validSignature := createSignature(t, validators.GetPrivateIdentities(), blockMetaHash, signer.DomainBridge)
+	extra = &Extra{Committed: validSignature}
 	err = extra.ValidateFinalizedData(
-		header, parent, nil, chainID, polyBackendMock, signer.DomainCheckpointManager, hclog.NewNullLogger())
+		header, parent, nil, chainID, polyBackendMock, signer.DomainBridge, hclog.NewNullLogger())
 	require.ErrorContains(t, err,
-		fmt.Sprintf("failed to verify signatures for block %d: wrong extra size: 0", headerNum))
+		fmt.Sprintf("failed to verify signatures for block %d, because block meta data are not present", headerNum))
 }
 
 func TestExtra_ValidateParentSignatures(t *testing.T) {
@@ -321,21 +316,21 @@ func TestExtra_ValidateParentSignatures(t *testing.T) {
 	// validation is skipped for blocks 0 and 1
 	extra := &Extra{}
 	err := extra.ValidateParentSignatures(
-		1, polyBackendMock, nil, nil, nil, chainID, signer.DomainCheckpointManager, hclog.NewNullLogger())
+		1, polyBackendMock, nil, nil, nil, signer.DomainBridge, hclog.NewNullLogger())
 	require.NoError(t, err)
 
 	// parent signatures not present
 	err = extra.ValidateParentSignatures(
-		headerNum, polyBackendMock, nil, nil, nil, chainID, signer.DomainCheckpointManager, hclog.NewNullLogger())
+		headerNum, polyBackendMock, nil, nil, nil, signer.DomainBridge, hclog.NewNullLogger())
 	require.ErrorContains(t, err, fmt.Sprintf("failed to verify signatures for parent of block %d because signatures are not present", headerNum))
 
 	// validators not found
 	validators := validator.NewTestValidators(t, 5)
 	incorrectHash := types.BytesToHash([]byte("Hello World"))
-	invalidSig := createSignature(t, validators.GetPrivateIdentities(), incorrectHash, signer.DomainCheckpointManager)
+	invalidSig := createSignature(t, validators.GetPrivateIdentities(), incorrectHash, signer.DomainBridge)
 	extra = &Extra{Parent: invalidSig}
 	err = extra.ValidateParentSignatures(
-		headerNum, polyBackendMock, nil, nil, nil, chainID, signer.DomainCheckpointManager, hclog.NewNullLogger())
+		headerNum, polyBackendMock, nil, nil, nil, signer.DomainBridge, hclog.NewNullLogger())
 	require.ErrorContains(t, err,
 		fmt.Sprintf("failed to validate header for block %d. could not retrieve parent validators: no validators", headerNum))
 
@@ -344,22 +339,22 @@ func TestExtra_ValidateParentSignatures(t *testing.T) {
 	polyBackendMock.On("GetValidators", mock.Anything, mock.Anything).Return(validators.GetPublicIdentities())
 
 	parent := &types.Header{Number: headerNum - 1, Hash: types.BytesToHash(generateRandomBytes(t))}
-	parentCheckpoint := &CheckpointData{EpochNumber: 3, BlockRound: 5}
-	parentExtra := &Extra{Checkpoint: parentCheckpoint}
+	parentBlockMeta := &BlockMetaData{EpochNumber: 3, BlockRound: 5}
+	parentExtra := &Extra{BlockMetaData: parentBlockMeta}
 
-	parentCheckpointHash, err := parentCheckpoint.Hash(chainID, parent.Number, parent.Hash)
+	parentBlockMetaHash, err := parentBlockMeta.Hash(parent.Hash)
 	require.NoError(t, err)
 
 	err = extra.ValidateParentSignatures(
-		headerNum, polyBackendMock, nil, parent, parentExtra, chainID, signer.DomainCheckpointManager, hclog.NewNullLogger())
+		headerNum, polyBackendMock, nil, parent, parentExtra, signer.DomainBridge, hclog.NewNullLogger())
 	require.ErrorContains(t, err,
-		fmt.Sprintf("failed to verify signatures for parent of block %d (proposal hash: %s): could not verify aggregated signature", headerNum, parentCheckpointHash))
+		fmt.Sprintf("failed to verify signatures for parent of block %d (proposal hash: %s): could not verify aggregated signature", headerNum, parentBlockMetaHash))
 
 	// valid signature provided
-	validSig := createSignature(t, validators.GetPrivateIdentities(), parentCheckpointHash, signer.DomainCheckpointManager)
+	validSig := createSignature(t, validators.GetPrivateIdentities(), parentBlockMetaHash, signer.DomainBridge)
 	extra = &Extra{Parent: validSig}
 	err = extra.ValidateParentSignatures(
-		headerNum, polyBackendMock, nil, parent, parentExtra, chainID, signer.DomainCheckpointManager, hclog.NewNullLogger())
+		headerNum, polyBackendMock, nil, parent, parentExtra, signer.DomainBridge, hclog.NewNullLogger())
 	require.NoError(t, err)
 }
 
@@ -384,7 +379,7 @@ func TestSignature_Verify(t *testing.T) {
 		for i, val := range vals.GetValidators() {
 			bitmap.Set(uint64(i))
 
-			tempSign, err := val.Account.Bls.Sign(msgHash[:], signer.DomainCheckpointManager)
+			tempSign, err := val.Account.Bls.Sign(msgHash[:], signer.DomainBridge)
 			require.NoError(t, err)
 
 			signatures = append(signatures, tempSign)
@@ -396,7 +391,7 @@ func TestSignature_Verify(t *testing.T) {
 				Bitmap:              bitmap,
 			}
 
-			err = s.Verify(10, validatorsMetadata, msgHash, signer.DomainCheckpointManager, hclog.NewNullLogger())
+			err = s.Verify(10, validatorsMetadata, msgHash, signer.DomainBridge, hclog.NewNullLogger())
 			signers[val.Address()] = struct{}{}
 
 			if !validatorSet.HasQuorum(10, signers) {
@@ -417,7 +412,7 @@ func TestSignature_Verify(t *testing.T) {
 		bmp.Set(uint64(validatorSet.Len() + 1))
 		s := &Signature{Bitmap: bmp}
 
-		err := s.Verify(0, validatorSet, types.Hash{0x1}, signer.DomainCheckpointManager, hclog.NewNullLogger())
+		err := s.Verify(0, validatorSet, types.Hash{0x1}, signer.DomainBridge, hclog.NewNullLogger())
 		require.Error(t, err)
 	})
 }
@@ -471,7 +466,7 @@ func TestSignature_VerifyRandom(t *testing.T) {
 	for _, index := range valIndxsRnd {
 		bitmap.Set(uint64(index))
 
-		tempSign, err := accounts[index].Account.Bls.Sign(msgHash[:], signer.DomainCheckpointManager)
+		tempSign, err := accounts[index].Account.Bls.Sign(msgHash[:], signer.DomainBridge)
 		require.NoError(t, err)
 
 		signature = append(signature, tempSign)
@@ -485,7 +480,7 @@ func TestSignature_VerifyRandom(t *testing.T) {
 		Bitmap:              bitmap,
 	}
 
-	err = s.Verify(1, vals.GetPublicIdentities(), msgHash, signer.DomainCheckpointManager, hclog.NewNullLogger())
+	err = s.Verify(1, vals.GetPublicIdentities(), msgHash, signer.DomainBridge, hclog.NewNullLogger())
 	assert.NoError(t, err)
 }
 
@@ -565,13 +560,6 @@ func Test_GetIbftExtraClean(t *testing.T) {
 			AggregatedSignature: []byte{0, 1},
 			Bitmap:              []byte{1},
 		},
-		Checkpoint: &CheckpointData{
-			BlockRound:            1,
-			EpochNumber:           1,
-			CurrentValidatorsHash: types.BytesToHash([]byte{2, 3}),
-			NextValidatorsHash:    types.BytesToHash([]byte{4, 5}),
-			EventRoot:             types.BytesToHash([]byte{6, 7}),
-		},
 	}
 
 	extraClean, err := GetIbftExtraClean(extra.MarshalRLPTo(nil))
@@ -580,11 +568,6 @@ func Test_GetIbftExtraClean(t *testing.T) {
 	extraTwo := &Extra{}
 	require.NoError(t, extraTwo.UnmarshalRLP(extraClean))
 	require.True(t, extra.Validators.Equals(extra.Validators))
-	require.Equal(t, extra.Checkpoint.BlockRound, extraTwo.Checkpoint.BlockRound)
-	require.Equal(t, extra.Checkpoint.EpochNumber, extraTwo.Checkpoint.EpochNumber)
-	require.Equal(t, extra.Checkpoint.CurrentValidatorsHash, extraTwo.Checkpoint.CurrentValidatorsHash)
-	require.Equal(t, extra.Checkpoint.NextValidatorsHash, extraTwo.Checkpoint.NextValidatorsHash)
-	require.Equal(t, extra.Checkpoint.NextValidatorsHash, extraTwo.Checkpoint.NextValidatorsHash)
 	require.Equal(t, extra.Parent.AggregatedSignature, extraTwo.Parent.AggregatedSignature)
 	require.Equal(t, extra.Parent.Bitmap, extraTwo.Parent.Bitmap)
 
@@ -604,75 +587,38 @@ func Test_GetIbftExtraClean_Fail(t *testing.T) {
 	require.Nil(t, extra)
 }
 
-func TestCheckpointData_Hash(t *testing.T) {
+func TestBlockMetaData_Hash(t *testing.T) {
 	const (
 		chainID     = uint64(1)
 		blockNumber = uint64(27)
 	)
 
 	blockHash := types.BytesToHash(generateRandomBytes(t))
-	origCheckpoint := &CheckpointData{
-		BlockRound:            0,
-		EpochNumber:           3,
-		CurrentValidatorsHash: types.BytesToHash(generateRandomBytes(t)),
-		NextValidatorsHash:    types.BytesToHash(generateRandomBytes(t)),
-		EventRoot:             types.BytesToHash(generateRandomBytes(t)),
+	origBlockMeta := &BlockMetaData{
+		BlockRound:  0,
+		EpochNumber: 3,
 	}
-	copyCheckpoint := &CheckpointData{}
-	*copyCheckpoint = *origCheckpoint
+	copyBlockMeta := &BlockMetaData{}
+	*copyBlockMeta = *origBlockMeta
 
-	origHash, err := origCheckpoint.Hash(chainID, blockNumber, blockHash)
+	origHash, err := origBlockMeta.Hash(blockHash)
 	require.NoError(t, err)
 
-	copyHash, err := copyCheckpoint.Hash(chainID, blockNumber, blockHash)
+	copyHash, err := copyBlockMeta.Hash(blockHash)
 	require.NoError(t, err)
 
 	require.Equal(t, origHash, copyHash)
 }
 
-func TestCheckpointData_Validate(t *testing.T) {
+func TestBlockMetaData_Validate(t *testing.T) {
 	t.Parallel()
 
-	currentValidators := validator.NewTestValidators(t, 5).GetPublicIdentities()
-	nextValidators := validator.NewTestValidators(t, 3).GetPublicIdentities()
-
-	currentValidatorsHash, err := currentValidators.Hash()
-	require.NoError(t, err)
-
-	nextValidatorsHash, err := nextValidators.Hash()
-	require.NoError(t, err)
-
 	cases := []struct {
-		name                  string
-		parentEpochNumber     uint64
-		epochNumber           uint64
-		currentValidators     validator.AccountSet
-		nextValidators        validator.AccountSet
-		currentValidatorsHash types.Hash
-		nextValidatorsHash    types.Hash
-		exitRootHash          types.Hash
-		errString             string
+		name              string
+		parentEpochNumber uint64
+		epochNumber       uint64
+		errString         string
 	}{
-		{
-			name:                  "Valid (validator set changes)",
-			parentEpochNumber:     2,
-			epochNumber:           2,
-			currentValidators:     currentValidators,
-			nextValidators:        nextValidators,
-			currentValidatorsHash: currentValidatorsHash,
-			nextValidatorsHash:    nextValidatorsHash,
-			errString:             "",
-		},
-		{
-			name:                  "Valid (validator set remains the same)",
-			parentEpochNumber:     2,
-			epochNumber:           2,
-			currentValidators:     currentValidators,
-			nextValidators:        currentValidators,
-			currentValidatorsHash: currentValidatorsHash,
-			nextValidatorsHash:    currentValidatorsHash,
-			errString:             "",
-		},
 		{
 			name:              "Invalid (gap in epoch numbers)",
 			parentEpochNumber: 2,
@@ -680,54 +626,9 @@ func TestCheckpointData_Validate(t *testing.T) {
 			errString:         "invalid epoch number for epoch-beginning block",
 		},
 		{
-			name:              "Invalid (empty currentValidatorsHash)",
-			currentValidators: currentValidators,
-			nextValidators:    currentValidators,
-			errString:         "current validators hash must not be empty",
-		},
-		{
-			name:                  "Invalid (empty nextValidatorsHash)",
-			currentValidators:     currentValidators,
-			nextValidators:        currentValidators,
-			currentValidatorsHash: currentValidatorsHash,
-			errString:             "next validators hash must not be empty",
-		},
-		{
-			name:                  "Invalid (incorrect currentValidatorsHash)",
-			currentValidators:     currentValidators,
-			nextValidators:        currentValidators,
-			currentValidatorsHash: nextValidatorsHash,
-			nextValidatorsHash:    nextValidatorsHash,
-			errString:             "current validators hashes don't match",
-		},
-		{
-			name:                  "Invalid (incorrect nextValidatorsHash)",
-			currentValidators:     nextValidators,
-			nextValidators:        nextValidators,
-			currentValidatorsHash: nextValidatorsHash,
-			nextValidatorsHash:    currentValidatorsHash,
-			errString:             "next validators hashes don't match",
-		},
-		{
-			name:                  "Invalid (validator set and epoch numbers change)",
-			parentEpochNumber:     2,
-			epochNumber:           3,
-			currentValidators:     currentValidators,
-			nextValidators:        nextValidators,
-			currentValidatorsHash: currentValidatorsHash,
-			nextValidatorsHash:    nextValidatorsHash,
-			errString:             "epoch number should not change for epoch-ending block",
-		},
-		{
-			name:                  "Invalid exit root hash",
-			parentEpochNumber:     2,
-			epochNumber:           2,
-			currentValidators:     currentValidators,
-			nextValidators:        currentValidators,
-			currentValidatorsHash: currentValidatorsHash,
-			nextValidatorsHash:    currentValidatorsHash,
-			exitRootHash:          types.BytesToHash([]byte{0, 1, 2, 3, 4, 5, 6, 7}),
-			errString:             "exit root hash not as expected",
+			name:              "Invalid (validator set and epoch numbers change)",
+			parentEpochNumber: 2,
+			epochNumber:       3,
 		},
 	}
 
@@ -736,14 +637,11 @@ func TestCheckpointData_Validate(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			checkpoint := &CheckpointData{
-				EpochNumber:           c.epochNumber,
-				CurrentValidatorsHash: c.currentValidatorsHash,
-				NextValidatorsHash:    c.nextValidatorsHash,
-				EventRoot:             c.exitRootHash,
+			blockMeta := &BlockMetaData{
+				EpochNumber: c.epochNumber,
 			}
-			parentCheckpoint := &CheckpointData{EpochNumber: c.parentEpochNumber}
-			err := checkpoint.Validate(parentCheckpoint, c.currentValidators, c.nextValidators, types.ZeroHash)
+			parentBlockMeta := &BlockMetaData{EpochNumber: c.parentEpochNumber}
+			err := blockMeta.Validate(parentBlockMeta)
 
 			if c.errString != "" {
 				require.ErrorContains(t, err, c.errString)
@@ -754,23 +652,12 @@ func TestCheckpointData_Validate(t *testing.T) {
 	}
 }
 
-func TestCheckpointData_Copy(t *testing.T) {
+func TestBlockMetaData_Copy(t *testing.T) {
 	t.Parallel()
 
-	validatorAccs := validator.NewTestValidators(t, 5)
-	currentValidatorsHash, err := validatorAccs.GetPublicIdentities("0", "1", "2").Hash()
-	require.NoError(t, err)
-
-	nextValidatorsHash, err := validatorAccs.GetPublicIdentities("1", "3", "4").Hash()
-	require.NoError(t, err)
-
-	eventRoot := generateRandomBytes(t)
-	original := &CheckpointData{
-		BlockRound:            1,
-		EpochNumber:           5,
-		CurrentValidatorsHash: currentValidatorsHash,
-		NextValidatorsHash:    nextValidatorsHash,
-		EventRoot:             types.BytesToHash(eventRoot),
+	original := &BlockMetaData{
+		BlockRound:  1,
+		EpochNumber: 5,
 	}
 
 	copied := original.Copy()

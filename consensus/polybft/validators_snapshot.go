@@ -91,7 +91,7 @@ func (v *validatorsSnapshotCache) GetSnapshot(
 		return nil, err
 	}
 
-	epochToGetSnapshot := extra.Checkpoint.EpochNumber
+	epochToGetSnapshot := extra.BlockMetaData.EpochNumber
 	if !isEpochEndingBlock {
 		epochToGetSnapshot--
 	}
@@ -338,7 +338,7 @@ func (v *validatorsSnapshotCache) getNextEpochEndingBlock(latestEpochEndingBlock
 		return 0, err
 	}
 
-	startEpoch := extra.Checkpoint.EpochNumber
+	startEpoch := extra.BlockMetaData.EpochNumber
 	epoch := startEpoch
 
 	for startEpoch == epoch {
@@ -353,7 +353,7 @@ func (v *validatorsSnapshotCache) getNextEpochEndingBlock(latestEpochEndingBlock
 			return 0, err
 		}
 
-		epoch = extra.Checkpoint.EpochNumber
+		epoch = extra.BlockMetaData.EpochNumber
 	}
 
 	return blockNumber - 1, nil

@@ -207,7 +207,7 @@ func (b *bridgeEventManager) verifyVoteSignature(valSet validator.ValidatorSet, 
 		return fmt.Errorf("failed to unmarshal signature from signer %s, %w", signerAddr.String(), err)
 	}
 
-	if !unmarshaledSignature.Verify(validator.BlsKey, hash, signer.DomainStateReceiver) {
+	if !unmarshaledSignature.Verify(validator.BlsKey, hash, signer.DomainBridge) {
 		return fmt.Errorf("incorrect signature from %s", signerAddr)
 	}
 
@@ -339,7 +339,7 @@ func (b *bridgeEventManager) getAggSignatureForBridgeBatchMessage(blockNumber ui
 			return Signature{}, err
 		}
 
-		bmap.Set(uint64(index))
+		bmap.Set(uint64(index)) //nolint:gosec
 
 		signatures = append(signatures, signature)
 		publicKeys = append(publicKeys, validatorsMetadata[index].BlsKey.Marshal())
@@ -471,7 +471,7 @@ func (b *bridgeEventManager) buildBridgeBatch(dbTx *bolt.Tx) error {
 
 	hashBytes := hash.Bytes()
 
-	signature, err := b.config.key.SignWithDomain(hashBytes, signer.DomainStateReceiver)
+	signature, err := b.config.key.SignWithDomain(hashBytes, signer.DomainBridge)
 	if err != nil {
 		return fmt.Errorf("failed to sign batch message. Error: %w", err)
 	}

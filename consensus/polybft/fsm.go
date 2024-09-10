@@ -106,9 +106,6 @@ type fsm struct {
 	// target is the block being computed
 	target *types.FullBlock
 
-	// exitEventRootHash is the calculated root hash for given checkpoint block
-	exitEventRootHash types.Hash
-
 	// newValidatorsDelta carries the updates of validator set on epoch ending block
 	newValidatorsDelta *validator.ValidatorSetDelta
 }
@@ -190,12 +187,9 @@ func (f *fsm) BuildProposal(currentRound uint64) ([]byte, error) {
 		return nil, err
 	}
 
-	extra.Checkpoint = &CheckpointData{
-		BlockRound:            currentRound,
-		EpochNumber:           f.epochNumber,
-		CurrentValidatorsHash: currentValidatorsHash,
-		NextValidatorsHash:    nextValidatorsHash,
-		EventRoot:             f.exitEventRootHash,
+	extra.BlockMetaData = &BlockMetaData{
+		BlockRound:  currentRound,
+		EpochNumber: f.epochNumber,
 	}
 
 	f.logger.Trace("[FSM.BuildProposal]", "Current validators hash", currentValidatorsHash,
@@ -211,7 +205,7 @@ func (f *fsm) BuildProposal(currentRound uint64) ([]byte, error) {
 	}
 
 	if f.logger.GetLevel() <= hclog.Debug {
-		checkpointHash, err := extra.Checkpoint.Hash(f.backend.GetChainID(), f.Height(), stateBlock.Block.Hash())
+		blockMetaHash, err := extra.BlockMetaData.Hash(stateBlock.Block.Hash())
 		if err != nil {
 			return nil, fmt.Errorf("failed to calculate proposal hash: %w", err)
 		}
@@ -234,7 +228,7 @@ func (f *fsm) BuildProposal(currentRound uint64) ([]byte, error) {
 			"block num", stateBlock.Block.Number(),
 			"round", currentRound,
 			"state root", stateBlock.Block.Header.StateRoot,
-			"proposal hash", checkpointHash.String(),
+			"proposal hash", blockMetaHash.String(),
 			"txs count", len(stateBlock.Block.Transactions),
 			"txs", buf.String(),
 			"finsihedIn", time.Since(start),
@@ -337,7 +331,7 @@ func (f *fsm) ValidateCommit(signerAddr []byte, seal []byte, proposalHash []byte
 		return fmt.Errorf("failed to unmarshall signature: %w", err)
 	}
 
-	if !signature.Verify(validator.BlsKey, proposalHash, signer.DomainCheckpointManager) {
+	if !signature.Verify(validator.BlsKey, proposalHash, signer.DomainBridge) {
 		return fmt.Errorf("incorrect commit signature from %s", from)
 	}
 
@@ -373,24 +367,22 @@ func (f *fsm) Validate(proposal []byte) error {
 		return err
 	}
 
-	if extra.Checkpoint == nil {
-		return fmt.Errorf("checkpoint data for block %d is missing", block.Number())
+	if extra.BlockMetaData == nil {
+		return fmt.Errorf("block meta data for block %d is missing", block.Number())
 	}
 
-	if parentExtra.Checkpoint == nil {
-		return fmt.Errorf("checkpoint data for parent block %d is missing", f.parent.Number)
+	if parentExtra.BlockMetaData == nil {
+		return fmt.Errorf("block meta data for parent block %d is missing", f.parent.Number)
 	}
 
 	if err := extra.ValidateParentSignatures(block.Number(), f.polybftBackend, nil, f.parent, parentExtra,
-		f.backend.GetChainID(), signer.DomainCheckpointManager, f.logger); err != nil {
+		signer.DomainBridge, f.logger); err != nil {
 		return err
 	}
 
 	if err := f.VerifyStateTransactions(block.Transactions); err != nil {
 		return err
 	}
-
-	currentValidators := f.validators.Accounts()
 
 	// validate validators delta
 	if f.isEndOfEpoch {
@@ -405,15 +397,8 @@ func (f *fsm) Validate(proposal []byte) error {
 		// delta should be nil in non epoch ending blocks
 		return errValidatorsUpdateInNonEpochEnding
 	}
-
-	nextValidators, err := f.getValidatorsTransition(extra.Validators)
-	if err != nil {
-		return err
-	}
-
-	// validate checkpoint data
-	if err := extra.Checkpoint.Validate(parentExtra.Checkpoint,
-		currentValidators, nextValidators, f.exitEventRootHash); err != nil {
+	// validate block meta data
+	if err := extra.BlockMetaData.Validate(parentExtra.BlockMetaData); err != nil {
 		return err
 	}
 
@@ -432,7 +417,7 @@ func (f *fsm) Validate(proposal []byte) error {
 	}
 
 	if f.logger.IsDebug() {
-		checkpointHash, err := extra.Checkpoint.Hash(f.backend.GetChainID(), block.Number(), block.Hash())
+		blockMetaHash, err := extra.BlockMetaData.Hash(block.Hash())
 		if err != nil {
 			return fmt.Errorf("failed to calculate proposal hash: %w", err)
 		}
@@ -441,7 +426,7 @@ func (f *fsm) Validate(proposal []byte) error {
 			"block num", block.Number(),
 			"state root", block.Header.StateRoot,
 			"proposer", types.BytesToHash(block.Header.Miner),
-			"proposal hash", checkpointHash,
+			"proposal hash", blockMetaHash,
 			"finishedIn", time.Since(start),
 		)
 	}
@@ -710,7 +695,7 @@ func verifyBridgeBatchTx(blockNumber uint64, txHash types.Hash,
 		return fmt.Errorf("error for state tx (%s) while unmarshaling signature: %w", txHash, err)
 	}
 
-	verified := signature.VerifyAggregated(signers.GetBlsKeys(), batchHash.Bytes(), signer.DomainStateReceiver)
+	verified := signature.VerifyAggregated(signers.GetBlsKeys(), batchHash.Bytes(), signer.DomainBridge)
 	if !verified {
 		return fmt.Errorf("invalid signature for state tx (%s)", txHash)
 	}
