@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BRANCH=evm_base_branch # optimization-chain-registration
+BRANCH=main
 NEXUS_BRANCH=main
 
 # build Apex-bridge smartcontracts

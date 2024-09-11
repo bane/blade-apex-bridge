@@ -170,42 +170,24 @@ func (ec *TestEVMBridge) deployContracts(apexSystem *ApexSystem) error {
 	}
 
 	// Deploy contracts with proxy & call "initialize"
-	nativeTokenPredicateInit, _ := NativeTokenPredicate.Abi.Methods["initialize"].Encode(map[string]interface{}{})
-
 	ec.contracts.nativeTokenPredicate, err =
-		deployContractWithProxy(txRelayer, ec.Admin, NativeTokenPredicate, nativeTokenPredicateInit)
+		deployContractWithProxy(txRelayer, ec.Admin, NativeTokenPredicate, map[string]interface{}{})
 	if err != nil {
 		return err
 	}
-
-	nativeTokenWalletInit, _ := NativeTokenWallet.Abi.Methods["initialize"].Encode(map[string]interface{}{})
 
 	ec.contracts.nativeTokenWallet, err =
-		deployContractWithProxy(txRelayer, ec.Admin, NativeTokenWallet, nativeTokenWalletInit)
+		deployContractWithProxy(txRelayer, ec.Admin, NativeTokenWallet, map[string]interface{}{})
 	if err != nil {
 		return err
 	}
 
-	validatorAddresses := make([]types.Address, len(apexSystem.Bridge.validators))
-	for idx, validator := range apexSystem.Bridge.validators {
-		validatorAddresses[idx], err = validator.getValidatorEthAddress()
-		if err != nil {
-			return err
-		}
-	}
-
-	validatorsInit, _ := Validators.Abi.Methods["initialize"].Encode(map[string]interface{}{
-		"_validators": validatorAddresses,
-	})
-
-	ec.contracts.validators, err = deployContractWithProxy(txRelayer, ec.Admin, Validators, validatorsInit)
+	ec.contracts.validators, err = deployContractWithProxy(txRelayer, ec.Admin, Validators, map[string]interface{}{})
 	if err != nil {
 		return err
 	}
 
-	gatewayInit, _ := Gateway.Abi.Methods["initialize"].Encode(map[string]interface{}{})
-
-	ec.contracts.gateway, err = deployContractWithProxy(txRelayer, ec.Admin, Gateway, gatewayInit)
+	ec.contracts.gateway, err = deployContractWithProxy(txRelayer, ec.Admin, Gateway, map[string]interface{}{})
 	if err != nil {
 		return err
 	}
@@ -238,7 +220,7 @@ func deployContractWithProxy(
 	txRelayer txrelayer.TxRelayer,
 	admin *wallet.Account,
 	contract *contracts.Artifact,
-	initParams []byte,
+	initParams map[string]interface{},
 ) (addr types.Address, err error) {
 	// deploy contract
 	receipt, err := txRelayer.SendTransaction(
@@ -253,10 +235,19 @@ func deployContractWithProxy(
 		return addr, fmt.Errorf("deploying smart contract failed: %d", receipt.Status)
 	}
 
-	input, _ := ERC1967Proxy.Abi.Constructor.Inputs.Encode(map[string]interface{}{
+	initializationData, err := contract.Abi.Methods["initialize"].Encode(initParams)
+	if err != nil {
+		return addr, err
+	}
+
+	input, err := ERC1967Proxy.Abi.Constructor.Inputs.Encode(map[string]interface{}{
 		"implementation": types.Address(receipt.ContractAddress),
-		"_data":          initParams,
+		"_data":          initializationData,
 	})
+	if err != nil {
+		return addr, err
+	}
+
 	input = append(ERC1967Proxy.Bytecode, input...)
 
 	// deploy proxy contract and call initialize
@@ -368,8 +359,7 @@ func (ca *ContractsAddrs) validatorsSetDependencies(
 	admin *wallet.Account,
 	validators []*TestCardanoValidator,
 ) error {
-	validatorsData := ValidatorsSetDependenciesFn{
-		Gateway_:   ca.gateway,
+	validatorsData := ValidatorsSetValidatorsChainDataFn{
 		ChainData_: makeValidatorChainData(validators),
 	}
 
@@ -393,16 +383,12 @@ func (ca *ContractsAddrs) validatorsSetDependencies(
 	return nil
 }
 
-func makeValidatorChainData(validators []*TestCardanoValidator) []*ValidatorAddressChainData {
-	validatorAddrChainData := make([]*ValidatorAddressChainData, len(validators))
+func makeValidatorChainData(validators []*TestCardanoValidator) []*ValidatorChainData {
+	validatorAddrChainData := make([]*ValidatorChainData, len(validators))
 
 	for idx, validator := range validators {
-		validatorAddr, _ := validator.getValidatorEthAddress()
-		validatorAddrChainData[idx] = &ValidatorAddressChainData{
-			Address_: validatorAddr,
-			Data_: &ValidatorChainData{
-				Key_: validator.BatcherBN256PrivateKey.PublicKey().ToBigInt(),
-			},
+		validatorAddrChainData[idx] = &ValidatorChainData{
+			Key_: validator.BatcherBN256PrivateKey.PublicKey().ToBigInt(),
 		}
 	}
 

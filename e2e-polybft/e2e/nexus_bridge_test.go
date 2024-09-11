@@ -1005,7 +1005,6 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 		require.NotZero(t, prevAmountNexusReceiver)
 
 		nexusUsers := make([]*ethwallet.Account, parallelInstances)
-		// pkBytesNexus := make([][]byte, parallelInstances)
 
 		for i := 0; i < parallelInstances; i++ {
 			nexusUsers[i], err = apex.CreateAndFundNexusUser(ctx, 100)

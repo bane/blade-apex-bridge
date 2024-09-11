@@ -24,8 +24,7 @@ var (
 	Validators           *contracts.Artifact
 )
 
-func InitNexusContracts() (
-	err error) {
+func InitNexusContracts() (err error) {
 	ERC1967Proxy, err = contracts.DecodeArtifact([]byte(contractsapi.ERC1967ProxyArtifact))
 	if err != nil {
 		return
@@ -109,26 +108,20 @@ type ValidatorChainData struct {
 	Key_ [4]*big.Int `abi:"key"`
 }
 
-type ValidatorAddressChainData struct {
-	Address_ types.Address       `abi:"addr"`
-	Data_    *ValidatorChainData `abi:"data"`
+type ValidatorsSetValidatorsChainDataFn struct {
+	ChainData_ []*ValidatorChainData `abi:"_validatorsChainData"`
 }
 
-type ValidatorsSetDependenciesFn struct {
-	Gateway_   types.Address                `abi:"_gatewayAddress"`
-	ChainData_ []*ValidatorAddressChainData `abi:"_chainDatas"`
+func (g *ValidatorsSetValidatorsChainDataFn) Sig() []byte {
+	return Validators.Abi.Methods["setValidatorsChainData"].ID()
 }
 
-func (g *ValidatorsSetDependenciesFn) Sig() []byte {
-	return Validators.Abi.Methods["setDependencies"].ID()
+func (g *ValidatorsSetValidatorsChainDataFn) EncodeAbi() ([]byte, error) {
+	return Validators.Abi.Methods["setValidatorsChainData"].Encode(g)
 }
 
-func (g *ValidatorsSetDependenciesFn) EncodeAbi() ([]byte, error) {
-	return Validators.Abi.Methods["setDependencies"].Encode(g)
-}
-
-func (g *ValidatorsSetDependenciesFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(Validators.Abi.Methods["setDependencies"], buf, g)
+func (g *ValidatorsSetValidatorsChainDataFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(Validators.Abi.Methods["setValidatorsChainData"], buf, g)
 }
 
 const abiMethodIDLength = 4

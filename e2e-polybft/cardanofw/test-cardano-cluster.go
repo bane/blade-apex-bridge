@@ -629,6 +629,7 @@ func (c *TestCardanoCluster) CopyConfigFilesAndInitDirectoriesStep2(networkType 
 				if maxLovelaceSupply, ok := v.(float64); ok {
 					prevMax = uint64(maxLovelaceSupply)
 				} else {
+					//nolint:gosec
 					prevMax = uint64(v.(int)) //nolint:forcetypeassert
 				}
 			}

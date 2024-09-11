@@ -77,6 +77,7 @@ func (c *apexBLSSignatureVerification) run(input []byte, caller types.Address, h
 		bmp := bitmap.Bitmap(data["3"].(*big.Int).Bytes()) //nolint:forcetypeassert
 
 		for i, x := range allPublicKeys {
+			//nolint:gosec
 			if bmp.IsSet(uint64(i)) {
 				publicKeysSerialized = append(publicKeysSerialized, x)
 			}
