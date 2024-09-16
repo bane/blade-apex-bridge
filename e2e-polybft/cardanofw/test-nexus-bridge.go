@@ -203,7 +203,7 @@ func (ec *TestEVMBridge) deployContracts(apexSystem *ApexSystem) error {
 		return err
 	}
 
-	err = ec.contracts.nativeTokenWalletSetDependencies(txRelayer, ec.Admin, big.NewInt(0))
+	err = ec.contracts.nativeTokenWalletSetDependencies(txRelayer, ec.Admin)
 	if err != nil {
 		return err
 	}
@@ -325,13 +325,10 @@ func (ca *ContractsAddrs) nativeTokenPredicateSetDependencies(
 }
 
 func (ca *ContractsAddrs) nativeTokenWalletSetDependencies(
-	txRelayer txrelayer.TxRelayer,
-	admin *wallet.Account,
-	tokenSupply *big.Int,
+	txRelayer txrelayer.TxRelayer, admin *wallet.Account,
 ) error {
 	nativeTokenWallet := NativeTokenWalletSetDependenciesFn{
 		Predicate_: ca.nativeTokenPredicate,
-		Supply_:    tokenSupply,
 	}
 
 	encoded, err := nativeTokenWallet.EncodeAbi()

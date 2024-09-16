@@ -89,7 +89,6 @@ func (g *NativeTokenPredicateSetDependenciesFn) DecodeAbi(buf []byte) error {
 
 type NativeTokenWalletSetDependenciesFn struct {
 	Predicate_ types.Address `abi:"_predicate"`
-	Supply_    *big.Int      `abi:"_tokenSupply"`
 }
 
 func (g *NativeTokenWalletSetDependenciesFn) Sig() []byte {
