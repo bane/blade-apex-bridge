@@ -165,6 +165,8 @@ func SetupAndRunApexBridge(
 
 	cb.WaitForValidatorsReady(t)
 
+	require.NoError(t, cb.NexusCreateWalletsAndAddresses(false))
+
 	fmt.Printf("Validators ready\n")
 
 	return cb

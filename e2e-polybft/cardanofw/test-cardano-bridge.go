@@ -98,34 +98,33 @@ func (cb *TestCardanoBridge) StartValidators(t *testing.T, epochSize int) {
 	for idx, validator := range cb.validators {
 		require.NoError(t, validator.SetClusterAndServer(cb.cluster, cb.cluster.Servers[idx]))
 	}
-
-	err := cb.nexusCreateWalletsAndAddresses()
-	require.NoError(t, err)
 }
 
-func (ec *TestCardanoBridge) nexusCreateWalletsAndAddresses() (err error) {
-	if !ec.config.NexusEnabled || len(ec.validators) == 0 {
+func (cb *TestCardanoBridge) NexusCreateWalletsAndAddresses(createBLSKeys bool) (err error) {
+	if !cb.config.NexusEnabled || len(cb.validators) == 0 {
 		return nil
 	}
 
 	// relayer is on the first validator only
-	relayerValidator := ec.validators[0]
+	relayerValidator := cb.validators[0]
 
 	if err = relayerValidator.createSpecificWallet("relayer-evm"); err != nil {
 		return err
 	}
 
-	ec.relayerWallet, err = relayerValidator.getRelayerWallet()
+	cb.relayerWallet, err = relayerValidator.getRelayerWallet()
 	if err != nil {
 		return err
 	}
 
-	for _, validator := range ec.validators {
-		if err = validator.createSpecificWallet("batcher-evm"); err != nil {
-			return err
+	for _, validator := range cb.validators {
+		if createBLSKeys {
+			if err = validator.createSpecificWallet("batcher-evm"); err != nil {
+				return err
+			}
 		}
 
-		validator.BatcherBN256PrivateKey, err = validator.getBatcherWallet()
+		validator.BatcherBN256PrivateKey, err = validator.getBatcherWallet(!createBLSKeys)
 		if err != nil {
 			return err
 		}
@@ -160,6 +159,10 @@ func (cb *TestCardanoBridge) StopValidators() {
 
 func (cb *TestCardanoBridge) GetValidatorsCount() int {
 	return len(cb.validators)
+}
+
+func (cb *TestCardanoBridge) GetFirstServer() *framework.TestServer {
+	return cb.cluster.Servers[0]
 }
 
 func (cb *TestCardanoBridge) RegisterChains(

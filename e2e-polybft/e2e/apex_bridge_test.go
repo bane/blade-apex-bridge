@@ -83,6 +83,8 @@ func Test_OnlyRunApexBridge_WithNexusAndVector(t *testing.T) {
 	fmt.Printf("nexus gateway sc addr: %s\n", apex.Nexus.GetGatewayAddress().String())
 	fmt.Printf("nexus chainID: %v\n", chainID)
 
+	fmt.Printf("birdge url: %s\n", apex.Bridge.GetFirstServer().JSONRPCAddr())
+
 	signalChannel := make(chan os.Signal, 1)
 	// Notify the signalChannel when the interrupt signal is received (Ctrl+C)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)

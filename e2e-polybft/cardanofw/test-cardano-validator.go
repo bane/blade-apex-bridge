@@ -272,13 +272,19 @@ func (cv *TestCardanoValidator) createSpecificWallet(walletType string) error {
 	}, os.Stdout)
 }
 
-func (cv *TestCardanoValidator) getBatcherWallet() (*bn256.PrivateKey, error) {
+func (cv *TestCardanoValidator) getBatcherWallet(loadFromBlade bool) (*bn256.PrivateKey, error) {
 	secretsMngr, err := cv.getSecretsManager(cv.server.DataDir())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load wallet: %w", err)
 	}
 
-	keyName := fmt.Sprintf("%s%s_%s", secretsCardano.OtherKeyLocalPrefix, ChainIDNexus, "batcher_evm_key")
+	var keyName string
+
+	if !loadFromBlade {
+		keyName = fmt.Sprintf("%s%s_%s", secretsCardano.OtherKeyLocalPrefix, ChainIDNexus, "batcher_evm_key")
+	} else {
+		keyName = secretsCardano.ValidatorBLSKey
+	}
 
 	bytes, err := secretsMngr.GetSecret(keyName)
 	if err != nil {
