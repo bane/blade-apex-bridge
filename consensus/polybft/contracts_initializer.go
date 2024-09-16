@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/0xPolygon/polygon-edge/bls"
+	"github.com/0xPolygon/polygon-edge/chain"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/contractsapi"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/signer"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/validator"
@@ -93,22 +94,25 @@ func initEpochManager(polyBFTConfig PolyBFTConfig, transition *state.Transition)
 }
 
 // getInitERC20PredicateInput builds initialization input parameters for child chain ERC20Predicate SC
-func getInitERC20PredicateInput(config *BridgeConfig, childChainMintable bool, chainID *big.Int) ([]byte, error) {
+func getInitERC20PredicateInput(
+	config *BridgeConfig,
+	childChainMintable bool,
+	destinationChainID *big.Int) ([]byte, error) {
 	var params contractsapi.StateTransactionInput
 	if childChainMintable {
 		params = &contractsapi.InitializeRootERC20PredicateFn{
-			NewGateway:                  contracts.GatewayContract,
-			NewChildERC20Predicate:      config.ChildERC20PredicateAddr,
-			NewDestinationTokenTemplate: config.ChildERC20Addr,
-			NewDestinationChainID:       chainID,
+			NewGateway:                  config.InternalGatewayAddr,
+			NewChildERC20Predicate:      config.ExternalMintableERC20PredicateAddr,
+			NewDestinationTokenTemplate: config.ExternalERC20Addr,
+			NewDestinationChainID:       destinationChainID,
 		}
 	} else {
 		params = &contractsapi.InitializeChildERC20PredicateFn{
-			NewGateway:                  contracts.GatewayContract,
-			NewRootERC20Predicate:       config.RootERC20PredicateAddr,
+			NewGateway:                  config.InternalGatewayAddr,
+			NewRootERC20Predicate:       config.ExternalERC20PredicateAddr,
 			NewDestinationTokenTemplate: contracts.ChildERC20Contract,
-			NewNativeTokenRootAddress:   config.RootNativeERC20Addr,
-			NewDestinationChainID:       chainID,
+			NewNativeTokenRootAddress:   config.ExternalNativeERC20Addr,
+			NewDestinationChainID:       destinationChainID,
 		}
 	}
 
@@ -117,25 +121,25 @@ func getInitERC20PredicateInput(config *BridgeConfig, childChainMintable bool, c
 
 // getInitERC20PredicateACLInput builds initialization input parameters for child chain ERC20PredicateAccessList SC
 func getInitERC20PredicateACLInput(config *BridgeConfig, owner types.Address,
-	useAllowList, useBlockList, childChainMintable bool, chainID *big.Int) ([]byte, error) {
+	useAllowList, useBlockList, childChainMintable bool, destinationChainID *big.Int) ([]byte, error) {
 	var params contractsapi.StateTransactionInput
 	if childChainMintable {
 		params = &contractsapi.InitializeRootMintableERC20PredicateACLFn{
-			NewGateway:             contracts.GatewayContract,
-			NewChildERC20Predicate: config.ChildERC20PredicateAddr,
-			NewTokenTemplate:       config.ChildERC20Addr,
-			NewDestinationChainID:  chainID,
+			NewGateway:             config.InternalGatewayAddr,
+			NewChildERC20Predicate: config.ExternalMintableERC20PredicateAddr,
+			NewTokenTemplate:       config.ExternalERC20Addr,
+			NewDestinationChainID:  destinationChainID,
 			NewUseAllowList:        useAllowList,
 			NewUseBlockList:        useBlockList,
 			NewOwner:               owner,
 		}
 	} else {
 		params = &contractsapi.InitializeChildERC20PredicateACLFn{
-			NewGateway:                  contracts.GatewayContract,
-			NewRootERC20Predicate:       config.RootERC20PredicateAddr,
+			NewGateway:                  config.InternalGatewayAddr,
+			NewRootERC20Predicate:       config.ExternalERC20PredicateAddr,
 			NewDestinationTokenTemplate: contracts.ChildERC20Contract,
-			NewDestinationChainID:       chainID,
-			NewNativeTokenRootAddress:   config.RootNativeERC20Addr,
+			NewDestinationChainID:       destinationChainID,
+			NewNativeTokenRootAddress:   config.ExternalNativeERC20Addr,
 			NewUseAllowList:             useAllowList,
 			NewUseBlockList:             useBlockList,
 			NewOwner:                    owner,
@@ -146,21 +150,24 @@ func getInitERC20PredicateACLInput(config *BridgeConfig, owner types.Address,
 }
 
 // getInitERC721PredicateInput builds initialization input parameters for child chain ERC721Predicate SC
-func getInitERC721PredicateInput(config *BridgeConfig, childOriginatedTokens bool, chainID *big.Int) ([]byte, error) {
+func getInitERC721PredicateInput(
+	config *BridgeConfig,
+	childOriginatedTokens bool,
+	destinationChainID *big.Int) ([]byte, error) {
 	var params contractsapi.StateTransactionInput
 	if childOriginatedTokens {
 		params = &contractsapi.InitializeRootERC721PredicateFn{
-			NewGateway:                  contracts.GatewayContract,
-			NewChildERC721Predicate:     config.ChildERC721PredicateAddr,
-			NewDestinationTokenTemplate: config.ChildERC721Addr,
-			NewDestinationChainID:       chainID,
+			NewGateway:                  config.InternalGatewayAddr,
+			NewChildERC721Predicate:     config.ExternalMintableERC721PredicateAddr,
+			NewDestinationTokenTemplate: config.ExternalERC721Addr,
+			NewDestinationChainID:       destinationChainID,
 		}
 	} else {
 		params = &contractsapi.InitializeChildERC721PredicateFn{
-			NewGateway:                  contracts.GatewayContract,
-			NewRootERC721Predicate:      config.RootERC721PredicateAddr,
+			NewGateway:                  config.InternalGatewayAddr,
+			NewRootERC721Predicate:      config.ExternalERC721PredicateAddr,
 			NewDestinationTokenTemplate: contracts.ChildERC721Contract,
-			NewDestinationChainID:       chainID,
+			NewDestinationChainID:       destinationChainID,
 		}
 	}
 
@@ -170,24 +177,27 @@ func getInitERC721PredicateInput(config *BridgeConfig, childOriginatedTokens boo
 // getInitERC721PredicateACLInput builds initialization input parameters
 // for child chain ERC721PredicateAccessList SC
 func getInitERC721PredicateACLInput(config *BridgeConfig, owner types.Address,
-	useAllowList, useBlockList, childChainMintable bool, chainID *big.Int) ([]byte, error) {
+	useAllowList, useBlockList, childChainMintable bool, destinationChainID *big.Int) ([]byte, error) {
 	var params contractsapi.StateTransactionInput
 	if childChainMintable {
 		params = &contractsapi.InitializeRootMintableERC721PredicateACLFn{
-			NewGateway:              contracts.GatewayContract,
-			NewChildERC721Predicate: config.ChildERC721PredicateAddr,
-			NewTokenTemplate:        config.ChildERC721Addr,
-			NewDestinationChainID:   chainID,
+			NewGateway:              config.InternalGatewayAddr,
+			NewChildERC721Predicate: config.ExternalMintableERC721PredicateAddr,
+			NewTokenTemplate:        config.ExternalERC721Addr,
+			NewDestinationChainID:   destinationChainID,
 			NewUseAllowList:         useAllowList,
 			NewUseBlockList:         useBlockList,
 			NewOwner:                owner,
 		}
 	} else {
 		params = &contractsapi.InitializeChildERC721PredicateACLFn{
-			NewGateway:                  contracts.GatewayContract,
-			NewRootERC721Predicate:      config.RootERC721PredicateAddr,
+			NewGateway:                  config.InternalGatewayAddr,
+			NewRootERC721Predicate:      config.ExternalERC721PredicateAddr,
 			NewDestinationTokenTemplate: contracts.ChildERC721Contract,
-			NewDestinationChainID:       chainID,
+			NewDestinationChainID:       destinationChainID,
+			NewUseAllowList:             useAllowList,
+			NewUseBlockList:             useBlockList,
+			NewOwner:                    owner,
 		}
 	}
 
@@ -195,21 +205,24 @@ func getInitERC721PredicateACLInput(config *BridgeConfig, owner types.Address,
 }
 
 // getInitERC1155PredicateInput builds initialization input parameters for child chain ERC1155Predicate SC
-func getInitERC1155PredicateInput(config *BridgeConfig, childChainMintable bool, chainID *big.Int) ([]byte, error) {
+func getInitERC1155PredicateInput(
+	config *BridgeConfig,
+	childChainMintable bool,
+	destinationChainID *big.Int) ([]byte, error) {
 	var params contractsapi.StateTransactionInput
 	if childChainMintable {
 		params = &contractsapi.InitializeRootERC1155PredicateFn{
-			NewGateway:                  contracts.GatewayContract,
-			NewChildERC1155Predicate:    config.ChildERC1155PredicateAddr,
-			NewDestinationTokenTemplate: config.ChildERC1155Addr,
-			NewDestinationChainID:       chainID,
+			NewGateway:                  config.InternalGatewayAddr,
+			NewChildERC1155Predicate:    config.ExternalMintableERC1155PredicateAddr,
+			NewDestinationTokenTemplate: config.ExternalERC1155Addr,
+			NewDestinationChainID:       destinationChainID,
 		}
 	} else {
 		params = &contractsapi.InitializeChildERC1155PredicateFn{
-			NewGateway:                  contracts.GatewayContract,
-			NewRootERC1155Predicate:     config.RootERC1155PredicateAddr,
+			NewGateway:                  config.InternalGatewayAddr,
+			NewRootERC1155Predicate:     config.ExternalERC1155PredicateAddr,
 			NewDestinationTokenTemplate: contracts.ChildERC1155Contract,
-			NewDestinationChainID:       chainID,
+			NewDestinationChainID:       destinationChainID,
 		}
 	}
 
@@ -219,24 +232,27 @@ func getInitERC1155PredicateInput(config *BridgeConfig, childChainMintable bool,
 // getInitERC1155PredicateACLInput builds initialization input parameters
 // for child chain ERC1155PredicateAccessList SC
 func getInitERC1155PredicateACLInput(config *BridgeConfig, owner types.Address,
-	useAllowList, useBlockList, childChainMintable bool, chainID *big.Int) ([]byte, error) {
+	useAllowList, useBlockList, childChainMintable bool, destinationChainID *big.Int) ([]byte, error) {
 	var params contractsapi.StateTransactionInput
 	if childChainMintable {
 		params = &contractsapi.InitializeRootMintableERC1155PredicateACLFn{
-			NewGateway:               contracts.GatewayContract,
-			NewChildERC1155Predicate: config.ChildERC1155PredicateAddr,
-			NewTokenTemplate:         config.ChildERC1155Addr,
-			NewDestinationChainID:    chainID,
+			NewGateway:               config.InternalGatewayAddr,
+			NewChildERC1155Predicate: config.ExternalMintableERC1155PredicateAddr,
+			NewTokenTemplate:         config.ExternalERC1155Addr,
+			NewDestinationChainID:    destinationChainID,
 			NewUseAllowList:          useAllowList,
 			NewUseBlockList:          useBlockList,
 			NewOwner:                 owner,
 		}
 	} else {
 		params = &contractsapi.InitializeChildERC1155PredicateACLFn{
-			NewGateway:                  contracts.GatewayContract,
-			NewRootERC1155Predicate:     config.RootERC1155PredicateAddr,
+			NewGateway:                  config.InternalGatewayAddr,
+			NewRootERC1155Predicate:     config.ExternalERC1155PredicateAddr,
 			NewDestinationTokenTemplate: contracts.ChildERC1155Contract,
-			NewDestinationChainID:       chainID,
+			NewDestinationChainID:       destinationChainID,
+			NewUseAllowList:             useAllowList,
+			NewUseBlockList:             useBlockList,
+			NewOwner:                    owner,
 		}
 	}
 
@@ -363,7 +379,15 @@ func initBridgeStorageContract(cfg PolyBFTConfig, transition *state.Transition) 
 }
 
 // initGatewayContract initializes Gateway contract on blade chain
-func initGatewayContract(cfg PolyBFTConfig, transition *state.Transition) error {
+func initGatewayContract(cfg PolyBFTConfig, bridgeCfg *BridgeConfig,
+	transition *state.Transition, alloc map[types.Address]*chain.GenesisAccount) error {
+	implementationAddr := bridgeCfg.InternalGatewayAddr.IncrementBy(1)
+	if _, exists := alloc[implementationAddr]; !exists {
+		// we do not initialize gateway contract for bridges that were added
+		// after the genesis block
+		return nil
+	}
+
 	validators, err := getValidatorStorageValidators(cfg.InitialValidatorSet)
 	if err != nil {
 		return fmt.Errorf("error while converting validators for gateway contract: %w", err)
@@ -380,13 +404,187 @@ func initGatewayContract(cfg PolyBFTConfig, transition *state.Transition) error 
 		return fmt.Errorf("gateway.initialize params encoding failed: %w", err)
 	}
 
-	return callContract(contracts.SystemCaller, contracts.GatewayContract, input,
+	return callContract(contracts.SystemCaller, bridgeCfg.InternalGatewayAddr, input,
 		"Gateway.initialize", transition)
+}
+
+// initERC20ACLPredicateContract initializes ChildERC20Predicate with access list contract on blade chain
+func initERC20ACLPredicateContract(
+	transition *state.Transition,
+	bcfg *BridgeConfig,
+	alloc map[types.Address]*chain.GenesisAccount,
+	owner types.Address,
+	useBridgeAllowList, useBridgeBlockList, childMintable bool,
+	destinationChainID *big.Int,
+	contractName string) error {
+	contractAddr := bcfg.InternalMintableERC20PredicateAddr
+	if !childMintable {
+		contractAddr = bcfg.InternalERC20PredicateAddr
+	}
+
+	implementationAddr := contractAddr.IncrementBy(1)
+	if _, exists := alloc[implementationAddr]; !exists {
+		// we do not initialize child predicates for bridges that were added
+		// after the genesis block
+		return nil
+	}
+
+	input, err := getInitERC20PredicateACLInput(bcfg, owner,
+		useBridgeAllowList, useBridgeBlockList, childMintable, destinationChainID)
+	if err != nil {
+		return err
+	}
+
+	return callContract(contracts.SystemCaller, contractAddr, input, contractName, transition)
+}
+
+// initERC721ACLPredicateContract initializes ChildERC721Predicate with access list contract on blade chain
+func initERC721ACLPredicateContract(
+	transition *state.Transition,
+	bcfg *BridgeConfig,
+	alloc map[types.Address]*chain.GenesisAccount,
+	owner types.Address,
+	useBridgeAllowList, useBridgeBlockList, childMintable bool,
+	destinationChainID *big.Int,
+	contractName string) error {
+	contractAddr := bcfg.InternalMintableERC721PredicateAddr
+	if !childMintable {
+		contractAddr = bcfg.InternalERC721PredicateAddr
+	}
+
+	implementationAddr := contractAddr.IncrementBy(1)
+	if _, exists := alloc[implementationAddr]; !exists {
+		// we do not initialize child predicates for bridges that were added
+		// after the genesis block
+		return nil
+	}
+
+	input, err := getInitERC721PredicateACLInput(bcfg, owner,
+		useBridgeAllowList, useBridgeBlockList, childMintable, destinationChainID)
+	if err != nil {
+		return err
+	}
+
+	return callContract(contracts.SystemCaller, contractAddr, input, contractName, transition)
+}
+
+// initERC1155ACLPredicateContract initializes ChildERC1155Predicate with access list contract on blade chain
+func initERC1155ACLPredicateContract(
+	transition *state.Transition,
+	bcfg *BridgeConfig,
+	alloc map[types.Address]*chain.GenesisAccount,
+	owner types.Address,
+	useBridgeAllowList, useBridgeBlockList, childMintable bool,
+	destinationChainID *big.Int,
+	contractName string) error {
+	contractAddr := bcfg.InternalMintableERC1155PredicateAddr
+	if !childMintable {
+		contractAddr = bcfg.InternalERC1155PredicateAddr
+	}
+
+	implementationAddr := contractAddr.IncrementBy(1)
+	if _, exists := alloc[implementationAddr]; !exists {
+		// we do not initialize child predicates for bridges that were added
+		// after the genesis block
+		return nil
+	}
+
+	input, err := getInitERC1155PredicateACLInput(bcfg, owner,
+		useBridgeAllowList, useBridgeBlockList, childMintable, destinationChainID)
+	if err != nil {
+		return err
+	}
+
+	return callContract(contracts.SystemCaller, contractAddr, input, contractName, transition)
+}
+
+// initERC20PredicateContract initializes ChildERC20Predicate contract on blade chain
+func initERC20PredicateContract(
+	transition *state.Transition,
+	bcfg *BridgeConfig,
+	alloc map[types.Address]*chain.GenesisAccount,
+	childMintable bool,
+	destinationChainID *big.Int,
+	contractName string) error {
+	contractAddr := bcfg.InternalMintableERC20PredicateAddr
+	if !childMintable {
+		contractAddr = bcfg.InternalERC20PredicateAddr
+	}
+
+	implementationAddr := contractAddr.IncrementBy(1)
+	if _, exists := alloc[implementationAddr]; !exists {
+		// we do not initialize child predicates for bridges that were added
+		// after the genesis block
+		return nil
+	}
+
+	input, err := getInitERC20PredicateInput(bcfg, childMintable, destinationChainID)
+	if err != nil {
+		return err
+	}
+
+	return callContract(contracts.SystemCaller, contractAddr, input, contractName, transition)
+}
+
+// initERC721PredicateContract initializes ChildERC721Predicate contract on blade chain
+func initERC721PredicateContract(
+	transition *state.Transition,
+	bcfg *BridgeConfig,
+	alloc map[types.Address]*chain.GenesisAccount,
+	childMintable bool,
+	destinationChainID *big.Int,
+	contractName string) error {
+	contractAddr := bcfg.InternalMintableERC721PredicateAddr
+	if !childMintable {
+		contractAddr = bcfg.InternalERC721PredicateAddr
+	}
+
+	implementationAddr := contractAddr.IncrementBy(1)
+	if _, exists := alloc[implementationAddr]; !exists {
+		// we do not initialize child predicates for bridges that were added
+		// after the genesis block
+		return nil
+	}
+
+	input, err := getInitERC721PredicateInput(bcfg, childMintable, destinationChainID)
+	if err != nil {
+		return err
+	}
+
+	return callContract(contracts.SystemCaller, contractAddr, input, contractName, transition)
+}
+
+// initERC1155PredicateContract initializes ChildERC1155Predicate contract on blade chain
+func initERC1155PredicateContract(
+	transition *state.Transition,
+	bcfg *BridgeConfig,
+	alloc map[types.Address]*chain.GenesisAccount,
+	childMintable bool,
+	destinationChainID *big.Int,
+	contractName string) error {
+	contractAddr := bcfg.InternalMintableERC1155PredicateAddr
+	if !childMintable {
+		contractAddr = bcfg.InternalERC1155PredicateAddr
+	}
+
+	implementationAddr := contractAddr.IncrementBy(1)
+	if _, exists := alloc[implementationAddr]; !exists {
+		// we do not initialize child predicates for bridges that were added
+		// after the genesis block
+		return nil
+	}
+
+	input, err := getInitERC1155PredicateInput(bcfg, childMintable, destinationChainID)
+	if err != nil {
+		return err
+	}
+
+	return callContract(contracts.SystemCaller, contractAddr, input, contractName, transition)
 }
 
 // mintRewardTokensToWallet mints configured amount of reward tokens to reward wallet address
 func mintRewardTokensToWallet(polyBFTConfig PolyBFTConfig, transition *state.Transition) error {
-	if isNativeRewardToken(polyBFTConfig) {
+	if isNativeRewardToken(polyBFTConfig.RewardConfig.TokenAddress) {
 		// if reward token is a native erc20 token, we don't need to mint an amount of tokens
 		// for given wallet address to it since this is done in premine
 		return nil
@@ -492,8 +690,8 @@ func getValidatorStorageValidators(initialValidators []*validator.GenesisValidat
 }
 
 // isNativeRewardToken returns true in case a native token is used as a reward token as well
-func isNativeRewardToken(cfg PolyBFTConfig) bool {
-	return cfg.RewardConfig.TokenAddress == contracts.NativeERC20TokenContract
+func isNativeRewardToken(rewardTokenAddr types.Address) bool {
+	return rewardTokenAddr == contracts.NativeERC20TokenContract
 }
 
 // IsNativeStakeToken return true in case a native token is used for staking

@@ -21,7 +21,6 @@ import (
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/signer"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/validator"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/wallet"
-	"github.com/0xPolygon/polygon-edge/contracts"
 	"github.com/0xPolygon/polygon-edge/types"
 )
 
@@ -65,6 +64,7 @@ func (d *dummyBridgeEventManager) ProcessLog(header *types.Header,
 
 // bridgeEventManagerConfig holds the configuration data of bridge event manager
 type bridgeEventManagerConfig struct {
+	bridgeCfg         *BridgeConfig
 	topic             topic
 	key               *wallet.Key
 	maxNumberOfEvents uint64
@@ -322,10 +322,11 @@ func (b *bridgeEventManager) getAggSignatureForBridgeBatchMessage(blockNumber ui
 		return Signature{}, err
 	}
 
-	signatures := make(bls.Signatures, 0, len(votes))
-	publicKeys := make([][]byte, 0, len(votes))
-	bmap := bitmap.Bitmap{}
-	signers := make(map[types.Address]struct{}, 0)
+	var (
+		signatures = make(bls.Signatures, 0, len(votes))
+		bmap       = bitmap.Bitmap{}
+		signers    = make(map[types.Address]struct{}, 0)
+	)
 
 	for _, vote := range votes {
 		index, exists := validatorAddrToIndex[vote.From]
@@ -341,7 +342,6 @@ func (b *bridgeEventManager) getAggSignatureForBridgeBatchMessage(blockNumber ui
 		bmap.Set(uint64(index)) //nolint:gosec
 
 		signatures = append(signatures, signature)
-		publicKeys = append(publicKeys, validatorsMetadata[index].BlsKey.Marshal())
 		signers[types.StringToAddress(vote.From)] = struct{}{}
 	}
 
@@ -543,7 +543,7 @@ func (b *bridgeEventManager) GetLogFilters() map[types.Address][]types.Hash {
 	var bridgeMessageResult contractsapi.BridgeMessageResultEvent
 
 	return map[types.Address][]types.Hash{
-		contracts.GatewayContract: {types.Hash(bridgeMessageResult.Sig())},
+		b.config.bridgeCfg.ExternalGatewayAddr: {types.Hash(bridgeMessageResult.Sig())},
 	}
 }
 
