@@ -306,7 +306,25 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 
 	wg.Wait()
 
-	return errors.Join(errs...)
+	if err := errors.Join(errs...); err != nil {
+		return err
+	}
+
+	if cb.config.CustomConfigHandler != nil {
+		for _, val := range cb.validators {
+			err := updateJSONFile(
+				val.GetValidatorComponentsConfig(),
+				val.GetValidatorComponentsConfig(),
+				cb.config.CustomConfigHandler,
+				false,
+			)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func (cb *TestCardanoBridge) StartValidatorComponents(ctx context.Context) (err error) {

@@ -198,6 +198,7 @@ func (a *ApexSystem) SetupAndRunValidatorsAndRelayer(
 	fmt.Printf("Configs generated\n")
 
 	require.NoError(t, a.Bridge.StartValidatorComponents(ctx))
+
 	fmt.Printf("Validator components started\n")
 
 	require.NoError(t, a.Bridge.StartRelayer(ctx))

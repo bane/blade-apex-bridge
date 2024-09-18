@@ -10,11 +10,9 @@ import (
 	"os"
 	"path/filepath"
 
-	polybftWallet "github.com/0xPolygon/polygon-edge/consensus/polybft/wallet"
 	"github.com/0xPolygon/polygon-edge/crypto"
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
 	"github.com/0xPolygon/polygon-edge/helper/common"
-	"github.com/0xPolygon/polygon-edge/types"
 	bn256 "github.com/Ethernal-Tech/bn256"
 	secretsCardano "github.com/Ethernal-Tech/cardano-infrastructure/secrets"
 	secretsHelper "github.com/Ethernal-Tech/cardano-infrastructure/secrets/helper"
@@ -247,20 +245,6 @@ func (cv *TestCardanoValidator) Stop() error {
 	}
 
 	return cv.node.Stop()
-}
-
-func (cv *TestCardanoValidator) getValidatorEthAddress() (types.Address, error) {
-	secretsMngr, err := cv.getSecretsManager(cv.server.DataDir())
-	if err != nil {
-		return types.Address{}, fmt.Errorf("failed to create secrets manager: %w", err)
-	}
-
-	key, err := polybftWallet.GetEcdsaFromSecret(secretsMngr)
-	if err != nil {
-		return types.Address{}, fmt.Errorf("failed to load wallet: %w", err)
-	}
-
-	return key.Address(), nil
 }
 
 func (cv *TestCardanoValidator) createSpecificWallet(walletType string) error {

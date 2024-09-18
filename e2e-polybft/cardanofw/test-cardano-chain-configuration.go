@@ -108,3 +108,11 @@ func getMapFromInterfaceKey(mp map[string]interface{}, key string) map[string]in
 
 	return prParams
 }
+
+func GetMapFromInterfaceKey(mp map[string]interface{}, keys ...string) map[string]interface{} {
+	for _, k := range keys {
+		mp = getMapFromInterfaceKey(mp, k)
+	}
+
+	return mp
+}
