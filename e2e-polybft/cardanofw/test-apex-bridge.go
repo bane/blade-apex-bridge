@@ -298,16 +298,13 @@ func (a *ApexSystem) CreateAndFundNexusUser(ctx context.Context, ethAmount uint6
 		return nil, err
 	}
 
-	depositEncode, _ := NativeTokenWallet.Abi.Methods["deposit"].Encode(map[string]interface{}{
-		"_account": user.Address(),
-		"_amount":  ethgo.Ether(ethAmount),
-	})
+	addr := user.Address()
 
 	receipt, err := txRelayer.SendTransaction(
 		types.NewTx(types.NewLegacyTx(
 			types.WithFrom(a.Nexus.Admin.Ecdsa.Address()),
-			types.WithTo(&a.Nexus.contracts.nativeTokenWallet),
-			types.WithInput(depositEncode),
+			types.WithTo(&addr),
+			types.WithValue(ethgo.Ether(ethAmount)),
 		)),
 		a.Nexus.Admin.Ecdsa)
 	if err != nil {

@@ -121,12 +121,6 @@ update-apex-contracts:
 	go run consensus/polybft/contractsapi/apex-artifacts-gen/main.go && \
 	go run consensus/polybft/contractsapi/bindings-gen/main.go
 
-.PHONY: update-nexus-contracts
-update-nexus-contracts:
-	git submodule update --remote --init apex-evm-gateway && \
-	cd apex-evm-gateway/ && npm i && npx hardhat compile && cd .. && \
-	go run consensus/polybft/contractsapi/nexus-artifacts-gen/main.go
-
 .PHONY: help
 help:
 	@echo "Available targets:"
@@ -145,7 +139,6 @@ help:
 	@printf "  %-35s - %s\n" "generate-smart-contract-bindings" "Generate smart contract bindings"
 	@printf "  %-35s - %s\n" "test-e2e-apex-bridge" "Run end-to-end tests for Apex Bridge"
 	@printf "  %-35s - %s\n" "update-apex-contracts" "Update Apex Bridge smart contracts and bindings"
-	@printf "  %-35s - %s\n" "update-nexus-contracts" "Update Nexus smart contracts and bindings"
 	@printf "  %-35s - %s\n" "run-docker" "Run Docker cluster for PolyBFT"
 	@printf "  %-35s - %s\n" "stop-docker" "Stop Docker cluster for PolyBFT"
 	@printf "  %-35s - %s\n" "destroy-docker" "Destroy Docker cluster for PolyBFT"

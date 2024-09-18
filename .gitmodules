@@ -11,6 +11,3 @@
 [submodule "apex-bridge-smartcontracts"]
 	path = apex-bridge-smartcontracts
 	url = https://github.com/Ethernal-Tech/apex-bridge-smartcontracts.git
-[submodule "apex-evm-gateway"]
-	path = apex-evm-gateway
-	url = https://github.com/Ethernal-Tech/apex-evm-gateway
