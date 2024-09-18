@@ -166,7 +166,8 @@ func (d *dummyBridgeManager) BuildExitEventRoot(epoch uint64) (types.Hash, error
 func (d *dummyBridgeManager) BridgeBatch(pendingBlockNumber uint64) (*BridgeBatchSigned, error) {
 	return nil, nil
 }
-func (d *dummyBridgeManager) InsertEpoch(epoch uint64, tx *bolt.Tx) error { return nil }
+func (d *dummyBridgeManager) InsertEpoch(epoch uint64, tx *bolt.Tx) error         { return nil }
+func (d *dummyBridgeManager) InsertEpochInternal(epoch uint64, tx *bolt.Tx) error { return nil }
 
 var _ BridgeManager = (*bridgeManager)(nil)
 
@@ -179,7 +180,8 @@ type bridgeManager struct {
 	eventTracker       *tracker.EventTracker
 	eventTrackerConfig *eventTrackerConfig
 	logger             hclog.Logger
-	chainID            uint64
+	externalChainID    uint64
+	internalChainID    uint64
 	state              *State
 }
 
@@ -189,27 +191,30 @@ func newBridgeManager(
 	runtimeConfig *runtimeConfig,
 	eventProvider *EventProvider,
 	logger hclog.Logger,
-	chainID uint64) (BridgeManager, error) {
+	externalChainID, internalChainID uint64,
+) (BridgeManager, error) {
 	if !runtimeConfig.GenesisConfig.IsBridgeEnabled() {
 		return &dummyBridgeManager{}, nil
 	}
 
 	var err error
 
-	gatewayAddr := runtimeConfig.GenesisConfig.Bridge[chainID].ExternalGatewayAddr
+	chainBridgeCfg := runtimeConfig.GenesisConfig.Bridge[externalChainID]
+	gatewayAddr := chainBridgeCfg.ExternalGatewayAddr
 	bridgeManager := &bridgeManager{
-		chainID: chainID,
-		logger:  logger.Named("bridge-manager"),
+		externalChainID: externalChainID,
+		logger:          logger.Named("bridge-manager"),
 		eventTrackerConfig: &eventTrackerConfig{
 			EventTracker:        *runtimeConfig.eventTracker,
-			jsonrpcAddr:         runtimeConfig.GenesisConfig.Bridge[chainID].JSONRPCEndpoint,
-			startBlock:          runtimeConfig.GenesisConfig.Bridge[chainID].EventTrackerStartBlocks[gatewayAddr],
+			jsonrpcAddr:         chainBridgeCfg.JSONRPCEndpoint,
+			startBlock:          chainBridgeCfg.EventTrackerStartBlocks[gatewayAddr],
 			trackerPollInterval: runtimeConfig.GenesisConfig.BlockTrackerPollInterval.Duration,
 		},
-		state: runtimeConfig.State,
+		state:           runtimeConfig.State,
+		internalChainID: internalChainID,
 	}
 
-	if err := bridgeManager.initBridgeEventManager(runtime, runtimeConfig, logger); err != nil {
+	if err := bridgeManager.initBridgeEventManager(eventProvider, runtime, runtimeConfig, logger); err != nil {
 		return nil, err
 	}
 
@@ -226,7 +231,7 @@ func newBridgeManager(
 
 // PostBlock is a function executed on every block finalization (either by consensus or syncer)
 func (b *bridgeManager) PostBlock(req *PostBlockRequest) error {
-	if err := b.bridgeEventManager.PostBlock(req); err != nil {
+	if err := b.bridgeEventManager.PostBlock(); err != nil {
 		return fmt.Errorf("failed to execute post block in bridge event manager. Err: %w", err)
 	}
 
@@ -260,21 +265,25 @@ func (b *bridgeManager) Close() {
 // initBridgeEventManager initializes bridge event manager
 // if bridge is not enabled, then a dummy bridge event manager will be used
 func (b *bridgeManager) initBridgeEventManager(
+	eventProvider *EventProvider,
 	runtime Runtime,
 	runtimeConfig *runtimeConfig,
 	logger hclog.Logger) error {
 	bridgeEventManager := newBridgeEventManager(
-		logger.Named("state-sync-manager"),
+		logger.Named("bridge-event-manager"),
 		runtimeConfig.State,
 		&bridgeEventManagerConfig{
-			bridgeCfg:         runtimeConfig.GenesisConfig.Bridge[b.chainID],
+			bridgeCfg:         runtimeConfig.GenesisConfig.Bridge[b.externalChainID],
 			key:               runtimeConfig.Key,
 			topic:             runtimeConfig.bridgeTopic,
 			maxNumberOfEvents: maxNumberOfEvents,
 		},
 		runtime,
-		b.chainID,
+		b.externalChainID,
+		b.internalChainID,
 	)
+
+	eventProvider.Subscribe(b.bridgeEventManager)
 
 	b.bridgeEventManager = bridgeEventManager
 
@@ -358,8 +367,9 @@ func (b *bridgeManager) AddLog(chainID *big.Int, eventLog *ethgo.Log) error {
 
 // InsertEpoch inserts a new epoch to db with its meta data
 func (b *bridgeManager) InsertEpoch(epochNumber uint64, dbTx *bolt.Tx) error {
-	if err := b.state.EpochStore.insertEpoch(epochNumber, dbTx, b.chainID); err != nil {
-		return fmt.Errorf("an error occurred while inserting new epoch in db, chainID: %d. Reason: %w", b.chainID, err)
+	if err := b.state.EpochStore.insertEpoch(epochNumber, dbTx, b.externalChainID); err != nil {
+		return fmt.Errorf("an error occurred while inserting new epoch in db, chainID: %d. Reason: %w",
+			b.externalChainID, err)
 	}
 
 	return nil

@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/0xPolygon/polygon-edge/bls"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/contractsapi"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/signer"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/validator"
@@ -32,12 +31,14 @@ func newTestBridgeEventManager(t *testing.T, key *validator.TestValidator, runti
 
 	topic := &mockTopic{}
 
-	s := newBridgeEventManager(hclog.NewNullLogger(), state,
+	s := newBridgeEventManager(
+		hclog.NewNullLogger(),
+		state,
 		&bridgeEventManagerConfig{
 			topic:             topic,
 			key:               key.Key(),
 			maxNumberOfEvents: maxNumberOfEvents,
-		}, runtime, 1)
+		}, runtime, 1, 0)
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpDir)
@@ -57,7 +58,7 @@ func TestBridgeEventManager_PostEpoch_BuildBridgeBatch(t *testing.T) {
 		s := newTestBridgeEventManager(t, vals.GetValidator("0"), &mockRuntime{isActiveValidator: true})
 
 		// there are no bridge messages
-		require.NoError(t, s.buildBridgeBatch(nil))
+		require.NoError(t, s.buildExternalBridgeBatch(nil))
 		require.Nil(t, s.pendingBridgeBatches)
 
 		bridgeMessages10 := generateBridgeMessageEvents(t, 10, 0)
@@ -67,7 +68,7 @@ func TestBridgeEventManager_PostEpoch_BuildBridgeBatch(t *testing.T) {
 			require.NoError(t, s.state.BridgeMessageStore.insertBridgeMessageEvent(bridgeMessages10[i]))
 		}
 
-		require.NoError(t, s.buildBridgeBatch(nil))
+		require.NoError(t, s.buildExternalBridgeBatch(nil))
 		length := len(s.pendingBridgeBatches[0].BridgeMessageBatch.Messages)
 		require.Len(t, s.pendingBridgeBatches, 1)
 		require.Equal(t, uint64(0), s.pendingBridgeBatches[0].BridgeMessageBatch.Messages[0].ID.Uint64())
@@ -79,7 +80,7 @@ func TestBridgeEventManager_PostEpoch_BuildBridgeBatch(t *testing.T) {
 			require.NoError(t, s.state.BridgeMessageStore.insertBridgeMessageEvent(bridgeMessages10[i]))
 		}
 
-		require.NoError(t, s.buildBridgeBatch(nil))
+		require.NoError(t, s.buildExternalBridgeBatch(nil))
 		length = len(s.pendingBridgeBatches[1].BridgeMessageBatch.Messages)
 		require.Len(t, s.pendingBridgeBatches, 2)
 		require.Equal(t, uint64(0), s.pendingBridgeBatches[1].BridgeMessageBatch.Messages[0].ID.Uint64())
@@ -103,7 +104,7 @@ func TestBridgeEventManager_PostEpoch_BuildBridgeBatch(t *testing.T) {
 		}
 
 		// I am not a validator so no batches should be built
-		require.NoError(t, s.buildBridgeBatch(nil))
+		require.NoError(t, s.buildExternalBridgeBatch(nil))
 		require.Len(t, s.pendingBridgeBatches, 0)
 	})
 }
@@ -119,7 +120,7 @@ func TestBridgeEventManager_MessagePool(t *testing.T) {
 		s := newTestBridgeEventManager(t, vals.GetValidator("0"), &mockRuntime{isActiveValidator: true})
 
 		s.epoch = 1
-		msg := &TransportMessage{
+		msg := &BridgeBatchVote{
 			EpochNumber: 0,
 		}
 
@@ -180,7 +181,7 @@ func TestBridgeEventManager_MessagePool(t *testing.T) {
 
 		msg.SourceChainID = 1
 
-		msg.From = vals.GetValidator("1").Address().String()
+		msg.Sender = vals.GetValidator("1").Address().String()
 		require.Error(t, s.saveVote(msg))
 
 		// non validator signs the msg in behalf of a validator
@@ -190,7 +191,7 @@ func TestBridgeEventManager_MessagePool(t *testing.T) {
 
 		msg.SourceChainID = 1
 
-		msg.From = vals.GetValidator("1").Address().String()
+		msg.Sender = vals.GetValidator("1").Address().String()
 		require.Error(t, s.saveVote(msg))
 	})
 
@@ -294,60 +295,6 @@ func TestBridgeEventManager_BuildBridgeBatch(t *testing.T) {
 	require.NotNil(t, batch)
 }
 
-func TestBridgeEventManager_BuildProofs(t *testing.T) {
-	vals := validator.NewTestValidators(t, 5)
-
-	s := newTestBridgeEventManager(t, vals.GetValidator("0"), &mockRuntime{isActiveValidator: true})
-
-	for _, evnt := range generateBridgeMessageEvents(t, 20, 0) {
-		require.NoError(t, s.state.BridgeMessageStore.insertBridgeMessageEvent(evnt))
-	}
-
-	require.NoError(t, s.buildBridgeBatch(nil))
-	require.Len(t, s.pendingBridgeBatches, 1)
-
-	blsKey, err := bls.GenerateBlsKey()
-	require.NoError(t, err)
-
-	data, err := s.pendingBridgeBatches[0].BridgeMessageBatch.EncodeAbi()
-	require.NoError(t, err)
-
-	signature, err := blsKey.Sign(data, domain)
-	require.NoError(t, err)
-
-	signatures := bls.Signatures{signature}
-
-	aggSig, err := signatures.Aggregate().Marshal()
-	require.NoError(t, err)
-
-	mockMsg := &BridgeBatchSigned{
-		MessageBatch: &contractsapi.BridgeMessageBatch{
-			Messages:           s.pendingBridgeBatches[0].BridgeMessageBatch.Messages,
-			SourceChainID:      s.pendingBridgeBatches[0].BridgeMessageBatch.SourceChainID,
-			DestinationChainID: s.pendingBridgeBatches[0].BridgeMessageBatch.DestinationChainID,
-		},
-		AggSignature: Signature{AggregatedSignature: aggSig},
-	}
-
-	txData, err := mockMsg.EncodeAbi()
-	require.NoError(t, err)
-
-	tx := createStateTransactionWithData(types.Address{}, txData)
-
-	req := &PostBlockRequest{
-		FullBlock: &types.FullBlock{
-			Block: &types.Block{
-				Transactions: []*types.Transaction{tx},
-			},
-		},
-	}
-
-	length := len(mockMsg.MessageBatch.Messages)
-
-	require.NoError(t, s.PostBlock(req))
-	require.Equal(t, mockMsg.MessageBatch.Messages[length-1].ID.Uint64()+1, s.nextBridgeEventIDIndex)
-}
-
 func TestBridgeEventManager_RemoveProcessedEventsAndProofs(t *testing.T) {
 	const bridgeMessageEventsCount = 5
 
@@ -423,7 +370,7 @@ func TestBridgeEventManager_AddLog_BuildBridgeBatches(t *testing.T) {
 
 		require.NoError(t, s.AddLog(big.NewInt(1), goodLog))
 
-		bridgeEvents, err = s.state.BridgeMessageStore.getBridgeMessageEventsForBridgeBatch(0, 0, nil, 1)
+		bridgeEvents, err = s.state.BridgeMessageStore.getBridgeMessageEventsForBridgeBatch(0, 0, nil, 1, 0)
 		require.NoError(t, err)
 		require.Len(t, bridgeEvents, 1)
 		require.Len(t, s.pendingBridgeBatches, 1)
@@ -481,7 +428,7 @@ func TestBridgeEventManager_AddLog_BuildBridgeBatches(t *testing.T) {
 		require.NoError(t, s.AddLog(big.NewInt(1), goodLog))
 
 		// node should have inserted given bridgeMsg event, but it shouldn't build any batch
-		bridgeMessages, err := s.state.BridgeMessageStore.getBridgeMessageEventsForBridgeBatch(0, 0, nil, 1)
+		bridgeMessages, err := s.state.BridgeMessageStore.getBridgeMessageEventsForBridgeBatch(0, 0, nil, 1, 0)
 		require.NoError(t, err)
 		require.Len(t, bridgeMessages, 1)
 		require.Equal(t, uint64(0), bridgeMessages[0].ID.Uint64())
@@ -545,16 +492,18 @@ func (m *mockMsg) WithHash(hash []byte) *mockMsg {
 	return m
 }
 
-func (m *mockMsg) sign(val *validator.TestValidator, domain []byte) (*TransportMessage, error) {
+func (m *mockMsg) sign(val *validator.TestValidator, domain []byte) (*BridgeBatchVote, error) {
 	signature, err := val.MustSign(m.hash, domain).Marshal()
 	if err != nil {
 		return nil, err
 	}
 
-	return &TransportMessage{
-		Hash:        m.hash,
-		Signature:   signature,
-		From:        val.Address().String(),
+	return &BridgeBatchVote{
+		Hash: m.hash,
+		BridgeBatchVoteConsensusData: &BridgeBatchVoteConsensusData{
+			Signature: signature,
+			Sender:    val.Address().String(),
+		},
 		EpochNumber: m.epoch,
 	}, nil
 }

@@ -12,26 +12,25 @@ var (
 	edgeEventsLastProcessedBlockKey    = []byte("EdgeEventsLastProcessedBlockKey")
 )
 
-// MessageSignature encapsulates sender identifier and its signature
-type MessageSignature struct {
+// BridgeBatchVoteConsensusData encapsulates sender identifier and its signature
+type BridgeBatchVoteConsensusData struct {
 	// Signer of the vote
-	From string
+	Sender string
 	// Signature of the message
 	Signature []byte
 }
 
-// TransportMessage represents the payload which is gossiped across the network
-type TransportMessage struct {
+// BridgeBatchVote represents the payload which is gossiped across the network
+type BridgeBatchVote struct {
+	*BridgeBatchVoteConsensusData
 	// Hash is encoded data
 	Hash []byte
-	// Message signature
-	Signature []byte
-	// From is the address of the message signer
-	From string
 	// Number of epoch
 	EpochNumber uint64
 	// SourceChainID from bridge batch
 	SourceChainID uint64
+	// DestinationChainID from bridge batch
+	DestinationChainID uint64
 }
 
 // State represents a persistence layer which persists consensus data off-chain
