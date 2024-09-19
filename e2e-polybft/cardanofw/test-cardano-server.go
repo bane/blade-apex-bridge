@@ -51,7 +51,10 @@ func (t *TestCardanoServer) Stop() error {
 		return err
 	}
 
+	t.txProvider.Dispose()
+
 	t.node = nil
+	t.txProvider = nil
 
 	return nil
 }
@@ -84,7 +87,7 @@ func (t *TestCardanoServer) Start() error {
 	return nil
 }
 
-func (t TestCardanoServer) Stat() (bool, *cardanowallet.QueryTipData, error) {
+func (t *TestCardanoServer) Stat() (bool, *cardanowallet.QueryTipData, error) {
 	queryTipData, err := t.getTxProvider().GetTip(context.Background())
 	if err != nil {
 		if strings.Contains(err.Error(), "Network.Socket.connect") &&

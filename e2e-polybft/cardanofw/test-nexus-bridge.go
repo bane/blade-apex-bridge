@@ -8,6 +8,7 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/0xPolygon/polygon-edge/command/genesis"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/wallet"
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
+	"github.com/0xPolygon/polygon-edge/helper/common"
 	"github.com/0xPolygon/polygon-edge/jsonrpc"
 	"github.com/0xPolygon/polygon-edge/types"
 	ci "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
@@ -75,15 +77,11 @@ func (ec *TestEVMBridge) GetHotWalletAddress() types.Address {
 }
 
 func (ec *TestEVMBridge) InitSmartContracts(blsKeys []string) error {
-	workingDirectory, err := os.MkdirTemp("", "deploy-evm")
-	if err != nil {
+	workingDirectory := filepath.Join(os.TempDir(), "deploy-apex-bridge-evm-gateway")
+	// do not remove directory, try to reuse it next time if still exists
+	if err := common.CreateDirSafe(workingDirectory, 0750); err != nil {
 		return err
 	}
-
-	defer func() {
-		_ = os.RemoveAll(workingDirectory)
-		_ = os.Remove(workingDirectory)
-	}()
 
 	pk, err := ec.Admin.Ecdsa.MarshallPrivateKey()
 	if err != nil {
