@@ -23,18 +23,22 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+var initialPortForBridge = uint64(8545)
+
 type TestBridge struct {
 	t             *testing.T
 	clusterConfig *TestClusterConfig
+	id            uint64
 	node          *node
 }
 
-func NewTestBridge(t *testing.T, clusterConfig *TestClusterConfig) (*TestBridge, error) {
+func NewTestBridge(t *testing.T, clusterConfig *TestClusterConfig, idOfChain uint64) (*TestBridge, error) {
 	t.Helper()
 
 	bridge := &TestBridge{
 		t:             t,
 		clusterConfig: clusterConfig,
+		id:            idOfChain,
 	}
 
 	err := bridge.Start()
@@ -50,10 +54,12 @@ func (t *TestBridge) Start() error {
 	args := []string{
 		"bridge",
 		"server",
-		"--data-dir", t.clusterConfig.Dir("test-rootchain"),
+		"--data-dir", t.clusterConfig.Dir(fmt.Sprintf("test-external-chain-%d", t.id)),
+		"--chain-id", strconv.FormatUint(t.id, 10),
+		"--port", t.calculatePort(),
 	}
 
-	stdout := t.clusterConfig.GetStdout("bridge")
+	stdout := t.clusterConfig.GetStdout(fmt.Sprintf("bridge-%d", t.id))
 
 	bridgeNode, err := newNode(t.clusterConfig.Binary, args, stdout)
 	if err != nil {
@@ -78,7 +84,7 @@ func (t *TestBridge) Stop() {
 }
 
 func (t *TestBridge) JSONRPCAddr() string {
-	return fmt.Sprintf("http://%s:%d", hostIP, 8545)
+	return fmt.Sprintf("http://%s:%s", hostIP, t.calculatePort())
 }
 
 func (t *TestBridge) WaitUntil(pollFrequency, timeout time.Duration, handler func() (bool, error)) error {
@@ -106,7 +112,7 @@ func (t *TestBridge) WaitUntil(pollFrequency, timeout time.Duration, handler fun
 // Deposit function invokes bridge deposit of ERC tokens (from the root to the child chain)
 // with given receivers, amounts and/or token ids
 func (t *TestBridge) Deposit(token bridgeCommon.TokenType, rootTokenAddr, rootPredicateAddr types.Address,
-	senderKey, receivers, amounts, tokenIDs, jsonRPCAddr, minterKey string, childChainMintable bool) error {
+	senderKey, receivers, amounts, tokenIDs, jsonRPCAddr, minterKey string, internalChainMintable bool) error {
 	args := []string{}
 
 	if receivers == "" {
@@ -138,8 +144,8 @@ func (t *TestBridge) Deposit(token bridgeCommon.TokenType, rootTokenAddr, rootPr
 			"--minter-key", minterKey,
 			"--json-rpc", jsonRPCAddr)
 
-		if childChainMintable {
-			args = append(args, "--child-chain-mintable")
+		if internalChainMintable {
+			args = append(args, "--internal-chain-mintable")
 		}
 
 	case bridgeCommon.ERC721:
@@ -158,8 +164,8 @@ func (t *TestBridge) Deposit(token bridgeCommon.TokenType, rootTokenAddr, rootPr
 			"--minter-key", minterKey,
 			"--json-rpc", jsonRPCAddr)
 
-		if childChainMintable {
-			args = append(args, "--child-chain-mintable")
+		if internalChainMintable {
+			args = append(args, "--internal-chain-mintable")
 		}
 
 	case bridgeCommon.ERC1155:
@@ -183,8 +189,8 @@ func (t *TestBridge) Deposit(token bridgeCommon.TokenType, rootTokenAddr, rootPr
 			"--minter-key", minterKey,
 			"--json-rpc", jsonRPCAddr)
 
-		if childChainMintable {
-			args = append(args, "--child-chain-mintable")
+		if internalChainMintable {
+			args = append(args, "--internal-chain-mintable")
 		}
 	}
 
@@ -195,7 +201,7 @@ func (t *TestBridge) Deposit(token bridgeCommon.TokenType, rootTokenAddr, rootPr
 // with given receivers, amounts and/or token ids
 func (t *TestBridge) Withdraw(token bridgeCommon.TokenType,
 	senderKey, receivers, amounts, tokenIDs, jsonRPCAddr string,
-	childPredicate, childToken types.Address, childChainMintable bool) error {
+	childPredicate, childToken types.Address, internalChainMintable bool) error {
 	if senderKey == "" {
 		return errors.New("provide hex-encoded sender private key")
 	}
@@ -230,8 +236,8 @@ func (t *TestBridge) Withdraw(token bridgeCommon.TokenType,
 			"--amounts", amounts,
 			"--json-rpc", jsonRPCAddr)
 
-		if childChainMintable {
-			args = append(args, "--child-chain-mintable")
+		if internalChainMintable {
+			args = append(args, "--internal-chain-mintable")
 		}
 
 	case bridgeCommon.ERC721:
@@ -249,8 +255,8 @@ func (t *TestBridge) Withdraw(token bridgeCommon.TokenType,
 			"--token-ids", tokenIDs,
 			"--json-rpc", jsonRPCAddr)
 
-		if childChainMintable {
-			args = append(args, "--child-chain-mintable")
+		if internalChainMintable {
+			args = append(args, "--internal-chain-mintable")
 		}
 
 	case bridgeCommon.ERC1155:
@@ -273,8 +279,8 @@ func (t *TestBridge) Withdraw(token bridgeCommon.TokenType,
 			"--token-ids", tokenIDs,
 			"--json-rpc", jsonRPCAddr)
 
-		if childChainMintable {
-			args = append(args, "--child-chain-mintable")
+		if internalChainMintable {
+			args = append(args, "--internal-chain-mintable")
 		}
 	}
 
@@ -302,8 +308,8 @@ func (t *TestBridge) cmdRun(args ...string) error {
 	return runCommand(t.clusterConfig.Binary, args, t.clusterConfig.GetStdout("bridge"))
 }
 
-// deployRootchainContracts deploys and initializes rootchain contracts
-func (t *TestBridge) deployRootchainContracts(genesisPath string) error {
+// deployExternalChainContracts deploys and initializes external chain contracts
+func (t *TestBridge) deployExternalChainContracts(genesisPath string) error {
 	args := []string{
 		"bridge",
 		"deploy",
@@ -313,17 +319,17 @@ func (t *TestBridge) deployRootchainContracts(genesisPath string) error {
 	}
 
 	if err := t.cmdRun(args...); err != nil {
-		return fmt.Errorf("failed to deploy rootchain contracts: %w", err)
+		return fmt.Errorf("failed to deploy external chain contracts: %w", err)
 	}
 
 	return nil
 }
 
-// fundAddressesOnRoot sends predefined amount of tokens to rootchain addresses
+// fundAddressesOnRoot sends predefined amount of tokens to external chain addresses
 func (t *TestBridge) fundAddressesOnRoot(polybftConfig polybft.PolyBFTConfig) error {
 	validatorSecrets, err := genesis.GetValidatorKeyFiles(t.clusterConfig.TmpDir, t.clusterConfig.ValidatorPrefix)
 	if err != nil {
-		return fmt.Errorf("could not get validator secrets on initial rootchain funding of genesis validators: %w", err)
+		return fmt.Errorf("could not get validator secrets on initial external chain funding of genesis validators: %w", err)
 	}
 
 	// first fund validators
@@ -337,7 +343,7 @@ func (t *TestBridge) fundAddressesOnRoot(polybftConfig polybft.PolyBFTConfig) er
 
 	if err := t.FundValidators(
 		secrets, balances); err != nil {
-		return fmt.Errorf("failed to fund validators on the rootchain: %w", err)
+		return fmt.Errorf("failed to fund validators on the external chain: %w", err)
 	}
 
 	// then fund all other addresses so that if token is non-mintable
@@ -367,7 +373,7 @@ func (t *TestBridge) fundAddressesOnRoot(polybftConfig polybft.PolyBFTConfig) er
 	return nil
 }
 
-// FundValidators sends tokens to a rootchain validators
+// FundValidators sends tokens to a external chain validators
 func (t *TestBridge) FundValidators(secretsPaths []string, amounts []*big.Int) error {
 	if len(secretsPaths) != len(amounts) {
 		return errors.New("expected the same length of secrets paths and amounts")
@@ -535,6 +541,10 @@ func (t *TestBridge) premineNativeRootToken(genesisPath string, tokenConfig *pol
 	}
 
 	return g.Wait()
+}
+
+func (t *TestBridge) calculatePort() string {
+	return strconv.FormatUint(initialPortForBridge+t.id-1, 10)
 }
 
 // finalizeGenesis finalizes genesis on BladeManager contract on root

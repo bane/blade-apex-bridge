@@ -32,7 +32,7 @@ func TestE2E_Migration(t *testing.T) {
 	initialBalance := ethgo.Ether(10)
 	srvs := framework.NewTestServers(t, 1, func(config *framework.TestServerConfig) {
 		config.SetConsensus(framework.ConsensusDev)
-		config.Premine(types.Address(userAddr), initialBalance)
+		config.Premine(userAddr, initialBalance)
 	})
 
 	srv := srvs[0]
@@ -140,7 +140,7 @@ func TestE2E_Migration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	require.Equal(t, types.Hash(stateRoot), copiedStateRoot)
+	require.Equal(t, stateRoot, copiedStateRoot)
 
 	err = db.Close()
 	if err != nil {
@@ -151,7 +151,7 @@ func TestE2E_Migration(t *testing.T) {
 		frameworkpolybft.WithNonValidators(2),
 		frameworkpolybft.WithValidatorSnapshot(5),
 		frameworkpolybft.WithTestRewardToken(),
-		frameworkpolybft.WithGenesisState(tmpDir, types.Hash(stateRoot)),
+		frameworkpolybft.WithGenesisState(tmpDir, stateRoot),
 	)
 	defer cluster.Stop()
 
@@ -206,6 +206,6 @@ func TestE2E_Migration(t *testing.T) {
 	_, err = cluster.InitSecrets("test-chain-8", 1)
 	require.NoError(t, err)
 
-	cluster.InitTestServer(t, "test-chain-8", cluster.Bridge.JSONRPCAddr(), frameworkpolybft.None)
+	cluster.InitTestServer(t, "test-chain-8", []string{}, frameworkpolybft.None)
 	require.NoError(t, cluster.WaitForBlock(33, time.Minute))
 }

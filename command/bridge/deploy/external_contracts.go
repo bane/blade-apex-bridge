@@ -108,7 +108,7 @@ func initExternalContracts(bridgeCfg *polybft.BridgeConfig,
 				NewGateway:                  config.ExternalGatewayAddr,
 				NewChildERC20Predicate:      config.InternalERC20PredicateAddr,
 				NewDestinationTokenTemplate: contracts.ChildERC20Contract,
-				// root native token address should be non-zero only if native token is non-mintable on a childchain
+				// root native token address should be non-zero only if native token is non-mintable on a internal chain
 				NewNativeTokenRoot:    config.ExternalNativeERC20Addr,
 				NewDestinationChainID: big.NewInt(destinationChainID),
 			}
@@ -314,7 +314,7 @@ func initExternalContracts(bridgeCfg *polybft.BridgeConfig,
 }
 
 // populateExistingNativeTokenAddr checks whether given token is deployed on the provided address.
-// If it is, then its address is set to the rootchain config, otherwise an error is returned
+// If it is, then its address is set to the bridge config, otherwise an error is returned
 func populateExistingNativeTokenAddr(eth *jsonrpc.EthClient, tokenAddr, tokenName string,
 	bridgeCfg *polybft.BridgeConfig) error {
 	addr := types.StringToAddress(tokenAddr)
