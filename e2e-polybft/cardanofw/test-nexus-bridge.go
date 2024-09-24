@@ -188,7 +188,11 @@ func SetupAndRunNexusBridge(
 }
 
 func GetEthAmount(ctx context.Context, evmChain *TestEVMBridge, wallet *wallet.Account) (*big.Int, error) {
-	ethAmount, err := evmChain.Cluster.Servers[0].JSONRPC().GetBalance(wallet.Address(), jsonrpc.LatestBlockNumberOrHash)
+	return GetAddressEthAmount(ctx, evmChain, wallet.Address())
+}
+
+func GetAddressEthAmount(ctx context.Context, evmChain *TestEVMBridge, addr types.Address) (*big.Int, error) {
+	ethAmount, err := evmChain.Cluster.Servers[0].JSONRPC().GetBalance(addr, jsonrpc.LatestBlockNumberOrHash)
 	if err != nil {
 		return nil, err
 	}

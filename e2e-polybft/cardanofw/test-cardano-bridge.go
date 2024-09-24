@@ -197,7 +197,7 @@ func (cb *TestCardanoBridge) RegisterChains(
 			if cb.config.NexusEnabled {
 				errs[indx] = validator.RegisterChain(
 					ChainIDNexus,
-					apex.Nexus.GetGatewayAddress().String(), cb.GetRelayerWalletAddr().String(),
+					apex.Nexus.GetGatewayAddress().String(), "",
 					nexusTokenSupply, ChainTypeEVM)
 				if errs[indx] != nil {
 					return
@@ -238,8 +238,6 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 				vectorNetworkAddr  = "localhost:5499"
 				vectorNetworkMagic = uint(0)
 				vectorNetworkID    = uint(0)
-				nexusContractAddr  = types.ZeroAddress.String()
-				nexusRelayerWallet = types.ZeroAddress.String()
 				nexusNodeURL       = "http://localhost:5500"
 			)
 
@@ -270,9 +268,6 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 			}
 
 			if cb.config.NexusEnabled {
-				nexusContractAddr = nexus.GetGatewayAddress().String()
-				nexusRelayerWallet = cb.GetRelayerWalletAddr().String()
-
 				nexusNodeURLIndx := 0
 				if cb.config.TargetOneCardanoClusterServer {
 					nexusNodeURLIndx = indx % len(nexus.Cluster.Servers)
@@ -297,8 +292,6 @@ func (cb *TestCardanoBridge) GenerateConfigs(
 				cb.config.APIPortStart+indx,
 				cb.config.APIKey,
 				telemetryConfig,
-				nexusContractAddr,
-				nexusRelayerWallet,
 				nexusNodeURL,
 			)
 		}(validator, i)
