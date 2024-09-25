@@ -58,7 +58,8 @@ type ApexSystemConfig struct {
 	NexusStartingPort     int64
 	NexusBurnContractInfo *polybft.BurnContractInfo
 
-	CustomConfigHandler func(mp map[string]interface{})
+	CustomOracleHandler  func(mp map[string]interface{})
+	CustomRelayerHandler func(mp map[string]interface{})
 }
 
 type ApexSystemOptions func(*ApexSystemConfig)
@@ -143,9 +144,10 @@ func WithVectorClusterConfig(config *RunCardanoClusterConfig) ApexSystemOptions 
 	}
 }
 
-func WithCustomConfigHandler(callback func(mp map[string]interface{})) ApexSystemOptions {
+func WithCustomConfigHandlers(callbackOracle, callbackRelayer func(mp map[string]interface{})) ApexSystemOptions {
 	return func(h *ApexSystemConfig) {
-		h.CustomConfigHandler = callback
+		h.CustomOracleHandler = callbackOracle
+		h.CustomRelayerHandler = callbackRelayer
 	}
 }
 
@@ -193,7 +195,8 @@ func newApexSystemConfig(opts ...ApexSystemOptions) *ApexSystemConfig {
 			Address:     types.ZeroAddress,
 		},
 
-		CustomConfigHandler: nil,
+		CustomOracleHandler:  nil,
+		CustomRelayerHandler: nil,
 	}
 
 	for _, opt := range opts {

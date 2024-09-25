@@ -602,7 +602,7 @@ func (c *TestCardanoCluster) CopyConfigFilesAndInitDirectoriesStep2(networkType 
 		return err
 	}
 
-	err := updateJSONFile(
+	err := UpdateJSONFile(
 		c.Config.Dir("byron-gen-command/genesis.json"),
 		c.Config.Dir("genesis/byron/genesis.json"),
 		noChanges,
@@ -611,7 +611,7 @@ func (c *TestCardanoCluster) CopyConfigFilesAndInitDirectoriesStep2(networkType 
 		return err
 	}
 
-	err = updateJSONFile(
+	err = UpdateJSONFile(
 		c.Config.Dir("genesis.json"),
 		c.Config.Dir("genesis/shelley/genesis.json"),
 		func(mp map[string]interface{}) {
@@ -648,7 +648,7 @@ func (c *TestCardanoCluster) CopyConfigFilesAndInitDirectoriesStep2(networkType 
 		return err
 	}
 
-	err = updateJSONFile(
+	err = UpdateJSONFile(
 		c.Config.Dir("genesis.conway.json"),
 		c.Config.Dir("genesis/shelley/genesis.conway.json"),
 		getConwayGenesis(networkType),

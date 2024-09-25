@@ -1939,6 +1939,65 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 		sendAmountDfm, sendAmountEth = convertToEthValues(1)
 	}
 
+	t.Run("Test small fee", func(t *testing.T) {
+		ctx, cncl := context.WithCancel(context.Background())
+		defer cncl()
+
+		var (
+			failedToExecute int
+			timeout         bool
+		)
+
+		apex := cardanofw.RunApexBridge(
+			t, ctx,
+			cardanofw.WithAPIKey(apiKey),
+			cardanofw.WithVectorEnabled(false),
+			cardanofw.WithNexusEnabled(true),
+			cardanofw.WithCustomConfigHandlers(nil, func(mp map[string]interface{}) {
+				cardanofw.GetMapFromInterfaceKey(mp, "chains", "nexus", "config")["depositGasLimit"] = uint64(10)
+			}),
+		)
+
+		initApex(ctx, apex)
+
+		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+			receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
+		require.NoError(t, err)
+
+		fmt.Printf("Tx sent. hash: %s\n", txHash)
+
+		// Check relay failed
+		apiURL, err := apex.Bridge.GetBridgingAPI()
+		require.NoError(t, err)
+
+		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, true)
+
+		require.Equal(t, failedToExecute, 1)
+		require.False(t, timeout)
+
+		// Restart relayer after config fix
+		err = apex.Bridge.StopRelayer()
+		require.NoError(t, err)
+
+		err = cardanofw.UpdateJSONFile(
+			apex.Bridge.GetValidator(t, 0).GetRelayerConfig(),
+			apex.Bridge.GetValidator(t, 0).GetRelayerConfig(),
+			func(mp map[string]interface{}) {
+				cardanofw.GetMapFromInterfaceKey(mp, "chains", "nexus", "config")["depositGasLimit"] = uint64(0)
+			},
+			false,
+		)
+		require.NoError(t, err)
+
+		err = apex.Bridge.StartRelayer(ctx)
+		require.NoError(t, err)
+
+		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, false)
+
+		require.LessOrEqual(t, failedToExecute, 1)
+		require.False(t, timeout)
+	})
+
 	//nolint:dupl
 	t.Run("Test failed batch", func(t *testing.T) {
 		ctx, cncl := context.WithCancel(context.Background())
@@ -1954,9 +2013,9 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			cardanofw.WithAPIKey(apiKey),
 			cardanofw.WithVectorEnabled(false),
 			cardanofw.WithNexusEnabled(true),
-			cardanofw.WithCustomConfigHandler(func(mp map[string]interface{}) {
+			cardanofw.WithCustomConfigHandlers(func(mp map[string]interface{}) {
 				cardanofw.GetMapFromInterfaceKey(mp, "ethChains", "nexus")["testMode"] = uint8(1)
-			}),
+			}, nil),
 		)
 
 		initApex(ctx, apex)
@@ -1968,13 +2027,10 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 		fmt.Printf("Tx sent. hash: %s\n", txHash)
 
 		// Check batch failed
-		timeoutTimer := time.NewTimer(time.Second * 300)
-		defer timeoutTimer.Stop()
-
 		apiURL, err := apex.Bridge.GetBridgingAPI()
 		require.NoError(t, err)
 
-		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, 0)
+		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, false)
 
 		require.Equal(t, failedToExecute, 1)
 		require.False(t, timeout)
@@ -1995,9 +2051,9 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			cardanofw.WithAPIKey(apiKey),
 			cardanofw.WithVectorEnabled(false),
 			cardanofw.WithNexusEnabled(true),
-			cardanofw.WithCustomConfigHandler(func(mp map[string]interface{}) {
+			cardanofw.WithCustomConfigHandlers(func(mp map[string]interface{}) {
 				cardanofw.GetMapFromInterfaceKey(mp, "ethChains", "nexus")["testMode"] = uint8(2)
-			}),
+			}, nil),
 		)
 
 		initApex(ctx, apex)
@@ -2009,13 +2065,10 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 		fmt.Printf("Tx sent. hash: %s\n", txHash)
 
 		// Check batch failed
-		timeoutTimer := time.NewTimer(time.Second * 300)
-		defer timeoutTimer.Stop()
-
 		apiURL, err := apex.Bridge.GetBridgingAPI()
 		require.NoError(t, err)
 
-		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, 0)
+		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, false)
 
 		require.Equal(t, failedToExecute, 5)
 		require.False(t, timeout)
@@ -2034,9 +2087,9 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			cardanofw.WithAPIKey(apiKey),
 			cardanofw.WithVectorEnabled(false),
 			cardanofw.WithNexusEnabled(true),
-			cardanofw.WithCustomConfigHandler(func(mp map[string]interface{}) {
+			cardanofw.WithCustomConfigHandlers(func(mp map[string]interface{}) {
 				cardanofw.GetMapFromInterfaceKey(mp, "ethChains", "nexus")["testMode"] = uint8(3)
-			}),
+			}, nil),
 		)
 
 		initApex(ctx, apex)
@@ -2058,7 +2111,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			fmt.Printf("Tx %v sent. hash: %s\n", i, txHash)
 
 			// Check batch failed
-			failedToExecute[i], timeout[i] = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, i)
+			failedToExecute[i], timeout[i] = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, false)
 		}
 
 		for i := 0; i < instances; i++ {
@@ -2085,9 +2138,9 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			cardanofw.WithAPIKey(apiKey),
 			cardanofw.WithVectorEnabled(false),
 			cardanofw.WithNexusEnabled(true),
-			cardanofw.WithCustomConfigHandler(func(mp map[string]interface{}) {
+			cardanofw.WithCustomConfigHandlers(func(mp map[string]interface{}) {
 				cardanofw.GetMapFromInterfaceKey(mp, "ethChains", "nexus")["testMode"] = uint8(4)
-			}),
+			}, nil),
 		)
 
 		initApex(ctx, apex)
@@ -2109,7 +2162,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			fmt.Printf("Tx %v sent. hash: %s\n", i, txHash)
 
 			// Check batch failed
-			failedToExecute[i], timeout[i] = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, i)
+			failedToExecute[i], timeout[i] = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, false)
 		}
 
 		for i := 0; i < instances; i++ {
@@ -2135,7 +2188,9 @@ func convertToEthValues(sendAmount uint64) (uint64, *big.Int) {
 	return sendAmountDfm.Uint64(), ethgo.Ether(sendAmount)
 }
 
-func waitForBatchSuccess(ctx context.Context, txHash string, apiURL string, apiKey string, idx int) (int, bool) {
+func waitForBatchSuccess(
+	ctx context.Context, txHash string, apiURL string, apiKey string, breakAfterFail bool,
+) (int, bool) {
 	var (
 		prevStatus           string
 		currentStatus        string
@@ -2171,10 +2226,14 @@ func waitForBatchSuccess(ctx context.Context, txHash string, apiURL string, apiK
 		currentStatus = currentState.Status
 
 		if prevStatus != currentStatus {
-			fmt.Printf("currentStatus %v = %s\n", idx, currentStatus)
+			fmt.Printf("currentStatus = %s\n", currentStatus)
 
 			if currentStatus == BatchFailed {
 				failedToExecuteCount++
+
+				if breakAfterFail {
+					return failedToExecuteCount, timeout
+				}
 			}
 
 			if currentStatus == BatchSuccess {

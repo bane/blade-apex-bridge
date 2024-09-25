@@ -78,7 +78,7 @@ func updateJSON(content []byte, callback func(mp map[string]interface{})) ([]byt
 	return json.MarshalIndent(data, "", "    ") // The second argument is the prefix, and the third is the indentation
 }
 
-func updateJSONFile(fn1 string, fn2 string, callback func(mp map[string]interface{}), removeOriginal bool) error {
+func UpdateJSONFile(fn1 string, fn2 string, callback func(mp map[string]interface{}), removeOriginal bool) error {
 	bytes, err := os.ReadFile(fn1)
 	if err != nil {
 		return err
