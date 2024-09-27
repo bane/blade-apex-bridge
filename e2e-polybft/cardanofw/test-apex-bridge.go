@@ -172,7 +172,7 @@ func SetupAndRunApexBridge(
 	return cb
 }
 
-func (a *ApexSystem) SetupAndRunValidatorsAndRelayer(
+func (a *ApexSystem) SetupValidatorsAndRelayer(
 	t *testing.T,
 	ctx context.Context,
 ) {
@@ -184,7 +184,7 @@ func (a *ApexSystem) SetupAndRunValidatorsAndRelayer(
 	nexusTokenSupplyDfm := new(big.Int).SetUint64(FundEthTokenAmount)
 	exp := new(big.Int).Exp(big.NewInt(10), big.NewInt(6), nil)
 	nexusTokenSupplyDfm.Mul(nexusTokenSupplyDfm, exp)
-	require.NoError(t, a.Bridge.RegisterChains(primeTokenSupply, vectorTokenSupply, nexusTokenSupplyDfm, a))
+	require.NoError(t, a.Bridge.RegisterChains(primeTokenSupply, vectorTokenSupply, nexusTokenSupplyDfm))
 
 	fmt.Printf("Chains registered\n")
 
@@ -196,6 +196,13 @@ func (a *ApexSystem) SetupAndRunValidatorsAndRelayer(
 	))
 
 	fmt.Printf("Configs generated\n")
+}
+
+func (a *ApexSystem) RunValidatorsAndRelayer(
+	t *testing.T,
+	ctx context.Context,
+) {
+	t.Helper()
 
 	require.NoError(t, a.Bridge.StartValidatorComponents(ctx))
 

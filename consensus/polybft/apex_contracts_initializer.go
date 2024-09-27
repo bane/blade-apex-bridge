@@ -14,17 +14,15 @@ const (
 	timeoutBlocksNumber     = 5
 )
 
-func initApex(transition *state.Transition, admin types.Address,
-	polyBFTConfig PolyBFTConfig) (err error) {
+func initApex(transition *state.Transition, polyBFTConfig PolyBFTConfig) (err error) {
 	// Initialize Apex proxies
-	if err = initApexProxies(transition, admin,
-		contracts.GetApexProxyImplementationMapping(), polyBFTConfig); err != nil {
+	if err = initApexProxies(transition, polyBFTConfig); err != nil {
 		return err
 	}
 
 	// Initialize Apex contracts
 
-	if err = initBridge(transition); err != nil {
+	if err = initBridge(transition, polyBFTConfig.BladeAdmin); err != nil {
 		return err
 	}
 
@@ -52,9 +50,10 @@ func initApex(transition *state.Transition, admin types.Address,
 }
 
 // initProxies initializes proxy contracts, that allow upgradeability of contracts implementation
-func initApexProxies(transition *state.Transition, admin types.Address,
-	proxyToImplMap map[types.Address]types.Address, polyBFTConfig PolyBFTConfig) error {
-	for proxyAddress, implAddress := range proxyToImplMap {
+func initApexProxies(transition *state.Transition, polyBFTConfig PolyBFTConfig) error {
+	proxyGenesisAdmin := polyBFTConfig.ProxyContractsAdmin
+
+	for proxyAddress, implAddress := range contracts.GetApexProxyImplementationMapping() {
 		protectSetupProxyFn := &contractsapi.ProtectSetUpProxyGenesisProxyFn{Initiator: contracts.SystemCaller}
 
 		proxyInput, err := protectSetupProxyFn.EncodeAbi()
@@ -74,7 +73,7 @@ func initApexProxies(transition *state.Transition, admin types.Address,
 
 		setUpproxyFn := &contractsapi.SetUpProxyGenesisProxyFn{
 			Logic: implAddress,
-			Admin: admin,
+			Admin: proxyGenesisAdmin,
 			Data:  data,
 		}
 
@@ -95,7 +94,7 @@ func initApexProxies(transition *state.Transition, admin types.Address,
 func getDataForApexContract(contract types.Address, polyBFTConfig PolyBFTConfig) ([]byte, error) {
 	switch contract {
 	case contracts.Bridge:
-		return (&contractsapi.InitializeBridgeFn{}).EncodeAbi()
+		return (&contractsapi.InitializeBridgeFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
 	case contracts.SignedBatches:
 		return (&contractsapi.InitializeSignedBatchesFn{}).EncodeAbi()
 	case contracts.ClaimsHelper:
@@ -124,7 +123,7 @@ func getDataForApexContract(contract types.Address, polyBFTConfig PolyBFTConfig)
 // Apex smart contracts initialization
 
 // initBridge initializes Bridge and it's proxy SC
-func initBridge(transition *state.Transition) error {
+func initBridge(transition *state.Transition, from types.Address) error {
 	setDependenciesFn := &contractsapi.SetDependenciesBridgeFn{
 		ClaimsAddress:        contracts.Claims,
 		SignedBatchesAddress: contracts.SignedBatches,
@@ -137,8 +136,7 @@ func initBridge(transition *state.Transition) error {
 		return fmt.Errorf("Bridge.setDependencies params encoding failed: %w", err)
 	}
 
-	return callContract(contracts.SystemCaller,
-		contracts.Bridge, input, "Bridge.setDependencies", transition)
+	return callContract(from, contracts.Bridge, input, "Bridge.setDependencies", transition)
 }
 
 // initSignedBatches initializes SignedBatches SC

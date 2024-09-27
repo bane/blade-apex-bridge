@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/0xPolygon/polygon-edge/contracts"
 	"github.com/0xPolygon/polygon-edge/crypto"
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
 	"github.com/0xPolygon/polygon-edge/helper/common"
@@ -133,8 +134,6 @@ func (cv *TestCardanoValidator) GetCardanoWallet(chainID string) (*CardanoWallet
 
 func (cv *TestCardanoValidator) RegisterChain(
 	chainID string,
-	multisigAddr string,
-	multisigFeeAddr string,
 	tokenSupply *big.Int,
 	chainType uint8,
 ) error {
@@ -143,11 +142,9 @@ func (cv *TestCardanoValidator) RegisterChain(
 		"--chain", chainID,
 		"--type", fmt.Sprint(chainType),
 		"--validator-data-dir", cv.server.DataDir(),
-		"--addr", multisigAddr,
-		"--addr-fee", multisigFeeAddr,
 		"--token-supply", fmt.Sprint(tokenSupply),
 		"--bridge-url", cv.server.JSONRPCAddr(),
-		"--bridge-addr", BridgeSCAddr,
+		"--bridge-addr", contracts.Bridge.String(),
 	}, os.Stdout)
 }
 
@@ -186,7 +183,7 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 		"--vector-network-id", fmt.Sprint(vectorNetworkID),
 		"--vector-ogmios-url", vectorOgmiosURL,
 		"--bridge-node-url", cv.server.JSONRPCAddr(),
-		"--bridge-sc-address", BridgeSCAddr,
+		"--bridge-sc-address", contracts.Bridge.String(),
 		"--nexus-node-url", nexusNodeURL,
 		"--relayer-data-dir", cv.GetNexusTestDir(),
 		"--logs-path", filepath.Join(cv.dataDirPath, BridgingLogsDir),

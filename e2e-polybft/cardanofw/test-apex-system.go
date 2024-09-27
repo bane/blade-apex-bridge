@@ -300,21 +300,16 @@ func RunApexBridge(
 
 	fmt.Println("Chains have been started...")
 
-	apexSystem.Bridge = SetupAndRunApexBridge(
-		t, ctx,
-		// path.Join(path.Dir(primeCluster.Config.TmpDir), "bridge"),
-		"../../e2e-bridge-data-tmp-"+t.Name(),
-		apexSystem,
-	)
+	bridgeDataDir := "../../e2e-bridge-data-tmp-" + t.Name() // path.Join(path.Dir(primeCluster.Config.TmpDir), "bridge")
+	apexSystem.Bridge = SetupAndRunApexBridge(t, ctx, bridgeDataDir, apexSystem)
+
+	apexSystem.SetupValidatorsAndRelayer(t, ctx)
 
 	if apexConfig.NexusEnabled {
-		SetupAndRunNexusBridge(
-			t, ctx,
-			apexSystem,
-		)
+		SetupAndRunNexusBridge(t, ctx, apexSystem)
 	}
 
-	apexSystem.SetupAndRunValidatorsAndRelayer(t, ctx)
+	apexSystem.RunValidatorsAndRelayer(t, ctx)
 
 	fmt.Printf("Apex bridge setup done\n")
 

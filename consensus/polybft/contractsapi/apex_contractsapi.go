@@ -6,6 +6,7 @@ import (
 )
 
 type InitializeBridgeFn struct {
+	Owner types.Address `abi:"_owner"`
 }
 
 func (i *InitializeBridgeFn) Sig() []byte {

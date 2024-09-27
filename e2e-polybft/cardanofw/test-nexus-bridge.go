@@ -15,6 +15,8 @@ import (
 
 	"github.com/0xPolygon/polygon-edge/command/genesis"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/wallet"
+	"github.com/0xPolygon/polygon-edge/contracts"
+	"github.com/0xPolygon/polygon-edge/crypto"
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
 	"github.com/0xPolygon/polygon-edge/helper/common"
 	"github.com/0xPolygon/polygon-edge/jsonrpc"
@@ -76,7 +78,9 @@ func (ec *TestEVMBridge) GetHotWalletAddress() types.Address {
 	return ec.NativeTokenWallet
 }
 
-func (ec *TestEVMBridge) InitSmartContracts(blsKeys []string) error {
+func (ec *TestEVMBridge) InitSmartContracts(
+	bridgeURL string, bridgeAdmin *crypto.ECDSAKey,
+) error {
 	workingDirectory := filepath.Join(os.TempDir(), "deploy-apex-bridge-evm-gateway")
 	// do not remove directory, try to reuse it next time if still exists
 	if err := common.CreateDirSafe(workingDirectory, 0750); err != nil {
@@ -88,20 +92,24 @@ func (ec *TestEVMBridge) InitSmartContracts(blsKeys []string) error {
 		return err
 	}
 
+	bridgeAdminPk, err := bridgeAdmin.MarshallPrivateKey()
+	if err != nil {
+		return err
+	}
+
 	var (
 		b      bytes.Buffer
 		params = []string{
 			"deploy-evm",
 			"--url", ec.Cluster.Servers[0].JSONRPCAddr(),
 			"--key", hex.EncodeToString(pk),
+			"--bridge-url", bridgeURL,
+			"--bridge-addr", contracts.Bridge.String(),
+			"--bridge-key", hex.EncodeToString(bridgeAdminPk),
 			"--dir", workingDirectory,
 			"--clone",
 		}
 	)
-
-	for _, x := range blsKeys {
-		params = append(params, "--bls-key", x)
-	}
 
 	err = RunCommand(ResolveApexBridgeBinary(), params, io.MultiWriter(os.Stdout, &b))
 	if err != nil {
@@ -162,13 +170,9 @@ func SetupAndRunNexusBridge(
 ) {
 	t.Helper()
 
-	blsKeys := make([]string, len(apexSystem.Bridge.validators))
-	for i, valid := range apexSystem.Bridge.validators {
-		blsKeys[i] = hex.EncodeToString(valid.BatcherBN256PrivateKey.PublicKey().Marshal())
-	}
-
-	require.NoError(t,
-		apexSystem.Nexus.InitSmartContracts(blsKeys))
+	require.NoError(t, apexSystem.Nexus.InitSmartContracts(
+		apexSystem.Bridge.GetFirstServer().JSONRPCAddr(),
+		apexSystem.Bridge.GetBladeAdmin()))
 
 	txn := apexSystem.Nexus.Cluster.Transfer(t,
 		apexSystem.Nexus.Admin.Ecdsa,
