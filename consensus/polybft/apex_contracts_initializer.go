@@ -26,23 +26,23 @@ func initApex(transition *state.Transition, polyBFTConfig PolyBFTConfig) (err er
 		return err
 	}
 
-	if err = initSignedBatches(transition); err != nil {
+	if err = initSignedBatches(transition, polyBFTConfig.BladeAdmin); err != nil {
 		return err
 	}
 
-	if err = initClaimsHelper(transition); err != nil {
+	if err = initClaimsHelper(transition, polyBFTConfig.BladeAdmin); err != nil {
 		return err
 	}
 
-	if err = initValidators(transition); err != nil {
+	if err = initValidators(transition, polyBFTConfig.BladeAdmin); err != nil {
 		return err
 	}
 
-	if err = initSlots(transition); err != nil {
+	if err = initSlots(transition, polyBFTConfig.BladeAdmin); err != nil {
 		return err
 	}
 
-	if err = initClaims(transition); err != nil {
+	if err = initClaims(transition, polyBFTConfig.BladeAdmin); err != nil {
 		return err
 	}
 
@@ -96,9 +96,9 @@ func getDataForApexContract(contract types.Address, polyBFTConfig PolyBFTConfig)
 	case contracts.Bridge:
 		return (&contractsapi.InitializeBridgeFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
 	case contracts.SignedBatches:
-		return (&contractsapi.InitializeSignedBatchesFn{}).EncodeAbi()
+		return (&contractsapi.InitializeSignedBatchesFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
 	case contracts.ClaimsHelper:
-		return (&contractsapi.InitializeClaimsHelperFn{}).EncodeAbi()
+		return (&contractsapi.InitializeClaimsHelperFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
 	case contracts.Validators:
 		var validatorAddresses = make([]types.Address, len(polyBFTConfig.InitialValidatorSet))
 		for i, validator := range polyBFTConfig.InitialValidatorSet {
@@ -106,12 +106,14 @@ func getDataForApexContract(contract types.Address, polyBFTConfig PolyBFTConfig)
 		}
 
 		return (&contractsapi.InitializeValidatorsFn{
+			Owner:      polyBFTConfig.BladeAdmin,
 			Validators: validatorAddresses,
 		}).EncodeAbi()
 	case contracts.Slots:
-		return (&contractsapi.InitializeSlotsFn{}).EncodeAbi()
+		return (&contractsapi.InitializeSlotsFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
 	case contracts.Claims:
 		return (&contractsapi.InitializeClaimsFn{
+			Owner:                   polyBFTConfig.BladeAdmin,
 			MaxNumberOfTransactions: maxNumberOfTransactions,
 			TimeoutBlocksNumber:     timeoutBlocksNumber,
 		}).EncodeAbi()
@@ -140,7 +142,7 @@ func initBridge(transition *state.Transition, from types.Address) error {
 }
 
 // initSignedBatches initializes SignedBatches SC
-func initSignedBatches(transition *state.Transition) error {
+func initSignedBatches(transition *state.Transition, from types.Address) error {
 	setDependenciesFn := &contractsapi.SetDependenciesSignedBatchesFn{
 		BridgeAddress:       contracts.Bridge,
 		ClaimsHelperAddress: contracts.ClaimsHelper,
@@ -152,12 +154,12 @@ func initSignedBatches(transition *state.Transition) error {
 		return fmt.Errorf("SignedBatches.setDependencies params encoding failed: %w", err)
 	}
 
-	return callContract(contracts.SystemCaller,
+	return callContract(from,
 		contracts.SignedBatches, input, "SignedBatches.setDependencies", transition)
 }
 
 // initClaimsHelper initializes ClaimsHelper SC
-func initClaimsHelper(transition *state.Transition) error {
+func initClaimsHelper(transition *state.Transition, from types.Address) error {
 	setDependenciesFn := &contractsapi.SetDependenciesClaimsHelperFn{
 		ClaimsAddress:        contracts.Claims,
 		SignedBatchesAddress: contracts.SignedBatches,
@@ -168,12 +170,12 @@ func initClaimsHelper(transition *state.Transition) error {
 		return fmt.Errorf("ClaimsHelper.setDependencies params encoding failed: %w", err)
 	}
 
-	return callContract(contracts.SystemCaller,
+	return callContract(from,
 		contracts.ClaimsHelper, input, "ClaimsHelper.setDependencies", transition)
 }
 
 // initValidators initializes Validators SC
-func initValidators(transition *state.Transition) error {
+func initValidators(transition *state.Transition, from types.Address) error {
 	setDependenciesFn := &contractsapi.SetDependenciesValidatorsFn{
 		BridgeAddress: contracts.Bridge,
 	}
@@ -183,12 +185,12 @@ func initValidators(transition *state.Transition) error {
 		return fmt.Errorf("Validators.setDependencies params encoding failed: %w", err)
 	}
 
-	return callContract(contracts.SystemCaller,
+	return callContract(from,
 		contracts.Validators, input, "Validators.setDependencies", transition)
 }
 
 // initSlots initializes Slots SC
-func initSlots(transition *state.Transition) error {
+func initSlots(transition *state.Transition, from types.Address) error {
 	setDependenciesFn := &contractsapi.SetDependenciesSlotsFn{
 		BridgeAddress:     contracts.Bridge,
 		ValidatorsAddress: contracts.Validators,
@@ -199,12 +201,12 @@ func initSlots(transition *state.Transition) error {
 		return fmt.Errorf("Slots.setDependencies params encoding failed: %w", err)
 	}
 
-	return callContract(contracts.SystemCaller,
+	return callContract(from,
 		contracts.Slots, input, "Slots.setDependencies", transition)
 }
 
 // initClaims initializes Claims SC
-func initClaims(transition *state.Transition) error {
+func initClaims(transition *state.Transition, from types.Address) error {
 	setDependenciesFn := &contractsapi.SetDependenciesClaimsFn{
 		BridgeAddress:       contracts.Bridge,
 		ClaimsHelperAddress: contracts.ClaimsHelper,
@@ -216,6 +218,6 @@ func initClaims(transition *state.Transition) error {
 		return fmt.Errorf("Claims.setDependencies params encoding failed: %w", err)
 	}
 
-	return callContract(contracts.SystemCaller,
+	return callContract(from,
 		contracts.Claims, input, "Claims.setDependencies", transition)
 }

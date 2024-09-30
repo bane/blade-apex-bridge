@@ -303,15 +303,5 @@ func RunApexBridge(
 	bridgeDataDir := "../../e2e-bridge-data-tmp-" + t.Name() // path.Join(path.Dir(primeCluster.Config.TmpDir), "bridge")
 	apexSystem.Bridge = SetupAndRunApexBridge(t, ctx, bridgeDataDir, apexSystem)
 
-	apexSystem.SetupValidatorsAndRelayer(t, ctx)
-
-	if apexConfig.NexusEnabled {
-		SetupAndRunNexusBridge(t, ctx, apexSystem)
-	}
-
-	apexSystem.RunValidatorsAndRelayer(t, ctx)
-
-	fmt.Printf("Apex bridge setup done\n")
-
 	return apexSystem
 }

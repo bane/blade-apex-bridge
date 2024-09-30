@@ -9,14 +9,17 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/0xPolygon/polygon-edge/contracts"
 	"github.com/0xPolygon/polygon-edge/crypto"
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
 	"github.com/0xPolygon/polygon-edge/types"
-	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
+	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,11 +38,6 @@ type TestCardanoBridge struct {
 
 	validators  []*TestCardanoValidator
 	relayerNode *framework.Node
-
-	primeMultisigKeys     []string
-	primeMultisigFeeKeys  []string
-	vectorMultisigKeys    []string
-	vectorMultisigFeeKeys []string
 
 	PrimeMultisigAddr     string
 	PrimeMultisigFeeAddr  string
@@ -71,20 +69,6 @@ func NewTestCardanoBridge(
 	}
 
 	return bridge
-}
-
-func (cb *TestCardanoBridge) CardanoCreateWalletsAndAddresses(
-	primeNetworkType, vectorNetworkType wallet.CardanoNetworkType,
-) error {
-	if err := cb.cardanoCreateWallets(); err != nil {
-		return err
-	}
-
-	if err := cb.cardanoPrepareKeys(); err != nil {
-		return err
-	}
-
-	return cb.cardanoCreateAddresses(primeNetworkType, vectorNetworkType)
 }
 
 func (cb *TestCardanoBridge) StartValidators(t *testing.T, epochSize int) {
@@ -182,11 +166,12 @@ func (cb *TestCardanoBridge) GetFirstServer() *framework.TestServer {
 	return cb.cluster.Servers[0]
 }
 
-func (cb *TestCardanoBridge) RegisterChains(
-	primeTokenSupply *big.Int,
-	vectorTokenSupply *big.Int,
-	nexusTokenSupply *big.Int,
-) error {
+func (cb *TestCardanoBridge) RegisterChains(fundTokenAmount uint64) error {
+	primeTokenSupply := new(big.Int).SetUint64(fundTokenAmount)
+	vectorTokenSupply := new(big.Int).SetUint64(fundTokenAmount)
+	nexusTokenSupplyDfm := new(big.Int).SetUint64(fundTokenAmount)
+	nexusTokenSupplyDfm.Mul(nexusTokenSupplyDfm, new(big.Int).Exp(big.NewInt(10), big.NewInt(6), nil))
+
 	errs := make([]error, len(cb.validators))
 	wg := sync.WaitGroup{}
 
@@ -209,7 +194,7 @@ func (cb *TestCardanoBridge) RegisterChains(
 			}
 
 			if cb.config.NexusEnabled {
-				errs[indx] = validator.RegisterChain(ChainIDNexus, nexusTokenSupply, ChainTypeEVM)
+				errs[indx] = validator.RegisterChain(ChainIDNexus, nexusTokenSupplyDfm, ChainTypeEVM)
 				if errs[indx] != nil {
 					return
 				}
@@ -424,16 +409,14 @@ func (cb *TestCardanoBridge) ApexBridgeProcessesRunning() bool {
 	return true
 }
 
-func (cb *TestCardanoBridge) cardanoCreateWallets() (err error) {
+func (cb *TestCardanoBridge) CreateCardanoWallets() (err error) {
 	for _, validator := range cb.validators {
-		err = validator.CardanoWalletCreate(ChainIDPrime)
-		if err != nil {
+		if err = validator.CardanoWalletCreate(ChainIDPrime); err != nil {
 			return err
 		}
 
 		if cb.config.VectorEnabled {
-			err = validator.CardanoWalletCreate(ChainIDVector)
-			if err != nil {
+			if err = validator.CardanoWalletCreate(ChainIDVector); err != nil {
 				return err
 			}
 		}
@@ -442,81 +425,111 @@ func (cb *TestCardanoBridge) cardanoCreateWallets() (err error) {
 	return err
 }
 
-func (cb *TestCardanoBridge) cardanoPrepareKeys() (err error) {
-	validatorCount := cb.config.BladeValidatorCount
-	cb.primeMultisigKeys = make([]string, validatorCount)
-	cb.primeMultisigFeeKeys = make([]string, validatorCount)
-	cb.vectorMultisigKeys = make([]string, validatorCount)
-	cb.vectorMultisigFeeKeys = make([]string, validatorCount)
-
-	for idx, validator := range cb.validators {
-		primeWallet, err := validator.GetCardanoWallet(ChainIDPrime)
-		if err != nil {
-			return err
-		}
-
-		cb.primeMultisigKeys[idx] = hex.EncodeToString(primeWallet.Multisig.GetVerificationKey())
-		cb.primeMultisigFeeKeys[idx] = hex.EncodeToString(primeWallet.MultisigFee.GetVerificationKey())
-
-		if cb.config.VectorEnabled {
-			vectorWallet, err := validator.GetCardanoWallet(ChainIDVector)
-			if err != nil {
-				return err
-			}
-
-			cb.vectorMultisigKeys[idx] = hex.EncodeToString(vectorWallet.Multisig.GetVerificationKey())
-			cb.vectorMultisigFeeKeys[idx] = hex.EncodeToString(vectorWallet.MultisigFee.GetVerificationKey())
-		}
-	}
-
-	return err
-}
-
-func (cb *TestCardanoBridge) cardanoCreateAddresses(
-	primeNetworkType, vectorNetworkType wallet.CardanoNetworkType,
+func (cb *TestCardanoBridge) FundCardanoMultisigAddresses(
+	ctx context.Context, primeCluster, vectorCluster *TestCardanoCluster, fundTokenAmount uint64,
 ) error {
-	errs := make([]error, 4)
-	wg := sync.WaitGroup{}
+	const (
+		numOfRetries = 90
+		waitTime     = time.Second * 2
+	)
 
-	wg.Add(2)
+	fund := func(cluster *TestCardanoCluster, fundTokenAmount uint64, addr string) (string, error) {
+		txProvider := cardanowallet.NewTxProviderOgmios(cluster.OgmiosURL())
 
-	go func() {
-		defer wg.Done()
+		defer txProvider.Dispose()
 
-		cb.PrimeMultisigAddr, errs[0] = cb.cardanoCreateAddress(primeNetworkType, cb.primeMultisigKeys)
-	}()
+		genesisWallet, err := GetGenesisWalletFromCluster(cluster.Config.TmpDir, 1)
+		if err != nil {
+			return "", err
+		}
 
-	go func() {
-		defer wg.Done()
+		txHash, err := SendTx(ctx, txProvider, genesisWallet, fundTokenAmount,
+			addr, cluster.NetworkConfig(), []byte{})
+		if err != nil {
+			return "", err
+		}
 
-		cb.PrimeMultisigFeeAddr, errs[1] = cb.cardanoCreateAddress(primeNetworkType, cb.primeMultisigFeeKeys)
-	}()
+		err = cardanowallet.WaitForTxHashInUtxos(
+			ctx, txProvider, addr, txHash, numOfRetries, waitTime, IsRecoverableError)
+		if err != nil {
+			return "", err
+		}
+
+		return txHash, nil
+	}
+
+	txHash, err := fund(primeCluster, fundTokenAmount, cb.PrimeMultisigAddr)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Prime multisig addr funded: %s\n", txHash)
+
+	txHash, err = fund(primeCluster, fundTokenAmount, cb.PrimeMultisigFeeAddr)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Prime fee addr funded: %s\n", txHash)
 
 	if cb.config.VectorEnabled {
-		wg.Add(2)
+		txHash, err := fund(vectorCluster, fundTokenAmount, cb.VectorMultisigAddr)
+		if err != nil {
+			return err
+		}
 
-		go func() {
-			defer wg.Done()
+		fmt.Printf("Vector multisig addr funded: %s\n", txHash)
 
-			cb.VectorMultisigAddr, errs[2] = cb.cardanoCreateAddress(vectorNetworkType, cb.vectorMultisigKeys)
-		}()
+		txHash, err = fund(vectorCluster, fundTokenAmount, cb.VectorMultisigFeeAddr)
+		if err != nil {
+			return err
+		}
 
-		go func() {
-			defer wg.Done()
-
-			cb.VectorMultisigFeeAddr, errs[3] = cb.cardanoCreateAddress(vectorNetworkType, cb.vectorMultisigFeeKeys)
-		}()
+		fmt.Printf("Vector fee addr funded: %s\n", txHash)
 	}
 
-	wg.Wait()
-
-	return errors.Join(errs...)
+	return nil
 }
 
-func (cb *TestCardanoBridge) cardanoCreateAddress(network wallet.CardanoNetworkType, keys []string) (string, error) {
+func (cb *TestCardanoBridge) CreateCardanoMultisigAddresses(
+	primeNetworkType, vectorNetworkType cardanowallet.CardanoNetworkType,
+) (err error) {
+	cb.PrimeMultisigAddr, cb.PrimeMultisigFeeAddr, err = cb.cardanoCreateAddress(primeNetworkType, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create address for prime: %w", err)
+	}
+
+	cb.VectorMultisigAddr, cb.VectorMultisigFeeAddr, err = cb.cardanoCreateAddress(vectorNetworkType, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create address for vector: %w", err)
+	}
+
+	return nil
+}
+
+func (cb *TestCardanoBridge) cardanoCreateAddress(
+	network cardanowallet.CardanoNetworkType, keys []string,
+) (string, string, error) {
+	bridgeAdminPk, err := cb.bladeAdmin.MarshallPrivateKey()
+	if err != nil {
+		return "", "", err
+	}
+
+	bothAddresses := false
+
 	args := []string{
 		"create-address",
 		"--network-id", fmt.Sprint(network),
+	}
+
+	if len(keys) == 0 {
+		args = append(args,
+			"--bridge-url", cb.cluster.Servers[0].JSONRPCAddr(),
+			"--bridge-addr", contracts.Bridge.String(),
+			"--chain", GetNetworkName(network),
+			"--bridge-key", hex.EncodeToString(bridgeAdminPk))
+
+		bothAddresses = true
 	}
 
 	for _, key := range keys {
@@ -525,12 +538,26 @@ func (cb *TestCardanoBridge) cardanoCreateAddress(network wallet.CardanoNetworkT
 
 	var outb bytes.Buffer
 
-	err := RunCommand(ResolveApexBridgeBinary(), args, io.MultiWriter(os.Stdout, &outb))
+	err = RunCommand(ResolveApexBridgeBinary(), args, io.MultiWriter(os.Stdout, &outb))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	result := strings.TrimSpace(strings.ReplaceAll(outb.String(), "Address = ", ""))
+	if !bothAddresses {
+		return strings.TrimSpace(strings.ReplaceAll(outb.String(), "Address = ", "")), "", nil
+	}
 
-	return result, nil
+	multisig, fee, output := "", "", outb.String()
+	reGateway := regexp.MustCompile(`Multisig Address\s*=\s*([^\s]+)`)
+	reNativeTokenWallet := regexp.MustCompile(`Fee Payer Address\s*=\s*([^\s]+)`)
+
+	if match := reGateway.FindStringSubmatch(output); len(match) > 0 {
+		multisig = match[1]
+	}
+
+	if match := reNativeTokenWallet.FindStringSubmatch(output); len(match) > 0 {
+		fee = match[1]
+	}
+
+	return multisig, fee, nil
 }

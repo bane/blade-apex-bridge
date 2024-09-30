@@ -41,6 +41,28 @@ type TestEVMBridge struct {
 	Gateway           types.Address
 }
 
+func (ec *TestEVMBridge) SetupChain(t *testing.T, ctx context.Context, bridge *TestCardanoBridge) {
+	t.Helper()
+
+	require.NoError(t, ec.InitSmartContracts(bridge.GetFirstServer().JSONRPCAddr(), bridge.GetBladeAdmin()))
+
+	txn := ec.Cluster.Transfer(t,
+		ec.Admin.Ecdsa,
+		ec.GetHotWalletAddress(),
+		ethgo.Ether(FundEthTokenAmount),
+	)
+	require.NotNil(t, txn)
+	require.True(t, txn.Succeed())
+
+	txn = ec.Cluster.Transfer(t,
+		ec.Admin.Ecdsa,
+		bridge.GetRelayerWalletAddr(),
+		ethgo.Ether(1),
+	)
+	require.NotNil(t, txn)
+	require.True(t, txn.Succeed())
+}
+
 func (ec *TestEVMBridge) SendTxEvm(privateKey string, receiver string, amount *big.Int) error {
 	return ec.SendTxEvmMultipleReceivers(privateKey, []string{receiver}, amount)
 }
@@ -161,34 +183,6 @@ func RunEVMChain(
 
 		Config: config,
 	}, nil
-}
-
-func SetupAndRunNexusBridge(
-	t *testing.T,
-	ctx context.Context,
-	apexSystem *ApexSystem,
-) {
-	t.Helper()
-
-	require.NoError(t, apexSystem.Nexus.InitSmartContracts(
-		apexSystem.Bridge.GetFirstServer().JSONRPCAddr(),
-		apexSystem.Bridge.GetBladeAdmin()))
-
-	txn := apexSystem.Nexus.Cluster.Transfer(t,
-		apexSystem.Nexus.Admin.Ecdsa,
-		apexSystem.Nexus.GetHotWalletAddress(),
-		ethgo.Ether(FundEthTokenAmount),
-	)
-	require.NotNil(t, txn)
-	require.True(t, txn.Succeed())
-
-	txn = apexSystem.Nexus.Cluster.Transfer(t,
-		apexSystem.Nexus.Admin.Ecdsa,
-		apexSystem.Bridge.GetRelayerWalletAddr(),
-		ethgo.Ether(1),
-	)
-	require.NotNil(t, txn)
-	require.True(t, txn.Succeed())
 }
 
 func GetEthAmount(ctx context.Context, evmChain *TestEVMBridge, wallet *wallet.Account) (*big.Int, error) {

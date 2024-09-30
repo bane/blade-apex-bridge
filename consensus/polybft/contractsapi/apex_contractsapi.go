@@ -41,6 +41,7 @@ func (s *SetDependenciesBridgeFn) DecodeAbi(buf []byte) error {
 }
 
 type InitializeClaimsHelperFn struct {
+	Owner types.Address `abi:"_owner"`
 }
 
 func (i *InitializeClaimsHelperFn) Sig() []byte {
@@ -73,8 +74,9 @@ func (s *SetDependenciesClaimsHelperFn) DecodeAbi(buf []byte) error {
 }
 
 type InitializeClaimsFn struct {
-	MaxNumberOfTransactions uint16 `abi:"_maxNumberOfTransactions"`
-	TimeoutBlocksNumber     uint8  `abi:"_timeoutBlocksNumber"`
+	Owner                   types.Address `abi:"_owner"`
+	MaxNumberOfTransactions uint16        `abi:"_maxNumberOfTransactions"`
+	TimeoutBlocksNumber     uint8         `abi:"_timeoutBlocksNumber"`
 }
 
 func (i *InitializeClaimsFn) Sig() []byte {
@@ -108,6 +110,7 @@ func (s *SetDependenciesClaimsFn) DecodeAbi(buf []byte) error {
 }
 
 type InitializeSignedBatchesFn struct {
+	Owner types.Address `abi:"_owner"`
 }
 
 func (i *InitializeSignedBatchesFn) Sig() []byte {
@@ -141,6 +144,7 @@ func (s *SetDependenciesSignedBatchesFn) DecodeAbi(buf []byte) error {
 }
 
 type InitializeSlotsFn struct {
+	Owner types.Address `abi:"_owner"`
 }
 
 func (i *InitializeSlotsFn) Sig() []byte {
@@ -173,6 +177,7 @@ func (s *SetDependenciesSlotsFn) DecodeAbi(buf []byte) error {
 }
 
 type InitializeValidatorsFn struct {
+	Owner      types.Address   `abi:"_owner"`
 	Validators []types.Address `abi:"_validators"`
 }
 

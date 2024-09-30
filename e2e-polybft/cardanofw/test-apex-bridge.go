@@ -3,7 +3,6 @@ package cardanofw
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
@@ -90,74 +89,11 @@ func SetupAndRunApexBridge(
 
 	cleanupDataDir()
 
-	primeCluster := apexSystem.PrimeCluster
-	vectorCluster := apexSystem.VectorCluster
-
 	cb := NewTestCardanoBridge(dataDir, apexSystem.Config)
 
-	require.NoError(t, cb.CardanoCreateWalletsAndAddresses(
-		primeCluster.Config.NetworkType, apexSystem.GetVectorNetworkType()))
+	require.NoError(t, cb.CreateCardanoWallets())
 
 	fmt.Printf("Wallets and addresses created\n")
-
-	txProviderPrime := cardanowallet.NewTxProviderOgmios(primeCluster.OgmiosURL())
-
-	primeGenesisWallet, err := GetGenesisWalletFromCluster(primeCluster.Config.TmpDir, 1)
-	require.NoError(t, err)
-
-	res, err := SendTx(ctx, txProviderPrime, primeGenesisWallet, FundTokenAmount,
-		cb.PrimeMultisigAddr, primeCluster.NetworkConfig(), []byte{})
-	require.NoError(t, err)
-
-	err = cardanowallet.WaitForAmount(context.Background(), txProviderPrime, cb.PrimeMultisigAddr, func(val uint64) bool {
-		return val == FundTokenAmount
-	}, numOfRetries, waitTime, IsRecoverableError)
-	require.NoError(t, err)
-
-	fmt.Printf("Prime multisig addr funded: %s\n", res)
-
-	res, err = SendTx(ctx, txProviderPrime, primeGenesisWallet, FundTokenAmount,
-		cb.PrimeMultisigFeeAddr, primeCluster.NetworkConfig(), []byte{})
-	require.NoError(t, err)
-
-	err = cardanowallet.WaitForAmount(context.Background(), txProviderPrime,
-		cb.PrimeMultisigFeeAddr, func(val uint64) bool {
-			return val == FundTokenAmount
-		}, numOfRetries, waitTime, IsRecoverableError)
-	require.NoError(t, err)
-
-	fmt.Printf("Prime multisig fee addr funded: %s\n", res)
-
-	if cb.config.VectorEnabled {
-		txProviderVector := cardanowallet.NewTxProviderOgmios(vectorCluster.OgmiosURL())
-
-		vectorGenesisWallet, err := GetGenesisWalletFromCluster(vectorCluster.Config.TmpDir, 1)
-		require.NoError(t, err)
-
-		res, err = SendTx(ctx, txProviderVector, vectorGenesisWallet, FundTokenAmount,
-			cb.VectorMultisigAddr, vectorCluster.NetworkConfig(), []byte{})
-		require.NoError(t, err)
-
-		err = cardanowallet.WaitForAmount(context.Background(), txProviderVector,
-			cb.VectorMultisigAddr, func(val uint64) bool {
-				return val == FundTokenAmount
-			}, numOfRetries, waitTime, IsRecoverableError)
-		require.NoError(t, err)
-
-		fmt.Printf("Vector multisig addr funded: %s\n", res)
-
-		res, err = SendTx(ctx, txProviderVector, vectorGenesisWallet, FundTokenAmount,
-			cb.VectorMultisigFeeAddr, vectorCluster.NetworkConfig(), []byte{})
-		require.NoError(t, err)
-
-		err = cardanowallet.WaitForAmount(context.Background(), txProviderVector,
-			cb.VectorMultisigFeeAddr, func(val uint64) bool {
-				return val == FundTokenAmount
-			}, numOfRetries, waitTime, IsRecoverableError)
-		require.NoError(t, err)
-
-		fmt.Printf("Vector multisig fee addr funded: %s\n", res)
-	}
 
 	cb.StartValidators(t, bladeEpochSize)
 
@@ -169,47 +105,39 @@ func SetupAndRunApexBridge(
 
 	fmt.Printf("Validators ready\n")
 
-	return cb
-}
-
-func (a *ApexSystem) SetupValidatorsAndRelayer(
-	t *testing.T,
-	ctx context.Context,
-) {
-	t.Helper()
-
-	// need params for it to work properly
-	primeTokenSupply := new(big.Int).SetUint64(FundTokenAmount)
-	vectorTokenSupply := new(big.Int).SetUint64(FundTokenAmount)
-	nexusTokenSupplyDfm := new(big.Int).SetUint64(FundEthTokenAmount)
-	exp := new(big.Int).Exp(big.NewInt(10), big.NewInt(6), nil)
-	nexusTokenSupplyDfm.Mul(nexusTokenSupplyDfm, exp)
-	require.NoError(t, a.Bridge.RegisterChains(primeTokenSupply, vectorTokenSupply, nexusTokenSupplyDfm))
+	require.NoError(t, cb.RegisterChains(FundTokenAmount))
 
 	fmt.Printf("Chains registered\n")
 
-	// need params for it to work properly
-	require.NoError(t, a.Bridge.GenerateConfigs(
-		a.PrimeCluster,
-		a.VectorCluster,
-		a.Nexus,
+	require.NoError(t, cb.CreateCardanoMultisigAddresses(
+		apexSystem.PrimeCluster.Config.NetworkType, apexSystem.GetVectorNetworkType()))
+
+	fmt.Printf("Cardano Multisig addresses created\n")
+
+	require.NoError(t, cb.FundCardanoMultisigAddresses(
+		ctx, apexSystem.PrimeCluster, apexSystem.VectorCluster, FundTokenAmount))
+
+	require.NoError(t, cb.GenerateConfigs(
+		apexSystem.PrimeCluster,
+		apexSystem.VectorCluster,
+		apexSystem.Nexus,
 	))
 
 	fmt.Printf("Configs generated\n")
-}
 
-func (a *ApexSystem) RunValidatorsAndRelayer(
-	t *testing.T,
-	ctx context.Context,
-) {
-	t.Helper()
+	if apexSystem.Config.NexusEnabled {
+		apexSystem.Nexus.SetupChain(t, ctx, cb)
+	}
 
-	require.NoError(t, a.Bridge.StartValidatorComponents(ctx))
+	require.NoError(t, cb.StartValidatorComponents(ctx))
 
 	fmt.Printf("Validator components started\n")
 
-	require.NoError(t, a.Bridge.StartRelayer(ctx))
-	fmt.Printf("Relayer started\n")
+	require.NoError(t, cb.StartRelayer(ctx))
+
+	fmt.Printf("Relayer started. Apex bridge setup done\n")
+
+	return cb
 }
 
 func (a *ApexSystem) GetPrimeGenesisWallet(t *testing.T) cardanowallet.IWallet {
