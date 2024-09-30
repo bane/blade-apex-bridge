@@ -167,6 +167,8 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 	nexusNodeURL string,
 ) error {
 	cv.APIPort = apiPort
+	logsPath := filepath.Join(cv.dataDirPath, BridgingLogsDir)
+	dbsPath := filepath.Join(cv.dataDirPath, BridgingDBsDir)
 
 	args := []string{
 		"generate-configs",
@@ -186,8 +188,8 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 		"--bridge-sc-address", contracts.Bridge.String(),
 		"--nexus-node-url", nexusNodeURL,
 		"--relayer-data-dir", cv.GetNexusTestDir(),
-		"--logs-path", filepath.Join(cv.dataDirPath, BridgingLogsDir),
-		"--dbs-path", filepath.Join(cv.dataDirPath, BridgingDBsDir),
+		"--logs-path", logsPath,
+		"--dbs-path", dbsPath,
 		"--api-port", fmt.Sprint(apiPort),
 		"--api-keys", apiKey,
 		"--telemetry", telemetryConfig,
@@ -214,7 +216,15 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 		args = append(args, "--vector-slot-rounding-threshold", fmt.Sprint(vectorSlotRoundingThreshold))
 	}
 
-	return RunCommand(ResolveApexBridgeBinary(), args, os.Stdout)
+	if err := RunCommand(ResolveApexBridgeBinary(), args, os.Stdout); err != nil {
+		return err
+	}
+
+	if err := common.CreateDirSafe(logsPath, 0770); err != nil {
+		return err
+	}
+
+	return common.CreateDirSafe(dbsPath, 0770)
 }
 
 func (cv *TestCardanoValidator) Start(ctx context.Context, runAPI bool) (err error) {
