@@ -13,8 +13,8 @@ import (
 	"github.com/docker/go-connections/nat"
 
 	polybftsecrets "github.com/0xPolygon/polygon-edge/command/secrets/init"
-	"github.com/0xPolygon/polygon-edge/consensus/polybft"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/contractsapi"
+	"github.com/0xPolygon/polygon-edge/consensus/polybft/validator"
 	polybftWallet "github.com/0xPolygon/polygon-edge/consensus/polybft/wallet"
 	"github.com/0xPolygon/polygon-edge/contracts"
 	"github.com/0xPolygon/polygon-edge/crypto"
@@ -43,10 +43,8 @@ const (
 
 var (
 	ErrExternalChainNotFound = errors.New("external chain not found")
-	errTestModeSecrets       = errors.New("external chain test mode does not imply specifying secrets parameters")
-
-	ErrNoAddressesProvided = errors.New("no addresses provided")
-	ErrInconsistentLength  = errors.New("addresses and amounts must be equal length")
+	ErrNoAddressesProvided   = errors.New("no addresses provided")
+	ErrInconsistentLength    = errors.New("addresses and amounts must be equal length")
 
 	externalChainAccountKey *crypto.ECDSAKey
 )
@@ -156,7 +154,7 @@ func GetECDSAKey(privateKey, accountDir, accountConfig string) (crypto.Key, erro
 // GetValidatorInfo queries SupernetManager smart contract on root
 // and retrieves validator info for given address
 func GetValidatorInfo(validatorAddr types.Address, supernetManagerAddr, stakeManagerAddr types.Address,
-	txRelayer txrelayer.TxRelayer) (*polybft.ValidatorInfo, error) {
+	txRelayer txrelayer.TxRelayer) (*validator.ValidatorInfo, error) {
 	caller := contracts.SystemCaller
 	getValidatorMethod := contractsapi.StakeManager.Abi.GetMethod("stakeOf")
 
@@ -191,7 +189,7 @@ func GetValidatorInfo(validatorAddr types.Address, supernetManagerAddr, stakeMan
 	}
 
 	//nolint:forcetypeassert
-	validatorInfo := &polybft.ValidatorInfo{
+	validatorInfo := &validator.ValidatorInfo{
 		Address:       validatorAddr,
 		IsActive:      innerMap["isActive"].(bool),
 		IsWhitelisted: innerMap["isWhitelisted"].(bool),
