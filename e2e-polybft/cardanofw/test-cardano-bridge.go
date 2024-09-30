@@ -410,6 +410,20 @@ func (cb *TestCardanoBridge) GetBridgingAPIs() (res []string, err error) {
 	return res, nil
 }
 
+func (cb *TestCardanoBridge) ApexBridgeProcessesRunning() bool {
+	if cb.relayerNode == nil || cb.relayerNode.ExitResult() != nil {
+		return false
+	}
+
+	for _, validator := range cb.validators {
+		if validator.node == nil || validator.node.ExitResult() != nil {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (cb *TestCardanoBridge) cardanoCreateWallets() (err error) {
 	for _, validator := range cb.validators {
 		err = validator.CardanoWalletCreate(ChainIDPrime)

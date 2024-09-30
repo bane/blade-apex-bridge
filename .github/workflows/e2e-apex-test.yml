@@ -7,6 +7,10 @@ on: # yamllint disable-line rule:truthy
         description: E2E ApexBridge Big Tests
         type: string
         required: true
+      e2e_apex_skip_redundant_tests:
+        description: E2E ApexBridge Skip Redundant Tests
+        type: string
+        required: true
     outputs:
       workflow_output:
         description: E2E ApexBridge Tests output
@@ -88,6 +92,7 @@ jobs:
         run: make test-e2e-apex-bridge
         env: 
           RUN_E2E_BIG_TESTS: ${{ inputs.e2e_apex_big_test }}
+          SKIP_E2E_REDUNDANT_TESTS: ${{ inputs.e2e_apex_skip_redundant_tests }}
       - name: Run tests failed
         if: failure()
         id: run_e2e_apex_failure

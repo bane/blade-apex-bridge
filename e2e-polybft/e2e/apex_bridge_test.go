@@ -43,6 +43,8 @@ func Test_OnlyRunApexBridge_WithNexusAndVector(t *testing.T) {
 		cardanofw.WithNexusEnabled(true),
 	)
 
+	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+
 	oracleAPI, err := apex.Bridge.GetBridgingAPI()
 	require.NoError(t, err)
 
@@ -99,6 +101,9 @@ func TestE2E_ApexBridge_DoNothingWithSpecificUser(t *testing.T) {
 	defer cncl()
 
 	apex := cardanofw.RunApexBridge(t, ctx)
+
+	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+
 	user := apex.CreateAndFundExistingUser(
 		t, ctx,
 		"58201825bce09711e1563fc1702587da6892d1d869894386323bd4378ea5e3d6cba0",
@@ -120,6 +125,10 @@ func TestE2E_ApexBridge_DoNothingWithSpecificUser(t *testing.T) {
 }
 
 func TestE2E_ApexBridge_CardanoOracleState(t *testing.T) {
+	if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		t.Skip()
+	}
+
 	const (
 		apiKey = "my_api_key"
 	)
@@ -132,6 +141,8 @@ func TestE2E_ApexBridge_CardanoOracleState(t *testing.T) {
 		cardanofw.WithAPIKey(apiKey),
 		cardanofw.WithAPIValidatorID(-1),
 	)
+
+	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
 
 	apiURLs, err := apex.Bridge.GetBridgingAPIs()
 	require.NoError(t, err)
@@ -197,10 +208,17 @@ func TestE2E_ApexBridge_CardanoOracleState(t *testing.T) {
 }
 
 func TestE2E_ApexBridge(t *testing.T) {
+	if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		t.Skip()
+	}
+
 	ctx, cncl := context.WithTimeout(context.Background(), time.Second*180)
 	defer cncl()
 
 	apex := cardanofw.RunApexBridge(t, ctx)
+
+	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+
 	user := apex.CreateAndFundUser(t, ctx, uint64(5_000_000))
 
 	txProviderPrime := apex.GetPrimeTxProvider()
@@ -223,6 +241,10 @@ func TestE2E_ApexBridge(t *testing.T) {
 }
 
 func TestE2E_ApexBridge_BatchRecreated(t *testing.T) {
+	if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		t.Skip()
+	}
+
 	const (
 		apiKey = "test_api_key"
 	)
@@ -236,6 +258,9 @@ func TestE2E_ApexBridge_BatchRecreated(t *testing.T) {
 		cardanofw.WithVectorTTL(30, 1),
 		cardanofw.WithAPIKey(apiKey),
 	)
+
+	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+
 	user := apex.CreateAndFundUser(t, ctx, uint64(5_000_000))
 
 	txProviderPrime := apex.GetPrimeTxProvider()
@@ -312,6 +337,9 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 		t, ctx,
 		cardanofw.WithAPIKey(apiKey),
 	)
+
+	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+
 	user := apex.CreateAndFundUser(t, ctx, uint64(50_000_000))
 
 	txProviderPrime := apex.GetPrimeTxProvider()
@@ -645,6 +673,9 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 		cardanofw.WithPrimeClusterConfig(primeClusterConfig),
 		cardanofw.WithVectorClusterConfig(vectorClusterConfig),
 	)
+
+	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+
 	user := apex.CreateAndFundUser(t, ctx, uint64(20_000_000_000))
 
 	txProviderPrime := apex.GetPrimeTxProvider()
@@ -669,6 +700,10 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 	fmt.Println("vector fee addr: ", apex.Bridge.VectorMultisigFeeAddr)
 
 	t.Run("From prime to vector one by one - wait for other side", func(t *testing.T) {
+		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+			t.Skip()
+		}
+
 		const (
 			sendAmount = uint64(1_000_000)
 			instances  = 5
@@ -696,6 +731,10 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("From prime to vector one by one", func(t *testing.T) {
+		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+			t.Skip()
+		}
+
 		const (
 			sendAmount = uint64(1_000_000)
 			instances  = 5
@@ -720,6 +759,10 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 	//nolint:dupl
 	t.Run("From prime to vector parallel", func(t *testing.T) {
+		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+			t.Skip()
+		}
+
 		const (
 			sendAmount = uint64(1_000_000)
 			instances  = 5
@@ -753,6 +796,10 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("From vector to prime one by one", func(t *testing.T) {
+		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+			t.Skip()
+		}
+
 		const (
 			sendAmount = uint64(1_000_000)
 			instances  = 5
@@ -777,6 +824,10 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 	//nolint:dupl
 	t.Run("From vector to prime parallel", func(t *testing.T) {
+		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+			t.Skip()
+		}
+
 		const (
 			instances  = 5
 			sendAmount = uint64(1_000_000)
@@ -810,6 +861,10 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("From prime to vector sequential and parallel", func(t *testing.T) {
+		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+			t.Skip()
+		}
+
 		const (
 			sequentialInstances = 5
 			parallelInstances   = 10
@@ -849,6 +904,10 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("From prime to vector sequential and parallel with max receivers", func(t *testing.T) {
+		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+			t.Skip()
+		}
+
 		const (
 			sequentialInstances = 5
 			parallelInstances   = 10
@@ -916,6 +975,10 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("Both directions sequential", func(t *testing.T) {
+		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+			t.Skip()
+		}
+
 		const (
 			instances  = 5
 			sendAmount = uint64(1_000_000)
@@ -1262,6 +1325,9 @@ func TestE2E_ApexBridge_ValidScenarios_BigTests(t *testing.T) {
 		t, ctx,
 		cardanofw.WithAPIKey(apiKey),
 	)
+
+	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+
 	user := apex.CreateAndFundUser(t, ctx, uint64(20_000_000_000))
 
 	txProviderPrime := apex.GetPrimeTxProvider()
