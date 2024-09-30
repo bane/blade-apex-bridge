@@ -1153,5 +1153,6 @@ func createTestBridge(t *testing.T, state *State) Bridge {
 	return &bridge{
 		bridgeManagers: map[uint64]BridgeManager{1: manager},
 		state:          state,
+		relayer:        &dummyBridgeEventRelayer{},
 	}
 }

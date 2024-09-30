@@ -18,8 +18,6 @@ var (
 	bridgeBatchBucket = []byte("bridgeBatches")
 	// bucket to store message votes (signatures)
 	messageVotesBucket = []byte("votes")
-	// bucket to store all bridge event relayer events
-	stateSyncRelayerEventsBucket = []byte("bridgeMsgRelayerEvents")
 
 	// errNotEnoughBridgeEvents error message
 	errNotEnoughBridgeEvents = errors.New("there is either a gap or not enough bridge events")
@@ -47,9 +45,10 @@ type BridgeMessageStore struct {
 
 // initialize creates necessary buckets in DB if they don't already exist
 func (bms *BridgeMessageStore) initialize(tx *bolt.Tx) error {
-	var err error
-
-	var bridgeMessageBucket, bridgeBatchesBucket, stateSyncRelayerBucket *bolt.Bucket
+	var (
+		err                                      error
+		bridgeMessageBucket, bridgeBatchesBucket *bolt.Bucket
+	)
 
 	if bridgeMessageBucket, err = tx.CreateBucketIfNotExists(bridgeMessageEventsBucket); err != nil {
 		return fmt.Errorf("failed to create bucket=%s: %w", string(bridgeMessageEventsBucket), err)
@@ -57,10 +56,6 @@ func (bms *BridgeMessageStore) initialize(tx *bolt.Tx) error {
 
 	if bridgeBatchesBucket, err = tx.CreateBucketIfNotExists(bridgeBatchBucket); err != nil {
 		return fmt.Errorf("failed to create bucket=%s: %w", string(bridgeBatchBucket), err)
-	}
-
-	if stateSyncRelayerBucket, err = tx.CreateBucketIfNotExists(stateSyncRelayerEventsBucket); err != nil {
-		return fmt.Errorf("failed to create bucket=%s: %w", string(stateSyncRelayerEventsBucket), err)
 	}
 
 	for _, chainID := range bms.chainIDs {
@@ -72,10 +67,6 @@ func (bms *BridgeMessageStore) initialize(tx *bolt.Tx) error {
 
 		if _, err := bridgeBatchesBucket.CreateBucketIfNotExists(chainIDBytes); err != nil {
 			return fmt.Errorf("failed to create bucket chainID=%s: %w", string(bridgeBatchBucket), err)
-		}
-
-		if _, err := stateSyncRelayerBucket.CreateBucketIfNotExists(chainIDBytes); err != nil {
-			return fmt.Errorf("failed to create bucket chainID=%s: %w", string(stateSyncRelayerEventsBucket), err)
 		}
 	}
 
@@ -98,12 +89,12 @@ func (bms *BridgeMessageStore) insertBridgeMessageEvent(event *contractsapi.Brid
 
 // removeBridgeEvents removes bridge events and their proofs from the buckets in db
 func (bms *BridgeMessageStore) removeBridgeEvents(
-	bridgeMessageEventIDs *contractsapi.BridgeMessageResultEvent) error {
+	bridgeMessageResult contractsapi.BridgeMessageResultEvent) error {
 	return bms.db.Update(func(tx *bolt.Tx) error {
 		eventsBucket := tx.Bucket(bridgeMessageEventsBucket).
-			Bucket(common.EncodeUint64ToBytes(bridgeMessageEventIDs.SourceChainID.Uint64()))
+			Bucket(common.EncodeUint64ToBytes(bridgeMessageResult.SourceChainID.Uint64()))
 
-		bridgeMessageID := bridgeMessageEventIDs.Counter.Uint64()
+		bridgeMessageID := bridgeMessageResult.Counter.Uint64()
 		bridgeMessageEventIDKey := common.EncodeUint64ToBytes(bridgeMessageID)
 
 		if err := eventsBucket.Delete(bridgeMessageEventIDKey); err != nil {
@@ -342,97 +333,4 @@ func (bms *BridgeMessageStore) getMessageVotesLocked(tx *bolt.Tx, epoch uint64,
 	}
 
 	return signatures, nil
-}
-
-// updateRelayerEvents updates/remove desired state sync relayer events
-func (bms *BridgeMessageStore) UpdateRelayerEvents(
-	events []*RelayerEventMetaData, removeIDs []*RelayerEventMetaData, dbTx *bolt.Tx) error {
-	return updateRelayerEvents(stateSyncRelayerEventsBucket, events, removeIDs, bms.db, dbTx)
-}
-
-// getAllAvailableRelayerEvents retrieves all StateSync RelayerEventData that should be sent as a transactions
-func (bms *BridgeMessageStore) GetAllAvailableRelayerEvents(limit int) (result []*RelayerEventMetaData, err error) {
-	for _, chainID := range bms.chainIDs {
-		if err = bms.db.View(func(tx *bolt.Tx) error {
-			result, err = getAvailableRelayerEvents(limit, stateSyncRelayerEventsBucket, tx, chainID)
-			if err != nil {
-				return err
-			}
-
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-	}
-
-	return result, nil
-}
-
-// getAvailableRelayerEvents retrieves all relayer that should be sent as a transactions
-func getAvailableRelayerEvents(
-	limit int,
-	bucket []byte,
-	tx *bolt.Tx,
-	sourceChainID uint64) (result []*RelayerEventMetaData, err error) {
-	cursor := tx.Bucket(bucket).Bucket(common.EncodeUint64ToBytes(sourceChainID)).Cursor()
-
-	for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
-		var event *RelayerEventMetaData
-
-		if err = json.Unmarshal(v, &event); err != nil {
-			return
-		}
-
-		result = append(result, event)
-
-		if limit > 0 && len(result) >= limit {
-			break
-		}
-	}
-
-	return
-}
-
-// updateRelayerEvents updates/remove desired relayer events
-func updateRelayerEvents(
-	bucket []byte,
-	events []*RelayerEventMetaData,
-	removeIDs []*RelayerEventMetaData,
-	db *bolt.DB,
-	openedTx *bolt.Tx) error {
-	updateFn := func(tx *bolt.Tx) error {
-		for _, event := range events {
-			relayerEventsBucket := tx.Bucket(bucket).Bucket(common.EncodeUint64ToBytes(event.SourceChainID))
-
-			raw, err := json.Marshal(event)
-			if err != nil {
-				return err
-			}
-
-			key := common.EncodeUint64ToBytes(event.EventID)
-
-			if err := relayerEventsBucket.Put(key, raw); err != nil {
-				return err
-			}
-		}
-
-		for _, event := range removeIDs {
-			relayerEventsBucket := tx.Bucket(bucket).Bucket(common.EncodeUint64ToBytes(event.SourceChainID))
-			eventIDKey := common.EncodeUint64ToBytes(event.EventID)
-
-			if err := relayerEventsBucket.Delete(eventIDKey); err != nil {
-				return fmt.Errorf("failed to remove relayer event (ID=%d): %w", event.EventID, err)
-			}
-		}
-
-		return nil
-	}
-
-	if openedTx == nil {
-		return db.Update(func(tx *bolt.Tx) error {
-			return updateFn(tx)
-		})
-	}
-
-	return updateFn(openedTx)
 }

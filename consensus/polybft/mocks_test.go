@@ -1,9 +1,11 @@
 package polybft
 
 import (
+	"math/big"
 	"time"
 
 	"github.com/0xPolygon/polygon-edge/blockchain"
+	"github.com/0xPolygon/polygon-edge/consensus/polybft/contractsapi"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/validator"
 	"github.com/0xPolygon/polygon-edge/helper/progress"
 	"github.com/0xPolygon/polygon-edge/state"
@@ -241,6 +243,38 @@ func (m *systemStateMock) GetNextCommittedIndex(chainID uint64, chainType ChainT
 	}
 
 	return 0, nil
+}
+
+func (m *systemStateMock) GetBridgeBatchByNumber(numberOfBatch *big.Int) (
+	*contractsapi.SignedBridgeMessageBatch, error) {
+	args := m.Called()
+	if len(args) == 1 {
+		batch, _ := args.Get(0).(contractsapi.SignedBridgeMessageBatch)
+
+		return &batch, nil
+	} else if len(args) == 2 {
+		batch, _ := args.Get(0).(contractsapi.SignedBridgeMessageBatch)
+
+		return &batch, args.Error(1)
+	}
+
+	return &contractsapi.SignedBridgeMessageBatch{}, nil
+}
+
+func (m *systemStateMock) GetValidatorSetByNumber(numberOfValidatorSet *big.Int) (
+	*contractsapi.SignedValidatorSet, error) {
+	args := m.Called()
+	if len(args) == 1 {
+		validatorSet, _ := args.Get(0).(contractsapi.SignedValidatorSet)
+
+		return &validatorSet, nil
+	} else if len(args) == 2 {
+		batch, _ := args.Get(0).(contractsapi.SignedValidatorSet)
+
+		return &batch, args.Error(1)
+	}
+
+	return &contractsapi.SignedValidatorSet{}, nil
 }
 
 func (m *systemStateMock) GetEpoch() (uint64, error) {

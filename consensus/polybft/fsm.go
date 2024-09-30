@@ -49,6 +49,14 @@ var (
 	errValidatorSetDeltaMismatch           = errors.New("validator set delta mismatch")
 	errValidatorsUpdateInNonEpochEnding    = errors.New("trying to update validator set in a non epoch ending block")
 	errValidatorDeltaNilInEpochEndingBlock = errors.New("validator set delta is nil in epoch ending block")
+	errBridgeBatchTxExists                 = errors.New("only one bridge batch tx is allowed per block")
+	errBridgeBatchTxInNonSprintBlock       = errors.New("bridge batch tx is not allowed in non-sprint block")
+	errCommitValidatorSetExists            = errors.New("only one commit validator set tx is allowed per block")
+	errCommitValidatorSetTxNotExpected     = errors.New("commit validator set tx is not expected " +
+		"in non epoch ending block")
+	errCommitValidatorSetTxInvalid      = errors.New("commit validator set tx is invalid")
+	errCommitValidatorSetTxDoesNotExist = errors.New("commit validator set tx is not found in the epoch ending block " +
+		"even though new validator set delta is not empty")
 )
 
 type fsm struct {
@@ -140,6 +148,19 @@ func (f *fsm) BuildProposal(currentRound uint64) ([]byte, error) {
 		if err := f.blockBuilder.WriteTx(tx); err != nil {
 			return nil, fmt.Errorf("failed to apply commit epoch transaction: %w", err)
 		}
+
+		nextValidators, err = nextValidators.ApplyDelta(f.newValidatorsDelta)
+		if err != nil {
+			return nil, err
+		}
+
+		extra.Validators = f.newValidatorsDelta
+
+		if f.config.IsBridgeEnabled() && !f.newValidatorsDelta.IsEmpty() {
+			if err := f.applyValidatorSetCommitTx(nextValidators, extra); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	if isRewardDistributionBlock(f.forks, f.isFirstBlockOfEpoch, f.isEndOfEpoch, f.Height()) {
@@ -162,38 +183,10 @@ func (f *fsm) BuildProposal(currentRound uint64) ([]byte, error) {
 	// fill the block with transactions
 	f.blockBuilder.Fill()
 
-	if f.isEndOfEpoch {
-		nextValidators, err = nextValidators.ApplyDelta(f.newValidatorsDelta)
-		if err != nil {
-			return nil, err
-		}
-
-		extra.Validators = f.newValidatorsDelta
-
-		if f.config.IsBridgeEnabled() && !f.newValidatorsDelta.IsEmpty() {
-			if err := f.applyValidatorSetCommitTx(nextValidators, extra); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	currentValidatorsHash, err := f.validators.Accounts().Hash()
-	if err != nil {
-		return nil, err
-	}
-
-	nextValidatorsHash, err := nextValidators.Hash()
-	if err != nil {
-		return nil, err
-	}
-
 	extra.BlockMetaData = &BlockMetaData{
 		BlockRound:  currentRound,
 		EpochNumber: f.epochNumber,
 	}
-
-	f.logger.Trace("[FSM.BuildProposal]", "Current validators hash", currentValidatorsHash,
-		"Next validators hash", nextValidatorsHash)
 
 	stateBlock, err := f.blockBuilder.Build(func(h *types.Header) {
 		h.ExtraData = extra.MarshalRLPTo(nil)
@@ -281,18 +274,6 @@ func (f *fsm) applyValidatorSetCommitTx(nextValidators validator.AccountSet, ext
 	tx := createStateTransactionWithData(contracts.BridgeStorageContract, input)
 
 	return f.blockBuilder.WriteTx(tx)
-}
-
-// getValidatorsTransition applies delta to the current validators,
-func (f *fsm) getValidatorsTransition(delta *validator.ValidatorSetDelta) (validator.AccountSet, error) {
-	nextValidators, err := f.validators.Accounts().ApplyDelta(delta)
-	if err != nil {
-		return nil, err
-	}
-
-	f.logger.Debug("getValidatorsTransition", "Next validators", nextValidators)
-
-	return nextValidators, nil
 }
 
 // createCommitEpochTx create a StateTransaction, which invokes ValidatorSet smart contract
@@ -466,6 +447,7 @@ func (f *fsm) VerifyStateTransactions(transactions []*types.Transaction) error {
 		bridgeBatchTxExists       bool
 		commitEpochTxExists       bool
 		distributeRewardsTxExists bool
+		commitValidatorSetExists  bool
 	)
 
 	for _, tx := range transactions {
@@ -481,11 +463,11 @@ func (f *fsm) VerifyStateTransactions(transactions []*types.Transaction) error {
 		switch stateTxData := decodedStateTx.(type) {
 		case *BridgeBatchSigned:
 			if !f.isEndOfSprint {
-				return fmt.Errorf("found bridge batch tx in a non-sprint block (tx hash=%s)", tx.Hash())
+				return errBridgeBatchTxInNonSprintBlock
 			}
 
 			if bridgeBatchTxExists {
-				return fmt.Errorf("only one bridge batch tx is allowed per block (tx hash=%s)", tx.Hash())
+				return errBridgeBatchTxExists
 			}
 
 			bridgeBatchTxExists = true
@@ -519,6 +501,19 @@ func (f *fsm) VerifyStateTransactions(transactions []*types.Transaction) error {
 			if err := f.verifyDistributeRewardsTx(tx); err != nil {
 				return fmt.Errorf("error while verifying distribute rewards transaction. error: %w", err)
 			}
+		case *contractsapi.CommitValidatorSetBridgeStorageFn:
+			if commitValidatorSetExists {
+				// if we already validated commit validator set tx,
+				// that means someone added more than one commit validator set tx to block,
+				// which is invalid
+				return errCommitValidatorSetExists
+			}
+
+			commitValidatorSetExists = true
+
+			if err := f.verifyCommitValidatorSetTx(stateTxData); err != nil {
+				return fmt.Errorf("error while verifying commit validator set transaction. error: %w", err)
+			}
 		default:
 			return fmt.Errorf("invalid state transaction data type: %v", stateTxData)
 		}
@@ -529,6 +524,12 @@ func (f *fsm) VerifyStateTransactions(transactions []*types.Transaction) error {
 			// this is a check if commit epoch transaction is not in the list of transactions at all
 			// but it should be
 			return errCommitEpochTxDoesNotExist
+		}
+
+		if f.newValidatorsDelta != nil && !f.newValidatorsDelta.IsEmpty() && !commitValidatorSetExists {
+			// this is a check if commit validator set transaction is not in the list of transactions at all
+			// but it should be if this is the end of epoch and new validator set delta is not empty
+			return errCommitValidatorSetTxDoesNotExist
 		}
 	}
 
@@ -670,6 +671,49 @@ func (f *fsm) verifyDistributeRewardsTx(distributeRewardsTx *types.Transaction) 
 	}
 
 	return errDistributeRewardsTxNotExpected
+}
+
+// verifyCommitValidatorSetTx verifies commit validator set state transaction
+func (f *fsm) verifyCommitValidatorSetTx(commitValidatorSetTx *contractsapi.CommitValidatorSetBridgeStorageFn) error {
+	if !f.isEndOfEpoch {
+		return errCommitValidatorSetTxNotExpected
+	}
+
+	if f.newValidatorsDelta == nil || f.newValidatorsDelta.IsEmpty() {
+		return errCommitValidatorSetTxInvalid
+	}
+
+	expectedValidators, err := f.validators.Accounts().ApplyDelta(f.newValidatorsDelta)
+	if err != nil {
+		return err
+	}
+
+	txValidators := commitValidatorSetTx.GetValidatorsAsMap()
+
+	for _, expectedValidator := range expectedValidators {
+		txValidator, exists := txValidators[expectedValidator.Address]
+		if !exists {
+			return fmt.Errorf("validator %s is missing in the commit validator set transaction",
+				expectedValidator.Address.String())
+		}
+
+		if expectedValidator.VotingPower.Cmp(txValidator.VotingPower) != 0 {
+			return fmt.Errorf("voting power mismatch for validator %s. Expected %s, but got %s",
+				expectedValidator.Address.String(), expectedValidator.VotingPower.String(), txValidator.VotingPower.String())
+		}
+
+		expectedValidatorBlsKey := expectedValidator.BlsKey.ToBigInt()
+		txValidatorBlsKey := txValidator.BlsKey
+
+		for i := range expectedValidatorBlsKey {
+			if expectedValidatorBlsKey[i].Cmp(txValidatorBlsKey[i]) != 0 {
+				return fmt.Errorf("BLS key mismatch for validator %s at index %d. Expected %s, but got %s",
+					expectedValidator.Address.String(), i, expectedValidatorBlsKey[i].String(), txValidatorBlsKey[i].String())
+			}
+		}
+	}
+
+	return nil
 }
 
 // verifyBridgeBatchTx validates bridge batch transaction

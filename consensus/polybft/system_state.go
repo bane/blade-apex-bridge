@@ -33,6 +33,10 @@ type SystemState interface {
 	GetEpoch() (uint64, error)
 	// GetNextCommittedIndex retrieves next committed bridge message index, based on the chain type
 	GetNextCommittedIndex(chainID uint64, chainType ChainType) (uint64, error)
+	// GetBridgeBatchByNumber return bridge batch by number
+	GetBridgeBatchByNumber(numberOfBatch *big.Int) (*contractsapi.SignedBridgeMessageBatch, error)
+	// GetValidatorSetByNumber return validator set by number
+	GetValidatorSetByNumber(numberOfValidatorSet *big.Int) (*contractsapi.SignedValidatorSet, error)
 }
 
 var _ SystemState = &SystemStateImpl{}
@@ -101,4 +105,41 @@ func (s *SystemStateImpl) GetNextCommittedIndex(chainID uint64, chainType ChainT
 	}
 
 	return nextCommittedIndex.Uint64() + 1, nil
+}
+
+func (s *SystemStateImpl) GetBridgeBatchByNumber(numberOfBatch *big.Int) (
+	*contractsapi.SignedBridgeMessageBatch, error) {
+	rawResult, err := s.bridgeStorageContract.Call(
+		"batches",
+		ethgo.Latest,
+		numberOfBatch)
+	if err != nil {
+		return nil, err
+	}
+
+	bridgeBatch, isOk := rawResult["0"].(*contractsapi.SignedBridgeMessageBatch)
+	if !isOk {
+		return nil, fmt.Errorf("failed to decode bridge batch")
+	}
+
+	return bridgeBatch, nil
+}
+
+func (s *SystemStateImpl) GetValidatorSetByNumber(numberOfValidatorSet *big.Int) (
+	*contractsapi.SignedValidatorSet, error) {
+	rawResult, err := s.bridgeStorageContract.Call(
+		"commitedValidatorSets",
+		ethgo.Latest,
+		numberOfValidatorSet,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	validatorSet, isOk := rawResult["0"].(*contractsapi.SignedValidatorSet)
+	if !isOk {
+		return nil, fmt.Errorf("failed to decode bridge batch")
+	}
+
+	return validatorSet, err
 }

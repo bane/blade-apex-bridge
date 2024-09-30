@@ -14,6 +14,7 @@ type bridge struct {
 	bridgeManagers  map[uint64]BridgeManager
 	state           *State
 	internalChainID uint64
+	relayer         BridgeEventRelayer
 }
 
 // Bridge is an interface that defines functions that a bridge must implement
@@ -22,7 +23,6 @@ type Bridge interface {
 	PostBlock(req *PostBlockRequest) error
 	PostEpoch(req *PostEpochRequest) error
 	BridgeBatch(pendingBlockNumber uint64) ([]*BridgeBatchSigned, error)
-	InsertEpoch(epoch uint64, tx *bolt.Tx) error
 }
 
 var _ Bridge = (*dummyBridge)(nil)
@@ -50,14 +50,29 @@ func newBridge(runtime Runtime,
 		internalChainID: internalChainID,
 	}
 
-	for externalChainID := range runtimeConfig.GenesisConfig.Bridge {
-		bridgeManager, err := newBridgeManager(runtime, runtimeConfig, eventProvider,
-			logger, externalChainID, internalChainID)
-		if err != nil {
-			return nil, err
-		}
-
+	for externalChainID, cfg := range runtimeConfig.GenesisConfig.Bridge {
+		bridgeManager := newBridgeManager(logger, runtimeConfig.State, &bridgeEventManagerConfig{
+			bridgeCfg:         cfg,
+			topic:             runtimeConfig.bridgeTopic,
+			key:               runtimeConfig.Key,
+			maxNumberOfEvents: maxNumberOfEvents,
+		}, runtime, externalChainID, internalChainID)
 		bridge.bridgeManagers[externalChainID] = bridgeManager
+
+		if err := bridgeManager.Start(runtimeConfig); err != nil {
+			return nil, fmt.Errorf("error starting bridge manager for chainID: %d, err: %w", externalChainID, err)
+		}
+	}
+
+	relayer, err := newBridgeEventRelayer(runtimeConfig, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	bridge.relayer = relayer
+
+	if err := relayer.Start(runtimeConfig, eventProvider); err != nil {
+		return nil, fmt.Errorf("error starting bridge event relayer, err: %w", err)
 	}
 
 	return bridge, nil
@@ -68,13 +83,15 @@ func (b *bridge) Close() {
 	for _, bridgeManager := range b.bridgeManagers {
 		bridgeManager.Close()
 	}
+
+	b.relayer.Close()
 }
 
 // PostBlock is a function executed on every block finalization (either by consensus or syncer)
 // and calls PostBlock in each bridge manager
 func (b bridge) PostBlock(req *PostBlockRequest) error {
 	for chainID, bridgeManager := range b.bridgeManagers {
-		if err := bridgeManager.PostBlock(req); err != nil {
+		if err := bridgeManager.PostBlock(); err != nil {
 			return fmt.Errorf("erorr bridge post block, chainID: %d, err: %w", chainID, err)
 		}
 	}
@@ -95,10 +112,6 @@ func (b *bridge) PostEpoch(req *PostEpochRequest) error {
 		}
 	}
 
-	if err := b.InsertEpoch(req.NewEpochID, req.DBTx); err != nil {
-		return fmt.Errorf("error inserting epoch to external, err: %w", err)
-	}
-
 	return nil
 }
 
@@ -116,15 +129,4 @@ func (b *bridge) BridgeBatch(pendingBlockNumber uint64) ([]*BridgeBatchSigned, e
 	}
 
 	return bridgeBatches, nil
-}
-
-// InsertEpoch calls InsertEpoch in each bridge manager on chain
-func (b *bridge) InsertEpoch(epoch uint64, dbTx *bolt.Tx) error {
-	for _, brigeManager := range b.bridgeManagers {
-		if err := brigeManager.InsertEpoch(epoch, dbTx); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
