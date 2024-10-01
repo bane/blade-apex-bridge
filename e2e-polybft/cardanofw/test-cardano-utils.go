@@ -23,7 +23,7 @@ const (
 	ChainTypeCardano = iota
 	ChainTypeEVM
 
-	InvalidState = "InvalidRequest"
+	BridgingRequestStatusInvalidRequest = "InvalidRequest"
 
 	retryWait       = time.Millisecond * 1000
 	retriesMaxCount = 10
@@ -193,7 +193,7 @@ func SplitString(s string, mxlen int) (res []string) {
 	return res
 }
 
-func WaitForRequestState(expectedState string, ctx context.Context, requestURL string, apiKey string,
+func WaitForRequestStates(expectedStates []string, ctx context.Context, requestURL string, apiKey string,
 	timeout uint) (string, error) {
 	var (
 		currentState *BridgingRequestStateResponse
@@ -229,21 +229,29 @@ func WaitForRequestState(expectedState string, ctx context.Context, requestURL s
 
 		fmt.Println(currentState.Status)
 
-		if strings.Compare(currentState.Status, expectedState) == 0 {
+		if len(expectedStates) == 0 {
 			return currentState.Status, nil
+		}
+
+		for _, expectedState := range expectedStates {
+			if strings.Compare(currentState.Status, expectedState) == 0 {
+				return currentState.Status, nil
+			}
 		}
 	}
 }
 
-func WaitForInvalidState(t *testing.T, ctx context.Context, apiURL string, apiKey string, txHash string) {
+func WaitForInvalidState(
+	t *testing.T, ctx context.Context, apiURL string, apiKey string, chainID string, txHash string) {
 	t.Helper()
 
 	requestURL := fmt.Sprintf(
-		"%s/api/BridgingRequestState/Get?chainId=%s&txHash=%s", apiURL, "prime", txHash)
+		"%s/api/BridgingRequestState/Get?chainId=%s&txHash=%s", apiURL, chainID, txHash)
 
-	state, err := WaitForRequestState(InvalidState, ctx, requestURL, apiKey, 300)
+	state, err := WaitForRequestStates(
+		[]string{BridgingRequestStatusInvalidRequest}, ctx, requestURL, apiKey, 300)
 	require.NoError(t, err)
-	require.Equal(t, InvalidState, state)
+	require.Equal(t, BridgingRequestStatusInvalidRequest, state)
 }
 
 func GetBridgingRequestState(ctx context.Context, requestURL string, apiKey string) (

@@ -363,7 +363,7 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 
 		apiURL, err := apex.Bridge.GetBridgingAPI()
 		require.NoError(t, err)
-		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, txHash)
+		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, "prime", txHash)
 	})
 
 	t.Run("Multiple submitters don't have enough funds", func(t *testing.T) {
@@ -386,7 +386,7 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 
 			apiURL, err := apex.Bridge.GetBridgingAPI()
 			require.NoError(t, err)
-			cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, txHash)
+			cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, "prime", txHash)
 		}
 	})
 
@@ -446,7 +446,7 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 		for i := 0; i < instances; i++ {
 			apiURL, err := apex.Bridge.GetBridgingAPI()
 			require.NoError(t, err)
-			cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, txHashes[i])
+			cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, "prime", txHashes[i])
 		}
 	})
 
@@ -511,7 +511,7 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 		requestURL := fmt.Sprintf(
 			"%s/api/BridgingRequestState/Get?chainId=%s&txHash=%s", apiURL, "prime", txHash)
 
-		_, err = cardanofw.WaitForRequestState("InvalidState", ctx, requestURL, apiKey, 60)
+		_, err = cardanofw.WaitForRequestStates(nil, ctx, requestURL, apiKey, 60)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "Timeout")
 	})
@@ -552,7 +552,7 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 
 		apiURL, err := apex.Bridge.GetBridgingAPI()
 		require.NoError(t, err)
-		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, txHash)
+		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, "prime", txHash)
 	})
 
 	t.Run("Submitted invalid metadata - invalid sender", func(t *testing.T) {
@@ -591,7 +591,7 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 
 		apiURL, err := apex.Bridge.GetBridgingAPI()
 		require.NoError(t, err)
-		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, txHash)
+		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, "prime", txHash)
 	})
 
 	t.Run("Submitted invalid metadata - empty tx", func(t *testing.T) {
@@ -616,7 +616,7 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 
 		apiURL, err := apex.Bridge.GetBridgingAPI()
 		require.NoError(t, err)
-		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, txHash)
+		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, "prime", txHash)
 	})
 }
 

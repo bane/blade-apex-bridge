@@ -1586,7 +1586,7 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 		requestURL := fmt.Sprintf(
 			"%s/api/BridgingRequestState/Get?chainId=%s&txHash=%s", apiURL, "prime", txHash)
 
-		_, err = cardanofw.WaitForRequestState("InvalidState", ctx, requestURL, apiKey, 60)
+		_, err = cardanofw.WaitForRequestStates(nil, ctx, requestURL, apiKey, 60)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "Timeout")
 	})
@@ -1630,12 +1630,7 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 		apiURL, err := apex.Bridge.GetBridgingAPI()
 		require.NoError(t, err)
 
-		requestURL := fmt.Sprintf(
-			"%s/api/BridgingRequestState/Get?chainId=%s&txHash=%s", apiURL, "prime", txHash)
-
-		_, err = cardanofw.WaitForRequestState("InvalidState", ctx, requestURL, apiKey, 60)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "Timeout")
+		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, "prime", txHash)
 	})
 
 	t.Run("Submitted invalid metadata - invalid sender", func(t *testing.T) {
@@ -1680,9 +1675,8 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 		requestURL := fmt.Sprintf(
 			"%s/api/BridgingRequestState/Get?chainId=%s&txHash=%s", apiURL, "prime", txHash)
 
-		_, err = cardanofw.WaitForRequestState("InvalidState", ctx, requestURL, apiKey, 60)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "Timeout")
+		_, err = cardanofw.WaitForRequestStates(nil, ctx, requestURL, apiKey, 60)
+		require.NoError(t, err)
 	})
 
 	t.Run("Submitted invalid metadata - emty tx", func(t *testing.T) {
@@ -1716,9 +1710,8 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 		requestURL := fmt.Sprintf(
 			"%s/api/BridgingRequestState/Get?chainId=%s&txHash=%s", apiURL, "prime", txHash)
 
-		_, err = cardanofw.WaitForRequestState("InvalidState", ctx, requestURL, apiKey, 60)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "Timeout")
+		_, err = cardanofw.WaitForRequestStates(nil, ctx, requestURL, apiKey, 60)
+		require.NoError(t, err)
 	})
 }
 

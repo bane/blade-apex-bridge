@@ -31,8 +31,6 @@ const (
 	RunRelayerOnValidatorID = 1
 )
 
-type CardanoBridgeOption func(*TestCardanoBridge)
-
 type TestCardanoBridge struct {
 	dataDirPath string
 
