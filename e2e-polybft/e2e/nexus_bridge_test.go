@@ -1968,6 +1968,139 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 		sendAmountDfm, sendAmountEth = convertToEthValues(1)
 	}
 
+	t.Run("Test insufficient gas price dynamicTx=true", func(t *testing.T) {
+		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+			t.Skip()
+		}
+
+		ctx, cncl := context.WithCancel(context.Background())
+		defer cncl()
+
+		var (
+			failedToExecute int
+			timeout         bool
+		)
+
+		apex := cardanofw.RunApexBridge(
+			t, ctx,
+			cardanofw.WithAPIKey(apiKey),
+			cardanofw.WithVectorEnabled(false),
+			cardanofw.WithNexusEnabled(true),
+			cardanofw.WithCustomConfigHandlers(nil, func(mp map[string]interface{}) {
+				block := cardanofw.GetMapFromInterfaceKey(mp, "chains", "nexus", "config")
+				block["gasFeeCap"] = uint64(10)
+				block["gasTipCap"] = uint64(11)
+			}),
+		)
+
+		initApex(ctx, apex)
+
+		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+			receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
+		require.NoError(t, err)
+
+		fmt.Printf("Tx sent. hash: %s\n", txHash)
+
+		// Check relay failed
+		apiURL, err := apex.Bridge.GetBridgingAPI()
+		require.NoError(t, err)
+
+		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, true)
+
+		require.Equal(t, failedToExecute, 1)
+		require.False(t, timeout)
+
+		// Restart relayer after config fix
+		err = apex.Bridge.StopRelayer()
+		require.NoError(t, err)
+
+		err = cardanofw.UpdateJSONFile(
+			apex.Bridge.GetValidator(t, 0).GetRelayerConfig(),
+			apex.Bridge.GetValidator(t, 0).GetRelayerConfig(),
+			func(mp map[string]interface{}) {
+				block := cardanofw.GetMapFromInterfaceKey(mp, "chains", "nexus", "config")
+				block["gasFeeCap"] = uint64(0)
+				block["gasTipCap"] = uint64(0)
+			},
+			false,
+		)
+		require.NoError(t, err)
+
+		err = apex.Bridge.StartRelayer(ctx)
+		require.NoError(t, err)
+
+		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, false)
+
+		require.LessOrEqual(t, failedToExecute, 1)
+		require.False(t, timeout)
+	})
+
+	t.Run("Test insufficient gas price dynamicTx=false", func(t *testing.T) {
+		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+			t.Skip()
+		}
+
+		ctx, cncl := context.WithCancel(context.Background())
+		defer cncl()
+
+		var (
+			failedToExecute int
+			timeout         bool
+		)
+
+		apex := cardanofw.RunApexBridge(
+			t, ctx,
+			cardanofw.WithAPIKey(apiKey),
+			cardanofw.WithVectorEnabled(false),
+			cardanofw.WithNexusEnabled(true),
+			cardanofw.WithCustomConfigHandlers(nil, func(mp map[string]interface{}) {
+				block := cardanofw.GetMapFromInterfaceKey(mp, "chains", "nexus", "config")
+				block["gasPrice"] = uint64(10)
+				block["dynamicTx"] = bool(false)
+			}),
+		)
+
+		initApex(ctx, apex)
+
+		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+			receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
+		require.NoError(t, err)
+
+		fmt.Printf("Tx sent. hash: %s\n", txHash)
+
+		// Check relay failed
+		apiURL, err := apex.Bridge.GetBridgingAPI()
+		require.NoError(t, err)
+
+		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, true)
+
+		require.Equal(t, failedToExecute, 1)
+		require.False(t, timeout)
+
+		// Restart relayer after config fix
+		err = apex.Bridge.StopRelayer()
+		require.NoError(t, err)
+
+		err = cardanofw.UpdateJSONFile(
+			apex.Bridge.GetValidator(t, 0).GetRelayerConfig(),
+			apex.Bridge.GetValidator(t, 0).GetRelayerConfig(),
+			func(mp map[string]interface{}) {
+				block := cardanofw.GetMapFromInterfaceKey(mp, "chains", "nexus", "config")
+				block["gasPrice"] = uint64(0)
+			},
+			false,
+		)
+		require.NoError(t, err)
+
+		err = apex.Bridge.StartRelayer(ctx)
+		require.NoError(t, err)
+
+		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, false)
+
+		require.LessOrEqual(t, failedToExecute, 1)
+		require.False(t, timeout)
+	})
+
 	t.Run("Test small fee", func(t *testing.T) {
 		ctx, cncl := context.WithCancel(context.Background())
 		defer cncl()
