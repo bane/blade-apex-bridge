@@ -36,7 +36,7 @@ type CardanoWallet struct {
 	MultisigFee *cardanoWallet.Wallet `json:"fee"`
 }
 
-type TestCardanoValidator struct {
+type TestApexValidator struct {
 	ID                     int
 	APIPort                int
 	dataDirPath            string
@@ -46,71 +46,42 @@ type TestCardanoValidator struct {
 	BatcherBN256PrivateKey *bn256.PrivateKey
 }
 
-func NewTestCardanoValidator(
-	dataDirPath string,
-	id int,
-) *TestCardanoValidator {
-	return &TestCardanoValidator{
+func NewTestApexValidator(
+	dataDirPath string, id int, cluster *framework.TestCluster, server *framework.TestServer,
+) *TestApexValidator {
+	return &TestApexValidator{
 		dataDirPath: filepath.Join(dataDirPath, fmt.Sprintf("validator_%d", id)),
 		ID:          id,
+		cluster:     cluster,
+		server:      server,
 	}
 }
 
-func (cv *TestCardanoValidator) SetClusterAndServer(
-	cluster *framework.TestCluster, server *framework.TestServer,
-) error {
-	cv.cluster = cluster
-	cv.server = server
-	// move wallets files
-	srcPath := filepath.Join(cv.dataDirPath, secretsCardano.CardanoFolderLocal)
-	dstPath := filepath.Join(cv.server.DataDir(), secretsCardano.CardanoFolderLocal)
-
-	if err := common.CreateDirSafe(dstPath, 0750); err != nil {
-		return fmt.Errorf("failed to create dst directory: %w", err)
-	}
-
-	files, err := os.ReadDir(srcPath)
-	if err != nil {
-		return fmt.Errorf("failed to read source directory: %w", err)
-	}
-
-	for _, file := range files {
-		sourcePath := filepath.Join(srcPath, file.Name())
-		destPath := filepath.Join(dstPath, file.Name())
-		// Move the file
-		if err := os.Rename(sourcePath, destPath); err != nil {
-			return fmt.Errorf("failed to move file %s: %w", file.Name(), err)
-		}
-	}
-
-	return nil
-}
-
-func (cv *TestCardanoValidator) GetBridgingConfigsDir() string {
+func (cv *TestApexValidator) GetBridgingConfigsDir() string {
 	return filepath.Join(cv.dataDirPath, BridgingConfigsDir)
 }
 
-func (cv *TestCardanoValidator) GetValidatorComponentsConfig() string {
+func (cv *TestApexValidator) GetValidatorComponentsConfig() string {
 	return filepath.Join(cv.GetBridgingConfigsDir(), ValidatorComponentsConfigFileName)
 }
 
-func (cv *TestCardanoValidator) GetRelayerConfig() string {
+func (cv *TestApexValidator) GetRelayerConfig() string {
 	return filepath.Join(cv.GetBridgingConfigsDir(), RelayerConfigFileName)
 }
 
-func (cv *TestCardanoValidator) GetNexusTestDir() string {
+func (cv *TestApexValidator) GetNexusTestDir() string {
 	return filepath.Join(cv.dataDirPath, NexusDir)
 }
 
-func (cv *TestCardanoValidator) CardanoWalletCreate(chainID string) error {
+func (cv *TestApexValidator) CardanoWalletCreate(chainID string) error {
 	return RunCommand(ResolveApexBridgeBinary(), []string{
 		"wallet-create",
 		"--chain", chainID,
-		"--validator-data-dir", cv.dataDirPath,
+		"--validator-data-dir", cv.server.DataDir(),
 	}, os.Stdout)
 }
 
-func (cv *TestCardanoValidator) GetCardanoWallet(chainID string) (*CardanoWallet, error) {
+func (cv *TestApexValidator) GetCardanoWallet(chainID string) (*CardanoWallet, error) {
 	secretsMngr, err := cv.getSecretsManager(cv.dataDirPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load wallet: %w", err)
@@ -132,7 +103,7 @@ func (cv *TestCardanoValidator) GetCardanoWallet(chainID string) (*CardanoWallet
 	return cardanoWallet, nil
 }
 
-func (cv *TestCardanoValidator) RegisterChain(
+func (cv *TestApexValidator) RegisterChain(
 	chainID string,
 	tokenSupply *big.Int,
 	chainType uint8,
@@ -148,7 +119,7 @@ func (cv *TestCardanoValidator) RegisterChain(
 	}, os.Stdout)
 }
 
-func (cv *TestCardanoValidator) GenerateConfigs(
+func (cv *TestApexValidator) GenerateConfigs(
 	primeNetworkAddress string,
 	primeNetworkMagic uint,
 	primeNetworkID uint,
@@ -227,7 +198,7 @@ func (cv *TestCardanoValidator) GenerateConfigs(
 	return common.CreateDirSafe(dbsPath, 0770)
 }
 
-func (cv *TestCardanoValidator) Start(ctx context.Context, runAPI bool) (err error) {
+func (cv *TestApexValidator) Start(ctx context.Context, runAPI bool) (err error) {
 	args := []string{
 		"run-validator-components",
 		"--config", cv.GetValidatorComponentsConfig(),
@@ -242,7 +213,7 @@ func (cv *TestCardanoValidator) Start(ctx context.Context, runAPI bool) (err err
 	return err
 }
 
-func (cv *TestCardanoValidator) Stop() error {
+func (cv *TestApexValidator) Stop() error {
 	if cv.node == nil {
 		return errors.New("validator not started")
 	}
@@ -250,7 +221,7 @@ func (cv *TestCardanoValidator) Stop() error {
 	return cv.node.Stop()
 }
 
-func (cv *TestCardanoValidator) createSpecificWallet(walletType string) error {
+func (cv *TestApexValidator) createSpecificWallet(walletType string) error {
 	return RunCommand(ResolveApexBridgeBinary(), []string{
 		"wallet-create",
 		"--chain", ChainIDNexus,
@@ -259,7 +230,7 @@ func (cv *TestCardanoValidator) createSpecificWallet(walletType string) error {
 	}, os.Stdout)
 }
 
-func (cv *TestCardanoValidator) getBatcherWallet(loadFromBlade bool) (*bn256.PrivateKey, error) {
+func (cv *TestApexValidator) getBatcherWallet(loadFromBlade bool) (*bn256.PrivateKey, error) {
 	secretsMngr, err := cv.getSecretsManager(cv.server.DataDir())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load wallet: %w", err)
@@ -286,7 +257,7 @@ func (cv *TestCardanoValidator) getBatcherWallet(loadFromBlade bool) (*bn256.Pri
 	return bn256, nil
 }
 
-func (cv *TestCardanoValidator) getRelayerWallet() (*crypto.ECDSAKey, error) {
+func (cv *TestApexValidator) getRelayerWallet() (*crypto.ECDSAKey, error) {
 	secretsMngr, err := cv.getSecretsManager(cv.server.DataDir())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load wallet: %w", err)
@@ -312,7 +283,7 @@ func (cv *TestCardanoValidator) getRelayerWallet() (*crypto.ECDSAKey, error) {
 	return pk, nil
 }
 
-func (cv *TestCardanoValidator) getSecretsManager(path string) (secretsCardano.SecretsManager, error) {
+func (cv *TestApexValidator) getSecretsManager(path string) (secretsCardano.SecretsManager, error) {
 	return secretsHelper.CreateSecretsManager(&secretsCardano.SecretsManagerConfig{
 		Path: path,
 		Type: secretsCardano.Local,

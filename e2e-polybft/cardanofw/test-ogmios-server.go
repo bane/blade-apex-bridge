@@ -3,7 +3,6 @@ package cardanofw
 import (
 	"fmt"
 	"io"
-	"testing"
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
 	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
@@ -19,17 +18,12 @@ type TestOgmiosServerConfig struct {
 }
 
 type TestOgmiosServer struct {
-	t *testing.T
-
 	config *TestOgmiosServerConfig
 	node   *framework.Node
 }
 
-func NewOgmiosTestServer(t *testing.T, config *TestOgmiosServerConfig) (*TestOgmiosServer, error) {
-	t.Helper()
-
+func NewOgmiosTestServer(config *TestOgmiosServerConfig) (*TestOgmiosServer, error) {
 	srv := &TestOgmiosServer{
-		t:      t,
 		config: config,
 	}
 

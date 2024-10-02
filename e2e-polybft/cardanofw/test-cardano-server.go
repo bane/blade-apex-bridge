@@ -6,7 +6,6 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"testing"
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
 	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
@@ -24,18 +23,13 @@ type TestCardanoServerConfig struct {
 }
 
 type TestCardanoServer struct {
-	t *testing.T
-
 	config     *TestCardanoServerConfig
 	txProvider cardanowallet.ITxProvider
 	node       *framework.Node
 }
 
-func NewCardanoTestServer(t *testing.T, config *TestCardanoServerConfig) (*TestCardanoServer, error) {
-	t.Helper()
-
+func NewCardanoTestServer(config *TestCardanoServerConfig) (*TestCardanoServer, error) {
 	srv := &TestCardanoServer{
-		t:      t,
 		config: config,
 	}
 
@@ -88,7 +82,12 @@ func (t *TestCardanoServer) Start() error {
 }
 
 func (t *TestCardanoServer) Stat() (bool, *cardanowallet.QueryTipData, error) {
-	queryTipData, err := t.getTxProvider().GetTip(context.Background())
+	txProvider, err := t.getTxProvider()
+	if err != nil {
+		return false, nil, err
+	}
+
+	queryTipData, err := txProvider.GetTip(context.Background())
 	if err != nil {
 		if strings.Contains(err.Error(), "Network.Socket.connect") &&
 			strings.Contains(err.Error(), "does not exist") {
@@ -116,16 +115,16 @@ func (c *TestCardanoServer) NetworkAddress() string {
 	return fmt.Sprintf("localhost:%d", c.config.Port)
 }
 
-func (t *TestCardanoServer) getTxProvider() cardanowallet.ITxProvider {
+func (t *TestCardanoServer) getTxProvider() (cardanowallet.ITxProvider, error) {
 	if t.txProvider == nil {
 		txProvider, err := cardanowallet.NewTxProviderCli(
 			t.config.NetworkMagic, t.SocketPath(), ResolveCardanoCliBinary(t.config.NetworkID))
 		if err != nil {
-			t.t.Fatalf("failed to create tx provider: %s", err.Error())
+			return nil, fmt.Errorf("failed to create tx provider: %w", err)
 		}
 
 		t.txProvider = txProvider
 	}
 
-	return t.txProvider
+	return t.txProvider, nil
 }

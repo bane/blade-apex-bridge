@@ -1,7 +1,6 @@
 package cardanofw
 
 import (
-	"bytes"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -14,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
@@ -41,8 +39,6 @@ func (c *TestCardanoNetworkConfig) IsPrime() bool {
 }
 
 type TestCardanoClusterConfig struct {
-	t *testing.T
-
 	ID int
 	TestCardanoNetworkConfig
 	SecurityParam  int
@@ -55,72 +51,14 @@ type TestCardanoClusterConfig struct {
 	GenesisDir     string
 	StartTimeDelay time.Duration
 
-	WithLogs   bool
-	WithStdout bool
-	LogsDir    string
-	TmpDir     string
+	TmpDir string
 
 	InitialFundsKeys   []string
 	InitialFundsAmount uint64
-
-	logsDirOnce sync.Once
 }
 
 func (c *TestCardanoClusterConfig) Dir(name string) string {
 	return filepath.Join(c.TmpDir, name)
-}
-
-func (c *TestCardanoClusterConfig) GetStdout(name string, custom ...io.Writer) io.Writer {
-	writers := []io.Writer{}
-
-	if c.WithLogs {
-		c.logsDirOnce.Do(func() {
-			if err := c.initLogsDir(); err != nil {
-				c.t.Fatal("GetStdout init logs dir", "err", err)
-			}
-		})
-
-		f, err := os.OpenFile(filepath.Join(c.LogsDir, name+".log"), os.O_RDWR|os.O_APPEND|os.O_CREATE, 0600)
-		if err != nil {
-			c.t.Log("GetStdout open file error", "err", err)
-		} else {
-			writers = append(writers, f)
-
-			c.t.Cleanup(func() {
-				if err := f.Close(); err != nil {
-					c.t.Log("GetStdout close file error", "err", err)
-				}
-			})
-		}
-	}
-
-	if c.WithStdout {
-		writers = append(writers, os.Stdout)
-	}
-
-	if len(custom) > 0 {
-		writers = append(writers, custom...)
-	}
-
-	if len(writers) == 0 {
-		return io.Discard
-	}
-
-	return io.MultiWriter(writers...)
-}
-
-func (c *TestCardanoClusterConfig) initLogsDir() error {
-	if c.LogsDir == "" {
-		logsDir := path.Join("../..", fmt.Sprintf("e2e-logs-cardano-%d", time.Now().UTC().Unix()), c.t.Name())
-		if err := common.CreateDirSafe(logsDir, 0750); err != nil {
-			return err
-		}
-
-		c.t.Logf("logs enabled for e2e test: %s", logsDir)
-		c.LogsDir = logsDir
-	}
-
-	return nil
 }
 
 type TestCardanoCluster struct {
@@ -171,12 +109,6 @@ func WithOgmiosPort(ogmiosPort int) CardanoClusterOption {
 	}
 }
 
-func WithLogsDir(logsDir string) CardanoClusterOption {
-	return func(h *TestCardanoClusterConfig) {
-		h.LogsDir = logsDir
-	}
-}
-
 func WithNetworkMagic(networkMagic uint) CardanoClusterOption {
 	return func(h *TestCardanoClusterConfig) {
 		h.NetworkMagic = networkMagic
@@ -208,15 +140,8 @@ func WithInitialFunds(initialFundsKeys []string, initialFundsAmount uint64) Card
 	}
 }
 
-func NewCardanoTestCluster(t *testing.T, opts ...CardanoClusterOption) (*TestCardanoCluster, error) {
-	t.Helper()
-
-	var err error
-
+func NewCardanoTestCluster(opts ...CardanoClusterOption) (cluster *TestCardanoCluster, err error) {
 	config := &TestCardanoClusterConfig{
-		t:          t,
-		WithLogs:   true,  // strings.ToLower(os.Getenv(e)) == "true"
-		WithStdout: false, // strings.ToLower(os.Getenv(envStdoutEnabled)) == "true"
 		TestCardanoNetworkConfig: TestCardanoNetworkConfig{
 			NetworkType:  wallet.TestNetNetwork,
 			NetworkMagic: 42,
@@ -239,7 +164,7 @@ func NewCardanoTestCluster(t *testing.T, opts ...CardanoClusterOption) (*TestCar
 		return nil, err
 	}
 
-	cluster := &TestCardanoCluster{
+	cluster = &TestCardanoCluster{
 		Servers: []*TestCardanoServer{},
 		Config:  config,
 		failCh:  make(chan struct{}),
@@ -270,7 +195,7 @@ func NewCardanoTestCluster(t *testing.T, opts ...CardanoClusterOption) (*TestCar
 
 	for i := 0; i < cluster.Config.NodesCount; i++ {
 		// time.Sleep(time.Second * 5)
-		err = cluster.NewTestServer(t, i+1, config.Port+i)
+		err = cluster.NewTestServer(i+1, config.Port+i)
 		if err != nil {
 			return nil, err
 		}
@@ -279,10 +204,8 @@ func NewCardanoTestCluster(t *testing.T, opts ...CardanoClusterOption) (*TestCar
 	return cluster, nil
 }
 
-func (c *TestCardanoCluster) NewTestServer(t *testing.T, id int, port int) error {
-	t.Helper()
-
-	srv, err := NewCardanoTestServer(t, &TestCardanoServerConfig{
+func (c *TestCardanoCluster) NewTestServer(id int, port int) error {
+	srv, err := NewCardanoTestServer(&TestCardanoServerConfig{
 		ID:   id,
 		Port: port,
 		//StdOut:       c.Config.GetStdout(fmt.Sprintf("node-%d", id)),
@@ -440,8 +363,6 @@ func (c *TestCardanoCluster) WaitForBlock(
 			return false, nil
 		}
 
-		c.Config.t.Log("WaitForBlock", "tips", tips)
-
 		for _, tip := range tips {
 			if tip.Block < n {
 				return false, nil
@@ -510,16 +431,14 @@ func (c *TestCardanoCluster) WaitForBlockWithState(
 	})
 }
 
-func (c *TestCardanoCluster) StartOgmios(t *testing.T, id int) error {
-	t.Helper()
-
-	srv, err := NewOgmiosTestServer(t, &TestOgmiosServerConfig{
+func (c *TestCardanoCluster) StartOgmios(id int, stdOut io.Writer) error {
+	srv, err := NewOgmiosTestServer(&TestOgmiosServerConfig{
 		ID:         id,
 		ConfigFile: c.Servers[0].config.ConfigFile,
 		NetworkID:  c.Config.NetworkType,
 		Port:       c.Config.OgmiosPort,
 		SocketPath: c.Servers[0].SocketPath(),
-		StdOut:     c.Config.GetStdout(fmt.Sprintf("ogmios-%d", c.Config.ID)),
+		StdOut:     stdOut,
 	})
 	if err != nil {
 		return err
@@ -541,8 +460,6 @@ func (c *TestCardanoCluster) StartOgmios(t *testing.T, id int) error {
 }
 
 func (c *TestCardanoCluster) InitGenesis(startTime int64, genesisDir string) error {
-	var b bytes.Buffer
-
 	fnContent, err := cardanoFiles.ReadFile(filepath.Join("genesis-configuration", genesisDir, "byron-genesis-spec.json"))
 	if err != nil {
 		return err
@@ -567,9 +484,8 @@ func (c *TestCardanoCluster) InitGenesis(startTime int64, genesisDir string) err
 		"--protocol-parameters-file", protParamsFile,
 		"--genesis-output-dir", c.Config.Dir("byron-gen-command"),
 	}
-	stdOut := c.Config.GetStdout("cardano-genesis", &b)
 
-	return RunCommand(ResolveCardanoCliBinary(c.Config.NetworkType), args, stdOut)
+	return RunCommand(ResolveCardanoCliBinary(c.Config.NetworkType), args, os.Stdout)
 }
 
 func (c *TestCardanoCluster) CopyConfigFilesStep1(genesisDir string) error {
@@ -729,13 +645,9 @@ func (c *TestCardanoCluster) CopyConfigFilesAndInitDirectoriesStep2(networkType 
 // Because in Babbage the overlay schedule and decentralization parameter are deprecated,
 // we must use the "create-staked" cli command to create SPOs in the ShelleyGenesis
 func (c *TestCardanoCluster) GenesisCreateStaked(startTime time.Time) error {
-	var b bytes.Buffer
-
 	exprectedErr := fmt.Sprintf(
 		"%d genesis keys, %d non-delegating UTxO keys, %d stake pools, %d delegating UTxO keys, %d delegation map entries",
 		c.Config.NodesCount, c.Config.NodesCount, c.Config.NodesCount, c.Config.NodesCount, c.Config.NodesCount)
-	stdOut := c.Config.GetStdout("cardano-genesis-create-staked", &b)
-
 	args := append([]string{
 		"genesis", "create-staked",
 		"--genesis-dir", c.Config.Dir(""),
@@ -748,7 +660,7 @@ func (c *TestCardanoCluster) GenesisCreateStaked(startTime time.Time) error {
 		"--gen-utxo-keys", strconv.Itoa(c.Config.NodesCount),
 	}, GetTestNetMagicArgs(c.Config.NetworkMagic)...)
 
-	err := RunCommand(ResolveCardanoCliBinary(c.Config.NetworkType), args, stdOut)
+	err := RunCommand(ResolveCardanoCliBinary(c.Config.NetworkType), args, os.Stdout)
 	if strings.Contains(err.Error(), exprectedErr) {
 		return nil
 	}

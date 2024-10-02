@@ -37,14 +37,14 @@ func TestE2E_ApexBridgeWithNexus(t *testing.T) {
 	ctx, cncl := context.WithCancel(context.Background())
 	defer cncl()
 
-	apex := cardanofw.RunApexBridge(
+	apex := cardanofw.SetupAndRunApexBridge(
 		t, ctx,
 		cardanofw.WithAPIKey(apiKey),
 		cardanofw.WithVectorEnabled(false),
 		cardanofw.WithNexusEnabled(true),
 	)
 
-	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+	defer require.True(t, apex.ApexBridgeProcessesRunning())
 
 	t.Run("Sanity check", func(t *testing.T) {
 		sendAmount := uint64(1)
@@ -126,10 +126,10 @@ func TestE2E_ApexBridgeWithNexus(t *testing.T) {
 		fmt.Printf("ETH Amount BEFORE TX %d\n", ethBalanceBefore)
 		require.NoError(t, err)
 
-		relayerBalanceBefore, err := cardanofw.GetAddressEthAmount(ctx, apex.Nexus, apex.Bridge.GetRelayerWalletAddr())
+		relayerBalanceBefore, err := cardanofw.GetAddressEthAmount(ctx, apex.Nexus, apex.GetNexusRelayerWalletAddr())
 		require.NoError(t, err)
 
-		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 			nexusAddress.String(), sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddr)
 		require.NoError(t, err)
 
@@ -147,7 +147,7 @@ func TestE2E_ApexBridgeWithNexus(t *testing.T) {
 		fmt.Printf("ETH Amount AFTER AFTER TX %d\n", ethBalanceAfter)
 		require.NoError(t, err)
 
-		relayerBalanceAfter, err := cardanofw.GetAddressEthAmount(ctx, apex.Nexus, apex.Bridge.GetRelayerWalletAddr())
+		relayerBalanceAfter, err := cardanofw.GetAddressEthAmount(ctx, apex.Nexus, apex.GetNexusRelayerWalletAddr())
 		require.NoError(t, err)
 
 		relayerBalanceGreater := relayerBalanceAfter.Cmp(relayerBalanceBefore) == 1
@@ -167,14 +167,14 @@ func TestE2E_ApexBridgeWithNexus_NtP_ValidScenarios(t *testing.T) {
 	ctx, cncl := context.WithCancel(context.Background())
 	defer cncl()
 
-	apex := cardanofw.RunApexBridge(
+	apex := cardanofw.SetupAndRunApexBridge(
 		t, ctx,
 		cardanofw.WithAPIKey(apiKey),
 		cardanofw.WithVectorEnabled(false),
 		cardanofw.WithNexusEnabled(true),
 	)
 
-	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+	defer require.True(t, apex.ApexBridgeProcessesRunning())
 
 	txProviderPrime := apex.GetPrimeTxProvider()
 
@@ -418,7 +418,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_ValidScenarios(t *testing.T) {
 			case <-ctx.Done():
 				return
 			case <-time.After(stopAfter):
-				require.NoError(t, apex.Bridge.GetValidator(t, validatorStoppingIdx).Stop())
+				require.NoError(t, apex.GetValidator(t, validatorStoppingIdx).Stop())
 			}
 		}()
 
@@ -472,14 +472,14 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 	ctx, cncl := context.WithCancel(context.Background())
 	defer cncl()
 
-	apex := cardanofw.RunApexBridge(
+	apex := cardanofw.SetupAndRunApexBridge(
 		t, ctx,
 		cardanofw.WithAPIKey(apiKey),
 		cardanofw.WithVectorEnabled(false),
 		cardanofw.WithNexusEnabled(true),
 	)
 
-	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+	defer require.True(t, apex.ApexBridgeProcessesRunning())
 
 	fee := new(big.Int).SetUint64(1000010000000000000)
 
@@ -597,14 +597,14 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 	ctx, cncl := context.WithCancel(context.Background())
 	defer cncl()
 
-	apex := cardanofw.RunApexBridge(
+	apex := cardanofw.SetupAndRunApexBridge(
 		t, ctx,
 		cardanofw.WithAPIKey(apiKey),
 		cardanofw.WithVectorEnabled(false),
 		cardanofw.WithNexusEnabled(true),
 	)
 
-	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+	defer require.True(t, apex.ApexBridgeProcessesRunning())
 
 	userPrime := apex.CreateAndFundUser(t, ctx, uint64(500_000_000))
 	require.NotNil(t, userPrime)
@@ -641,7 +641,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 			fmt.Printf("ETH Amount before Tx %d\n", ethBalanceBefore)
 			require.NoError(t, err)
 
-			txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+			txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 				receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 			require.NoError(t, err)
 
@@ -670,7 +670,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 		instances := 5
 
 		for i := 0; i < instances; i++ {
-			txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+			txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 				receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 			require.NoError(t, err)
 
@@ -714,7 +714,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 			go func(idx int) {
 				defer wg.Done()
 
-				txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+				txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 					receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 				require.NoError(t, err)
 
@@ -767,7 +767,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 				go func(sequence, idx int) {
 					defer wg.Done()
 
-					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 						receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 					require.NoError(t, err)
 
@@ -848,7 +848,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 					defer wg.Done()
 
 					txHash, err := cardanofw.BridgeAmountFullMultipleReceiversNexus(ctx, txProviderPrime,
-						apex.PrimeCluster.NetworkConfig(), apex.Bridge.PrimeMultisigAddr, receiverAddrNexus,
+						apex.PrimeCluster.NetworkConfig(), apex.PrimeMultisigAddr, receiverAddrNexus,
 						primeUsers[idx].PrimeWallet, receiverAddresses, sendAmountDfm)
 					require.NoError(t, err)
 
@@ -909,7 +909,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 			case <-ctx.Done():
 				return
 			case <-time.After(stopAfter):
-				require.NoError(t, apex.Bridge.GetValidator(t, validatorStoppingIdx).Stop())
+				require.NoError(t, apex.GetValidator(t, validatorStoppingIdx).Stop())
 			}
 		}()
 
@@ -928,7 +928,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 				go func(sequence, idx int) {
 					defer wg.Done()
 
-					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 						receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 					require.NoError(t, err)
 
@@ -993,7 +993,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 		sendAmountWei := ethgo.Ether(uint64(1))
 
 		for i := 0; i < instances; i++ {
-			txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+			txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 				evmUser.Address().String(), sendAmountDfm, apex.PrimeCluster.NetworkConfig(), evmUser.Address().String())
 			require.NoError(t, err)
 
@@ -1080,7 +1080,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 				go func(run, idx int) {
 					defer wg.Done()
 
-					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 						evmUserReceiver.Address().String(), sendAmountDfm, apex.PrimeCluster.NetworkConfig(), evmUserReceiver.Address().String())
 					require.NoError(t, err)
 
@@ -1191,7 +1191,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 			case <-ctx.Done():
 				return
 			case <-time.After(stopAfter):
-				require.NoError(t, apex.Bridge.GetValidator(t, validatorStoppingIdx).Stop())
+				require.NoError(t, apex.GetValidator(t, validatorStoppingIdx).Stop())
 			}
 		}()
 
@@ -1204,7 +1204,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 				defer wg.Done()
 
 				for j := 0; j < sequentialInstances; j++ {
-					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 						evmUserReceiver.Address().String(), sendAmountDfm, apex.PrimeCluster.NetworkConfig(), evmUserReceiver.Address().String())
 					require.NoError(t, err)
 
@@ -1343,15 +1343,15 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 			case <-ctx.Done():
 				return
 			case <-time.After(stopAfter):
-				require.NoError(t, apex.Bridge.GetValidator(t, validatorStoppingIdx1).Stop())
-				require.NoError(t, apex.Bridge.GetValidator(t, validatorStoppingIdx2).Stop())
+				require.NoError(t, apex.GetValidator(t, validatorStoppingIdx1).Stop())
+				require.NoError(t, apex.GetValidator(t, validatorStoppingIdx2).Stop())
 			}
 
 			select {
 			case <-ctx.Done():
 				return
 			case <-time.After(startAgainAfter):
-				require.NoError(t, apex.Bridge.GetValidator(t, validatorStoppingIdx1).Start(ctx, false))
+				require.NoError(t, apex.GetValidator(t, validatorStoppingIdx1).Start(ctx, false))
 			}
 		}()
 
@@ -1364,7 +1364,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 				defer wg.Done()
 
 				for j := 0; j < sequentialInstances; j++ {
-					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 						evmUserReceiver.Address().String(), sendAmountDfm, apex.PrimeCluster.NetworkConfig(), evmUserReceiver.Address().String())
 					require.NoError(t, err)
 
@@ -1458,14 +1458,14 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 	ctx, cncl := context.WithCancel(context.Background())
 	defer cncl()
 
-	apex := cardanofw.RunApexBridge(
+	apex := cardanofw.SetupAndRunApexBridge(
 		t, ctx,
 		cardanofw.WithAPIKey(apiKey),
 		cardanofw.WithVectorEnabled(false),
 		cardanofw.WithNexusEnabled(true),
 	)
 
-	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+	defer require.True(t, apex.ApexBridgeProcessesRunning())
 
 	userPrime := apex.CreateAndFundUser(t, ctx, uint64(10_000_000))
 	require.NotNil(t, userPrime)
@@ -1476,7 +1476,7 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 	t.Run("Submitter not enough funds", func(t *testing.T) {
 		sendAmountDfm, _ := convertToEthValues(100)
 
-		_, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+		_, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 			receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 		require.ErrorContains(t, err, "not enough funds")
 	})
@@ -1487,7 +1487,7 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 		for i := 0; i < submitters; i++ {
 			sendAmountDfm, _ := convertToEthValues(100)
 
-			_, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+			_, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 				receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 			require.ErrorContains(t, err, "not enough funds")
 		}
@@ -1512,7 +1512,7 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 			go func(idx int) {
 				defer wg.Done()
 
-				_, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+				_, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 					receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 				require.ErrorContains(t, err, "not enough funds")
 			}(i)
@@ -1539,7 +1539,7 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 		bridgingRequestMetadata = bridgingRequestMetadata[0 : len(bridgingRequestMetadata)/2]
 
 		_, err = cardanofw.SendTx(ctx, txProviderPrime, userPrime.PrimeWallet,
-			sendAmountDfm+feeAmount, apex.Bridge.PrimeMultisigAddr,
+			sendAmountDfm+feeAmount, apex.PrimeMultisigAddr,
 			apex.PrimeCluster.NetworkConfig(), bridgingRequestMetadata)
 		require.Error(t, err)
 	})
@@ -1576,11 +1576,11 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		txHash, err := cardanofw.SendTx(ctx, txProviderPrime, userPrime.PrimeWallet,
-			sendAmountDfm+feeAmount, apex.Bridge.PrimeMultisigAddr,
+			sendAmountDfm+feeAmount, apex.PrimeMultisigAddr,
 			apex.PrimeCluster.NetworkConfig(), bridgingRequestMetadata)
 		require.NoError(t, err)
 
-		apiURL, err := apex.Bridge.GetBridgingAPI()
+		apiURL, err := apex.GetBridgingAPI()
 		require.NoError(t, err)
 
 		requestURL := fmt.Sprintf(
@@ -1623,11 +1623,11 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		txHash, err := cardanofw.SendTx(ctx, txProviderPrime, userPrime.PrimeWallet,
-			sendAmountDfm+feeAmount, apex.Bridge.PrimeMultisigAddr,
+			sendAmountDfm+feeAmount, apex.PrimeMultisigAddr,
 			apex.PrimeCluster.NetworkConfig(), bridgingRequestMetadata)
 		require.NoError(t, err)
 
-		apiURL, err := apex.Bridge.GetBridgingAPI()
+		apiURL, err := apex.GetBridgingAPI()
 		require.NoError(t, err)
 
 		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, "prime", txHash)
@@ -1665,11 +1665,11 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		txHash, err := cardanofw.SendTx(ctx, txProviderPrime, userPrime.PrimeWallet,
-			sendAmountDfm+feeAmount, apex.Bridge.PrimeMultisigAddr,
+			sendAmountDfm+feeAmount, apex.PrimeMultisigAddr,
 			apex.PrimeCluster.NetworkConfig(), bridgingRequestMetadata)
 		require.NoError(t, err)
 
-		apiURL, err := apex.Bridge.GetBridgingAPI()
+		apiURL, err := apex.GetBridgingAPI()
 		require.NoError(t, err)
 
 		requestURL := fmt.Sprintf(
@@ -1700,11 +1700,11 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		txHash, err := cardanofw.SendTx(ctx, txProviderPrime, userPrime.PrimeWallet,
-			sendAmountDfm+feeAmount, apex.Bridge.PrimeMultisigAddr,
+			sendAmountDfm+feeAmount, apex.PrimeMultisigAddr,
 			apex.PrimeCluster.NetworkConfig(), bridgingRequestMetadata)
 		require.NoError(t, err)
 
-		apiURL, err := apex.Bridge.GetBridgingAPI()
+		apiURL, err := apex.GetBridgingAPI()
 		require.NoError(t, err)
 
 		requestURL := fmt.Sprintf(
@@ -1727,14 +1727,14 @@ func TestE2E_ApexBridgeWithNexus_ValidScenarios_BigTest(t *testing.T) {
 	ctx, cncl := context.WithCancel(context.Background())
 	defer cncl()
 
-	apex := cardanofw.RunApexBridge(
+	apex := cardanofw.SetupAndRunApexBridge(
 		t, ctx,
 		cardanofw.WithAPIKey(apiKey),
 		cardanofw.WithVectorEnabled(false),
 		cardanofw.WithNexusEnabled(true),
 	)
 
-	defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+	defer require.True(t, apex.ApexBridgeProcessesRunning())
 
 	userPrime := apex.CreateAndFundUser(t, ctx, uint64(500_000_000))
 	require.NotNil(t, userPrime)
@@ -1795,7 +1795,7 @@ func TestE2E_ApexBridgeWithNexus_ValidScenarios_BigTest(t *testing.T) {
 					sleepTime := rand.Intn(maxWaitTime)
 					time.Sleep(time.Second * time.Duration(sleepTime))
 
-					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 						receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 					require.NoError(t, err)
 					fmt.Printf("Tx %v sent. hash: %s\n", idx+1, txHash)
@@ -1811,7 +1811,7 @@ func TestE2E_ApexBridgeWithNexus_ValidScenarios_BigTest(t *testing.T) {
 					require.NoError(t, err)
 
 					txHash, err := cardanofw.SendTx(ctx, txProviderPrime, primeUsers[idx].PrimeWallet,
-						sendAmountDfm+feeAmount, apex.Bridge.PrimeMultisigAddr,
+						sendAmountDfm+feeAmount, apex.PrimeMultisigAddr,
 						apex.PrimeCluster.NetworkConfig(), bridgingRequestMetadata)
 					require.NoError(t, err)
 
@@ -1876,7 +1876,7 @@ func TestE2E_ApexBridgeWithNexus_ValidScenarios_BigTest(t *testing.T) {
 					sleepTime := rand.Intn(maxWaitTime)
 					time.Sleep(time.Second * time.Duration(sleepTime))
 
-					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+					txHash, err := primeUsers[idx].BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 						receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 					require.NoError(t, err)
 					fmt.Printf("Tx %v sent. hash: %s\n", idx+1, txHash)
@@ -1892,7 +1892,7 @@ func TestE2E_ApexBridgeWithNexus_ValidScenarios_BigTest(t *testing.T) {
 					require.NoError(t, err)
 
 					txHash, err := cardanofw.SendTx(ctx, txProviderPrime, primeUsers[idx].PrimeWallet,
-						sendAmountDfm+feeAmount, apex.Bridge.PrimeMultisigAddr,
+						sendAmountDfm+feeAmount, apex.PrimeMultisigAddr,
 						apex.PrimeCluster.NetworkConfig(), bridgingRequestMetadata)
 					require.NoError(t, err)
 
@@ -1974,7 +1974,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			timeout         bool
 		)
 
-		apex := cardanofw.RunApexBridge(
+		apex := cardanofw.SetupAndRunApexBridge(
 			t, ctx,
 			cardanofw.WithAPIKey(apiKey),
 			cardanofw.WithVectorEnabled(false),
@@ -1988,14 +1988,14 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 
 		initApex(ctx, apex)
 
-		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 			receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 		require.NoError(t, err)
 
 		fmt.Printf("Tx sent. hash: %s\n", txHash)
 
 		// Check relay failed
-		apiURL, err := apex.Bridge.GetBridgingAPI()
+		apiURL, err := apex.GetBridgingAPI()
 		require.NoError(t, err)
 
 		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, true)
@@ -2004,12 +2004,12 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 		require.False(t, timeout)
 
 		// Restart relayer after config fix
-		err = apex.Bridge.StopRelayer()
+		err = apex.StopRelayer()
 		require.NoError(t, err)
 
 		err = cardanofw.UpdateJSONFile(
-			apex.Bridge.GetValidator(t, 0).GetRelayerConfig(),
-			apex.Bridge.GetValidator(t, 0).GetRelayerConfig(),
+			apex.GetValidator(t, 0).GetRelayerConfig(),
+			apex.GetValidator(t, 0).GetRelayerConfig(),
 			func(mp map[string]interface{}) {
 				block := cardanofw.GetMapFromInterfaceKey(mp, "chains", "nexus", "config")
 				block["gasFeeCap"] = uint64(0)
@@ -2019,7 +2019,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = apex.Bridge.StartRelayer(ctx)
+		err = apex.StartRelayer(ctx)
 		require.NoError(t, err)
 
 		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, false)
@@ -2041,7 +2041,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			timeout         bool
 		)
 
-		apex := cardanofw.RunApexBridge(
+		apex := cardanofw.SetupAndRunApexBridge(
 			t, ctx,
 			cardanofw.WithAPIKey(apiKey),
 			cardanofw.WithVectorEnabled(false),
@@ -2055,14 +2055,14 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 
 		initApex(ctx, apex)
 
-		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 			receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 		require.NoError(t, err)
 
 		fmt.Printf("Tx sent. hash: %s\n", txHash)
 
 		// Check relay failed
-		apiURL, err := apex.Bridge.GetBridgingAPI()
+		apiURL, err := apex.GetBridgingAPI()
 		require.NoError(t, err)
 
 		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, true)
@@ -2071,12 +2071,12 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 		require.False(t, timeout)
 
 		// Restart relayer after config fix
-		err = apex.Bridge.StopRelayer()
+		err = apex.StopRelayer()
 		require.NoError(t, err)
 
 		err = cardanofw.UpdateJSONFile(
-			apex.Bridge.GetValidator(t, 0).GetRelayerConfig(),
-			apex.Bridge.GetValidator(t, 0).GetRelayerConfig(),
+			apex.GetValidator(t, 0).GetRelayerConfig(),
+			apex.GetValidator(t, 0).GetRelayerConfig(),
 			func(mp map[string]interface{}) {
 				block := cardanofw.GetMapFromInterfaceKey(mp, "chains", "nexus", "config")
 				block["gasPrice"] = uint64(0)
@@ -2085,7 +2085,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = apex.Bridge.StartRelayer(ctx)
+		err = apex.StartRelayer(ctx)
 		require.NoError(t, err)
 
 		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, false)
@@ -2103,7 +2103,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			timeout         bool
 		)
 
-		apex := cardanofw.RunApexBridge(
+		apex := cardanofw.SetupAndRunApexBridge(
 			t, ctx,
 			cardanofw.WithAPIKey(apiKey),
 			cardanofw.WithVectorEnabled(false),
@@ -2115,14 +2115,14 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 
 		initApex(ctx, apex)
 
-		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 			receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 		require.NoError(t, err)
 
 		fmt.Printf("Tx sent. hash: %s\n", txHash)
 
 		// Check relay failed
-		apiURL, err := apex.Bridge.GetBridgingAPI()
+		apiURL, err := apex.GetBridgingAPI()
 		require.NoError(t, err)
 
 		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, true)
@@ -2131,12 +2131,12 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 		require.False(t, timeout)
 
 		// Restart relayer after config fix
-		err = apex.Bridge.StopRelayer()
+		err = apex.StopRelayer()
 		require.NoError(t, err)
 
 		err = cardanofw.UpdateJSONFile(
-			apex.Bridge.GetValidator(t, 0).GetRelayerConfig(),
-			apex.Bridge.GetValidator(t, 0).GetRelayerConfig(),
+			apex.GetValidator(t, 0).GetRelayerConfig(),
+			apex.GetValidator(t, 0).GetRelayerConfig(),
 			func(mp map[string]interface{}) {
 				cardanofw.GetMapFromInterfaceKey(mp, "chains", "nexus", "config")["depositGasLimit"] = uint64(0)
 			},
@@ -2144,7 +2144,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = apex.Bridge.StartRelayer(ctx)
+		err = apex.StartRelayer(ctx)
 		require.NoError(t, err)
 
 		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, false)
@@ -2167,7 +2167,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			timeout         bool
 		)
 
-		apex := cardanofw.RunApexBridge(
+		apex := cardanofw.SetupAndRunApexBridge(
 			t, ctx,
 			cardanofw.WithAPIKey(apiKey),
 			cardanofw.WithVectorEnabled(false),
@@ -2177,18 +2177,18 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			}, nil),
 		)
 
-		defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+		defer require.True(t, apex.ApexBridgeProcessesRunning())
 
 		initApex(ctx, apex)
 
-		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 			receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 		require.NoError(t, err)
 
 		fmt.Printf("Tx sent. hash: %s\n", txHash)
 
 		// Check batch failed
-		apiURL, err := apex.Bridge.GetBridgingAPI()
+		apiURL, err := apex.GetBridgingAPI()
 		require.NoError(t, err)
 
 		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, false)
@@ -2211,7 +2211,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			timeout         bool
 		)
 
-		apex := cardanofw.RunApexBridge(
+		apex := cardanofw.SetupAndRunApexBridge(
 			t, ctx,
 			cardanofw.WithAPIKey(apiKey),
 			cardanofw.WithVectorEnabled(false),
@@ -2221,18 +2221,18 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			}, nil),
 		)
 
-		defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+		defer require.True(t, apex.ApexBridgeProcessesRunning())
 
 		initApex(ctx, apex)
 
-		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+		txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 			receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 		require.NoError(t, err)
 
 		fmt.Printf("Tx sent. hash: %s\n", txHash)
 
 		// Check batch failed
-		apiURL, err := apex.Bridge.GetBridgingAPI()
+		apiURL, err := apex.GetBridgingAPI()
 		require.NoError(t, err)
 
 		failedToExecute, timeout = waitForBatchSuccess(ctx, txHash, apiURL, apiKey, false)
@@ -2253,7 +2253,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 		failedToExecute := make([]int, instances)
 		timeout := make([]bool, instances)
 
-		apex := cardanofw.RunApexBridge(
+		apex := cardanofw.SetupAndRunApexBridge(
 			t, ctx,
 			cardanofw.WithAPIKey(apiKey),
 			cardanofw.WithVectorEnabled(false),
@@ -2263,7 +2263,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			}, nil),
 		)
 
-		defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+		defer require.True(t, apex.ApexBridgeProcessesRunning())
 
 		initApex(ctx, apex)
 
@@ -2273,11 +2273,11 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 
 		ethExpectedBalance := big.NewInt(0).Add(ethBalanceBefore, sendAmountEth.Mul(sendAmountEth, big.NewInt(5)))
 
-		apiURL, err := apex.Bridge.GetBridgingAPI()
+		apiURL, err := apex.GetBridgingAPI()
 		require.NoError(t, err)
 
 		for i := 0; i < instances; i++ {
-			txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+			txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 				receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 			require.NoError(t, err)
 
@@ -2306,7 +2306,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 		failedToExecute := make([]int, instances)
 		timeout := make([]bool, instances)
 
-		apex := cardanofw.RunApexBridge(
+		apex := cardanofw.SetupAndRunApexBridge(
 			t, ctx,
 			cardanofw.WithAPIKey(apiKey),
 			cardanofw.WithVectorEnabled(false),
@@ -2316,7 +2316,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 			}, nil),
 		)
 
-		defer require.True(t, apex.Bridge.ApexBridgeProcessesRunning())
+		defer require.True(t, apex.ApexBridgeProcessesRunning())
 
 		initApex(ctx, apex)
 
@@ -2326,11 +2326,11 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 
 		ethExpectedBalance := big.NewInt(0).Add(ethBalanceBefore, sendAmountEth.Mul(sendAmountEth, big.NewInt(5)))
 
-		apiURL, err := apex.Bridge.GetBridgingAPI()
+		apiURL, err := apex.GetBridgingAPI()
 		require.NoError(t, err)
 
 		for i := 0; i < instances; i++ {
-			txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.Bridge.PrimeMultisigAddr,
+			txHash, err := userPrime.BridgeNexusAmount(t, ctx, txProviderPrime, apex.PrimeMultisigAddr,
 				receiverAddrNexus, sendAmountDfm, apex.PrimeCluster.NetworkConfig(), receiverAddrNexus)
 			require.NoError(t, err)
 
