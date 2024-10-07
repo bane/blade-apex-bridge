@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/0xPolygon/polygon-edge/command/genesis"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/wallet"
@@ -21,7 +20,6 @@ import (
 	"github.com/0xPolygon/polygon-edge/helper/common"
 	"github.com/0xPolygon/polygon-edge/jsonrpc"
 	"github.com/0xPolygon/polygon-edge/types"
-	ci "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 	"github.com/umbracle/ethgo"
 )
@@ -38,7 +36,7 @@ type TestEVMBridge struct {
 }
 
 func (ec *TestEVMBridge) SetupChain(
-	t *testing.T, bridgeURL string, bridgeAdmin *crypto.ECDSAKey, relayerAddr types.Address, fundEthAmount uint64,
+	t *testing.T, bridgeURL string, bridgeAdmin *crypto.ECDSAKey, relayerAddr types.Address,
 ) {
 	t.Helper()
 
@@ -47,7 +45,7 @@ func (ec *TestEVMBridge) SetupChain(
 	txn := ec.Cluster.Transfer(t,
 		ec.Admin.Ecdsa,
 		ec.GetHotWalletAddress(),
-		ethgo.Ether(fundEthAmount),
+		ethgo.Ether(ec.Config.FundEthTokenAmount),
 	)
 	require.NotNil(t, txn)
 	require.True(t, txn.Succeed())
@@ -61,33 +59,12 @@ func (ec *TestEVMBridge) SetupChain(
 	require.True(t, txn.Succeed())
 }
 
-func (ec *TestEVMBridge) SendTxEvm(privateKey string, receiver string, amount *big.Int) error {
-	return ec.SendTxEvmMultipleReceivers(privateKey, []string{receiver}, amount)
-}
-
-func (ec *TestEVMBridge) SendTxEvmMultipleReceivers(privateKey string, receivers []string, amount *big.Int) error {
-	params := []string{
-		"sendtx",
-		"--tx-type", "evm",
-		"--gateway-addr", ec.Gateway.String(),
-		"--nexus-url", ec.Cluster.Servers[0].JSONRPCAddr(),
-		"--key", privateKey,
-		"--chain-dst", "prime",
-		"--fee", "1000010000000000000",
-	}
-
-	receiversParam := make([]string, 0, len(receivers))
-	for i := 0; i < len(receivers); i++ {
-		receiversParam = append(receiversParam, "--receiver", fmt.Sprintf("%s:%s", receivers[i], amount))
-	}
-
-	params = append(params, receiversParam...)
-
-	return RunCommand(ResolveApexBridgeBinary(), params, os.Stdout)
-}
-
 func (ec *TestEVMBridge) NodeURL() string {
 	return fmt.Sprintf("http://localhost:%d", ec.Config.NexusStartingPort)
+}
+
+func (ec *TestEVMBridge) GetDefaultJSONRPCAddr() string {
+	return ec.Cluster.Servers[0].JSONRPCAddr()
 }
 
 func (ec *TestEVMBridge) GetGatewayAddress() types.Address {
@@ -121,7 +98,7 @@ func (ec *TestEVMBridge) InitSmartContracts(
 		b      bytes.Buffer
 		params = []string{
 			"deploy-evm",
-			"--url", ec.Cluster.Servers[0].JSONRPCAddr(),
+			"--url", ec.GetDefaultJSONRPCAddr(),
 			"--key", hex.EncodeToString(pk),
 			"--bridge-url", bridgeURL,
 			"--bridge-addr", contracts.Bridge.String(),
@@ -151,6 +128,19 @@ func (ec *TestEVMBridge) InitSmartContracts(
 	return nil
 }
 
+func (ec *TestEVMBridge) GetEthAmount(ctx context.Context, wallet *wallet.Account) (*big.Int, error) {
+	return ec.GetAddressEthAmount(ctx, wallet.Address())
+}
+
+func (ec *TestEVMBridge) GetAddressEthAmount(ctx context.Context, addr types.Address) (*big.Int, error) {
+	ethAmount, err := ec.Cluster.Servers[0].JSONRPC().GetBalance(addr, jsonrpc.LatestBlockNumberOrHash)
+	if err != nil {
+		return nil, err
+	}
+
+	return ethAmount, err
+}
+
 func RunEVMChain(
 	t *testing.T,
 	config *ApexSystemConfig,
@@ -164,6 +154,7 @@ func RunEVMChain(
 
 	cluster := framework.NewTestCluster(t, config.NexusValidatorCount,
 		framework.WithPremine(admin.Address()),
+		framework.WithPremine(config.NexusInitialFundsKeys...),
 		framework.WithInitialPort(config.NexusStartingPort),
 		framework.WithLogsDirSuffix(ChainIDNexus),
 		framework.WithBladeAdmin(admin.Address().String()),
@@ -181,33 +172,4 @@ func RunEVMChain(
 
 		Config: config,
 	}, nil
-}
-
-func GetEthAmount(ctx context.Context, evmChain *TestEVMBridge, wallet *wallet.Account) (*big.Int, error) {
-	return GetAddressEthAmount(ctx, evmChain, wallet.Address())
-}
-
-func GetAddressEthAmount(ctx context.Context, evmChain *TestEVMBridge, addr types.Address) (*big.Int, error) {
-	ethAmount, err := evmChain.Cluster.Servers[0].JSONRPC().GetBalance(addr, jsonrpc.LatestBlockNumberOrHash)
-	if err != nil {
-		return nil, err
-	}
-
-	return ethAmount, err
-}
-
-func WaitForEthAmount(
-	ctx context.Context,
-	evmChain *TestEVMBridge,
-	wallet *wallet.Account,
-	cmpHandler func(*big.Int) bool,
-	numRetries int,
-	waitTime time.Duration,
-	isRecoverableError ...ci.IsRecoverableErrorFn,
-) error {
-	return ci.ExecuteWithRetry(ctx, numRetries, waitTime, func() (bool, error) {
-		ethers, err := GetEthAmount(ctx, evmChain, wallet)
-
-		return err == nil && cmpHandler(ethers), err
-	}, isRecoverableError...)
 }

@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
@@ -25,17 +26,17 @@ var cardanoFiles embed.FS
 
 const hostIP = "127.0.0.1"
 
+type RunCardanoClusterConfig struct {
+	ID                 int
+	NodesCount         int
+	NetworkType        wallet.CardanoNetworkType
+	InitialFundsKeys   []string
+	InitialFundsAmount uint64
+}
+
 type TestCardanoNetworkConfig struct {
 	NetworkMagic uint
 	NetworkType  wallet.CardanoNetworkType
-}
-
-func (c *TestCardanoNetworkConfig) IsPrime() bool {
-	if c.NetworkType == wallet.MainNetNetwork || c.NetworkType == wallet.TestNetNetwork {
-		return true
-	}
-
-	return false
 }
 
 type TestCardanoClusterConfig struct {
@@ -138,6 +139,51 @@ func WithInitialFunds(initialFundsKeys []string, initialFundsAmount uint64) Card
 		h.InitialFundsKeys = initialFundsKeys
 		h.InitialFundsAmount = initialFundsAmount
 	}
+}
+
+func RunCardanoCluster(
+	t *testing.T,
+	config *RunCardanoClusterConfig,
+) (*TestCardanoCluster, error) {
+	t.Helper()
+
+	networkMagic := GetNetworkMagic(config.NetworkType)
+	networkName := GetNetworkName(config.NetworkType)
+	ogmiosLogsFilePath := filepath.Join("..", "..", "e2e-logs-cardano",
+		fmt.Sprintf("ogmios-%s-%s.log", networkName, strings.ReplaceAll(t.Name(), "/", "_")))
+
+	cluster, err := NewCardanoTestCluster(
+		WithID(config.ID+1),
+		WithNodesCount(config.NodesCount),
+		WithStartTimeDelay(time.Second*5),
+		WithPort(5100+config.ID*100),
+		WithOgmiosPort(1337+config.ID),
+		WithNetworkMagic(networkMagic),
+		WithNetworkType(config.NetworkType),
+		WithConfigGenesisDir(networkName),
+		WithInitialFunds(config.InitialFundsKeys, config.InitialFundsAmount),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("Waiting for sockets to be ready\n")
+
+	if err := cluster.WaitForReady(time.Minute * 2); err != nil {
+		return nil, err
+	}
+
+	if err := cluster.StartOgmios(config.ID, GetLogsFile(t, ogmiosLogsFilePath, false)); err != nil {
+		return nil, err
+	}
+
+	if err := cluster.WaitForBlockWithState(10, time.Second*120); err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("Cluster %d is ready\n", config.ID)
+
+	return cluster, nil
 }
 
 func NewCardanoTestCluster(opts ...CardanoClusterOption) (cluster *TestCardanoCluster, err error) {

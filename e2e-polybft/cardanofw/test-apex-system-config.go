@@ -1,36 +1,25 @@
 package cardanofw
 
 import (
-	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-	"testing"
-	"time"
+	"encoding/hex"
 
 	"github.com/0xPolygon/polygon-edge/consensus/polybft"
 	"github.com/0xPolygon/polygon-edge/types"
 	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
 
+type ChainID = string
+
 const (
-	ChainIDPrime  = "prime"
-	ChainIDVector = "vector"
-	ChainIDNexus  = "nexus"
+	ChainIDPrime  ChainID = "prime"
+	ChainIDVector ChainID = "vector"
+	ChainIDNexus  ChainID = "nexus"
 
 	RunRelayerOnValidatorID = 1
 
 	defaultFundTokenAmount    = uint64(100_000_000_000)
 	defaultFundEthTokenAmount = uint64(100_000)
 )
-
-type RunCardanoClusterConfig struct {
-	ID                 int
-	NodesCount         int
-	NetworkType        cardanowallet.CardanoNetworkType
-	InitialFundsKeys   []string
-	InitialFundsAmount uint64
-}
 
 type ApexSystemConfig struct {
 	// Apex
@@ -59,12 +48,16 @@ type ApexSystemConfig struct {
 	NexusValidatorCount   int
 	NexusStartingPort     int64
 	NexusBurnContractInfo *polybft.BurnContractInfo
+	NexusInitialFundsKeys []types.Address
 
 	CustomOracleHandler  func(mp map[string]interface{})
 	CustomRelayerHandler func(mp map[string]interface{})
 
 	FundTokenAmount    uint64
 	FundEthTokenAmount uint64
+
+	UserCnt         uint
+	UserCardanoFund uint64
 }
 
 type ApexSystemOptions func(*ApexSystemConfig)
@@ -156,6 +149,55 @@ func WithCustomConfigHandlers(callbackOracle, callbackRelayer func(mp map[string
 	}
 }
 
+func WithUserCnt(userCnt uint) ApexSystemOptions {
+	return func(h *ApexSystemConfig) {
+		h.UserCnt = userCnt
+	}
+}
+
+func WithUserCardanoFund(userCardanoFund uint64) ApexSystemOptions {
+	return func(h *ApexSystemConfig) {
+		h.UserCardanoFund = userCardanoFund
+	}
+}
+
+func (c *ApexSystemConfig) applyPremineFundingOptions(users []*TestApexUser) {
+	if len(c.PrimeClusterConfig.InitialFundsKeys) == 0 {
+		c.PrimeClusterConfig.InitialFundsKeys = make([]string, 0, len(users))
+	}
+
+	if len(c.VectorClusterConfig.InitialFundsKeys) == 0 {
+		c.VectorClusterConfig.InitialFundsKeys = make([]string, 0, len(users))
+	}
+
+	if len(c.NexusInitialFundsKeys) == 0 {
+		c.NexusInitialFundsKeys = make([]types.Address, 0, len(users))
+	}
+
+	if c.PrimeClusterConfig.InitialFundsAmount == 0 {
+		c.PrimeClusterConfig.InitialFundsAmount = c.UserCardanoFund
+	}
+
+	if c.VectorClusterConfig.InitialFundsAmount == 0 {
+		c.VectorClusterConfig.InitialFundsAmount = c.UserCardanoFund
+	}
+
+	for _, user := range users {
+		c.PrimeClusterConfig.InitialFundsKeys = append(
+			c.PrimeClusterConfig.InitialFundsKeys, hex.EncodeToString(user.PrimeAddress.Bytes()))
+
+		if user.HasVectorWallet {
+			c.VectorClusterConfig.InitialFundsKeys = append(
+				c.VectorClusterConfig.InitialFundsKeys, hex.EncodeToString(user.VectorAddress.Bytes()))
+		}
+
+		if user.HasNexusWallet {
+			c.NexusInitialFundsKeys = append(
+				c.NexusInitialFundsKeys, user.NexusAddress)
+		}
+	}
+}
+
 func getDefaultApexSystemConfig() *ApexSystemConfig {
 	return &ApexSystemConfig{
 		APIValidatorID: 1,
@@ -190,6 +232,9 @@ func getDefaultApexSystemConfig() *ApexSystemConfig {
 
 		FundTokenAmount:    defaultFundTokenAmount,
 		FundEthTokenAmount: defaultFundEthTokenAmount,
+
+		UserCnt:         10,
+		UserCardanoFund: 5_000_000,
 	}
 }
 
@@ -206,78 +251,4 @@ func (as *ApexSystemConfig) ServiceCount() int {
 	}
 
 	return count
-}
-
-func RunCardanoCluster(
-	t *testing.T,
-	config *RunCardanoClusterConfig,
-) (*TestCardanoCluster, error) {
-	t.Helper()
-
-	networkMagic := GetNetworkMagic(config.NetworkType)
-	networkName := GetNetworkName(config.NetworkType)
-	ogmiosLogsFilePath := filepath.Join("..", "..", "e2e-logs-cardano",
-		fmt.Sprintf("ogmios-%s-%s.log", networkName, t.Name()))
-
-	cluster, err := NewCardanoTestCluster(
-		WithID(config.ID+1),
-		WithNodesCount(config.NodesCount),
-		WithStartTimeDelay(time.Second*5),
-		WithPort(5100+config.ID*100),
-		WithOgmiosPort(1337+config.ID),
-		WithNetworkMagic(networkMagic),
-		WithNetworkType(config.NetworkType),
-		WithConfigGenesisDir(networkName),
-		WithInitialFunds(config.InitialFundsKeys, config.InitialFundsAmount),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Printf("Waiting for sockets to be ready\n")
-
-	if err := cluster.WaitForReady(time.Minute * 2); err != nil {
-		return nil, err
-	}
-
-	if err := cluster.StartOgmios(config.ID, GetLogsFile(t, ogmiosLogsFilePath, false)); err != nil {
-		return nil, err
-	}
-
-	if err := cluster.WaitForBlockWithState(10, time.Second*120); err != nil {
-		return nil, err
-	}
-
-	fmt.Printf("Cluster %d is ready\n", config.ID)
-
-	return cluster, nil
-}
-
-func GetLogsFile(t *testing.T, filePath string, withStdout bool) io.Writer {
-	t.Helper()
-
-	var writers []io.Writer
-
-	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0600)
-	if err != nil {
-		t.Log("failed to create log file", "err", err, "file", filePath)
-	} else {
-		writers = append(writers, f)
-
-		t.Cleanup(func() {
-			if err := f.Close(); err != nil {
-				t.Log("GetStdout close file error", "err", err)
-			}
-		})
-	}
-
-	if withStdout {
-		writers = append(writers, os.Stdout)
-	}
-
-	if len(writers) == 0 {
-		return io.Discard
-	}
-
-	return io.MultiWriter(writers...)
 }

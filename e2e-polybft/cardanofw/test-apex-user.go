@@ -1,281 +1,214 @@
 package cardanofw
 
 import (
-	"context"
-	"encoding/json"
+	"encoding/hex"
 	"fmt"
-	"testing"
-	"time"
 
-	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
-	"github.com/stretchr/testify/require"
+	"github.com/0xPolygon/polygon-edge/crypto"
+	"github.com/0xPolygon/polygon-edge/types"
+	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
 
 type TestApexUser struct {
-	PrimeWallet   wallet.IWallet
-	VectorWallet  wallet.IWallet
-	PrimeAddress  string
-	VectorAddress string
-}
+	PrimeWallet  cardanowallet.IWallet
+	PrimeAddress cardanowallet.CardanoAddress
 
-type BridgingRequestMetadataTransaction struct {
-	Address []string `cbor:"a" json:"a"`
-	Amount  uint64   `cbor:"m" json:"m"`
+	HasVectorWallet bool
+	VectorWallet    cardanowallet.IWallet
+	VectorAddress   cardanowallet.CardanoAddress
+
+	HasNexusWallet bool
+	NexusWallet    *crypto.ECDSAKey
+	NexusAddress   types.Address
 }
 
 func NewTestApexUser(
-	t *testing.T,
-	primeNetworkType wallet.CardanoNetworkType,
-	vectorNetworkType wallet.CardanoNetworkType,
-) *TestApexUser {
-	t.Helper()
+	primeNetworkType cardanowallet.CardanoNetworkType,
+	vectorEnabled bool,
+	vectorNetworkType cardanowallet.CardanoNetworkType,
+	nexusEnabled bool,
+) (*TestApexUser, error) {
+	var (
+		vectorWallet      *cardanowallet.Wallet        = nil
+		vectorUserAddress cardanowallet.CardanoAddress = nil
+		nexusWallet       *crypto.ECDSAKey             = nil
+		nexusUserAddress                               = types.Address{}
+	)
 
-	primeWallet, err := wallet.GenerateWallet(false)
-	require.NoError(t, err)
-
-	vectorWallet, err := wallet.GenerateWallet(false)
-	require.NoError(t, err)
+	primeWallet, err := cardanowallet.GenerateWallet(false)
+	if err != nil {
+		return nil, err
+	}
 
 	primeUserAddress, err := GetAddress(primeNetworkType, primeWallet)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
-	vectorUserAddress, err := GetAddress(vectorNetworkType, vectorWallet)
-	require.NoError(t, err)
+	if vectorEnabled {
+		vectorWallet, err = cardanowallet.GenerateWallet(false)
+		if err != nil {
+			return nil, err
+		}
+
+		vectorUserAddress, err = GetAddress(vectorNetworkType, vectorWallet)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if nexusEnabled {
+		nexusWallet, err = crypto.GenerateECDSAKey()
+		if err != nil {
+			return nil, err
+		}
+
+		nexusUserAddress = nexusWallet.Address()
+	}
 
 	return &TestApexUser{
-		PrimeWallet:   primeWallet,
-		VectorWallet:  vectorWallet,
-		PrimeAddress:  primeUserAddress.String(),
-		VectorAddress: vectorUserAddress.String(),
-	}
+		PrimeWallet:     primeWallet,
+		PrimeAddress:    primeUserAddress,
+		VectorWallet:    vectorWallet,
+		VectorAddress:   vectorUserAddress,
+		HasVectorWallet: vectorEnabled,
+		NexusWallet:     nexusWallet,
+		NexusAddress:    nexusUserAddress,
+		HasNexusWallet:  nexusEnabled,
+	}, nil
 }
 
-func NewTestApexUserWithExistingWallets(t *testing.T, primePrivateKey, vectorPrivateKey string,
-	primeNetworkType wallet.CardanoNetworkType, vectorNetworkType wallet.CardanoNetworkType,
-) *TestApexUser {
-	t.Helper()
+func NewExistingTestApexUser(
+	primePrivateKey, vectorPrivateKey, nexusPrivateKey string,
+	primeNetworkType cardanowallet.CardanoNetworkType,
+	vectorNetworkType cardanowallet.CardanoNetworkType,
+) (*TestApexUser, error) {
+	var (
+		vectorWallet      *cardanowallet.Wallet        = nil
+		vectorUserAddress cardanowallet.CardanoAddress = nil
+		nexusWallet       *crypto.ECDSAKey             = nil
+		nexusUserAddress                               = types.Address{}
+	)
 
-	primePrivateKeyBytes, err := wallet.GetKeyBytes(primePrivateKey)
-	require.NoError(t, err)
+	primePrivateKeyBytes, err := cardanowallet.GetKeyBytes(primePrivateKey)
+	if err != nil {
+		return nil, err
+	}
 
-	vectorPrivateKeyBytes, err := wallet.GetKeyBytes(vectorPrivateKey)
-	require.NoError(t, err)
-
-	primeWallet := wallet.NewWallet(
-		wallet.GetVerificationKeyFromSigningKey(primePrivateKeyBytes), primePrivateKeyBytes)
-	vectorWallet := wallet.NewWallet(
-		wallet.GetVerificationKeyFromSigningKey(vectorPrivateKeyBytes), vectorPrivateKeyBytes)
+	primeWallet := cardanowallet.NewWallet(
+		cardanowallet.GetVerificationKeyFromSigningKey(primePrivateKeyBytes), primePrivateKeyBytes)
 
 	primeUserAddress, err := GetAddress(primeNetworkType, primeWallet)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
-	vectorUserAddress, err := GetAddress(vectorNetworkType, vectorWallet)
-	require.NoError(t, err)
+	if vectorPrivateKey != "" {
+		vectorPrivateKeyBytes, err := cardanowallet.GetKeyBytes(vectorPrivateKey)
+		if err != nil {
+			return nil, err
+		}
+
+		vectorWallet = cardanowallet.NewWallet(
+			cardanowallet.GetVerificationKeyFromSigningKey(vectorPrivateKeyBytes), vectorPrivateKeyBytes)
+
+		vectorUserAddress, err = GetAddress(vectorNetworkType, vectorWallet)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if nexusPrivateKey != "" {
+		pkBytes, err := hex.DecodeString(nexusPrivateKey)
+		if err != nil {
+			return nil, err
+		}
+
+		nexusWallet, err = crypto.NewECDSAKeyFromRawPrivECDSA(pkBytes)
+		if err != nil {
+			return nil, err
+		}
+
+		nexusUserAddress = nexusWallet.Address()
+	}
 
 	return &TestApexUser{
-		PrimeWallet:   primeWallet,
-		VectorWallet:  vectorWallet,
-		PrimeAddress:  primeUserAddress.String(),
-		VectorAddress: vectorUserAddress.String(),
-	}
+		PrimeWallet:     primeWallet,
+		PrimeAddress:    primeUserAddress,
+		VectorWallet:    vectorWallet,
+		VectorAddress:   vectorUserAddress,
+		HasVectorWallet: vectorPrivateKey != "",
+		NexusWallet:     nexusWallet,
+		NexusAddress:    nexusUserAddress,
+		HasNexusWallet:  nexusPrivateKey != "",
+	}, nil
 }
 
-func (u *TestApexUser) SendToUser(
-	t *testing.T,
-	ctx context.Context, txProvider wallet.ITxProvider,
-	sender wallet.IWallet, sendAmount uint64,
-	networkConfig TestCardanoNetworkConfig,
+func (u *TestApexUser) GetCardanoWallet(chain ChainID) (
+	cardanowallet.IWallet, cardanowallet.CardanoAddress,
 ) {
-	t.Helper()
-
-	addr := u.PrimeAddress
-	if !networkConfig.IsPrime() {
-		addr = u.VectorAddress
+	if chain == ChainIDPrime {
+		return u.PrimeWallet, u.PrimeAddress
+	} else if chain == ChainIDVector {
+		return u.VectorWallet, u.VectorAddress
 	}
 
-	prevAmount, err := GetTokenAmount(ctx, txProvider, addr)
-	require.NoError(t, err)
-
-	_, err = SendTx(ctx, txProvider, sender,
-		sendAmount, addr, networkConfig, []byte{})
-	require.NoError(t, err)
-
-	err = wallet.WaitForAmount(
-		context.Background(), txProvider, addr, func(val uint64) bool {
-			return val == prevAmount+sendAmount
-		}, 60, time.Second*2, IsRecoverableError)
-	require.NoError(t, err)
+	return nil, nil
 }
 
-func (u *TestApexUser) SendToAddress(
-	t *testing.T,
-	ctx context.Context, txProvider wallet.ITxProvider,
-	sender wallet.IWallet, sendAmount uint64,
-	receiver string, networkConfig TestCardanoNetworkConfig,
+func (u *TestApexUser) GetEvmWallet(chain ChainID) (
+	*crypto.ECDSAKey, types.Address,
 ) {
-	t.Helper()
+	if chain == ChainIDNexus {
+		return u.NexusWallet, u.NexusAddress
+	}
 
-	prevAmount, err := GetTokenAmount(ctx, txProvider, receiver)
-	require.NoError(t, err)
-
-	_, err = SendTx(ctx, txProvider, sender,
-		sendAmount, receiver, networkConfig, []byte{})
-	require.NoError(t, err)
-
-	err = wallet.WaitForAmount(
-		context.Background(), txProvider, receiver, func(val uint64) bool {
-			return val == prevAmount+sendAmount
-		}, 60, time.Second*2, IsRecoverableError)
-	require.NoError(t, err)
+	return nil, types.Address{}
 }
 
-func (u *TestApexUser) BridgeAmount(
-	t *testing.T, ctx context.Context,
-	txProvider wallet.ITxProvider,
-	multisigAddr, feeAddr string, sendAmount uint64,
-	networkConfig TestCardanoNetworkConfig,
-) string {
-	t.Helper()
+func (u *TestApexUser) GetAddress(chain ChainID) string {
+	switch chain {
+	case ChainIDPrime:
+		return u.PrimeAddress.String()
+	case ChainIDVector:
+		if u.HasVectorWallet {
+			return u.VectorAddress.String()
+		}
 
-	sender := u.PrimeWallet
-	receiverAddr := u.VectorAddress
+		return ""
+	case ChainIDNexus:
+		if u.HasNexusWallet {
+			return u.NexusAddress.String()
+		}
 
-	if !networkConfig.IsPrime() {
-		sender = u.VectorWallet
-		receiverAddr = u.PrimeAddress
+		return ""
 	}
 
-	txHash := BridgeAmountFull(t, ctx, txProvider, networkConfig,
-		multisigAddr, feeAddr, sender, receiverAddr, sendAmount)
-
-	return txHash
+	return ""
 }
 
-func (u *TestApexUser) BridgeNexusAmount(
-	t *testing.T, ctx context.Context,
-	txProvider wallet.ITxProvider,
-	multisigAddr, feeAddr string, sendAmount uint64,
-	networkConfig TestCardanoNetworkConfig,
-	receiverAddr string,
-) (string, error) {
-	t.Helper()
+func (u *TestApexUser) GetPrivateKey(chain ChainID) (string, error) {
+	switch chain {
+	case ChainIDPrime:
+		return hex.EncodeToString(u.PrimeWallet.GetSigningKey()), nil
+	case ChainIDVector:
+		if u.HasVectorWallet {
+			return hex.EncodeToString(u.VectorWallet.GetSigningKey()), nil
+		}
 
-	sender := u.PrimeWallet
+		return "", fmt.Errorf("user doesn't have a vector wallet")
+	case ChainIDNexus:
+		if u.HasNexusWallet {
+			pkBytes, err := u.NexusWallet.MarshallPrivateKey()
+			if err != nil {
+				return "", err
+			}
 
-	return BridgeAmountFullMultipleReceiversNexus(
-		ctx, txProvider, networkConfig, multisigAddr, feeAddr, sender,
-		[]string{receiverAddr}, sendAmount,
-	)
-}
+			return hex.EncodeToString(pkBytes), nil
+		}
 
-func CreateMetaData(
-	sender string, receivers map[string]uint64, destinationChainID string, feeAmount uint64,
-) ([]byte, error) {
-	var transactions = make([]BridgingRequestMetadataTransaction, 0, len(receivers))
-	for addr, amount := range receivers {
-		transactions = append(transactions, BridgingRequestMetadataTransaction{
-			Address: SplitString(addr, 40),
-			Amount:  amount,
-		})
+		return "", fmt.Errorf("user doesn't have a nexus wallet")
 	}
 
-	metadata := map[string]interface{}{
-		"1": map[string]interface{}{
-			"t":  "bridge",
-			"d":  destinationChainID,
-			"s":  SplitString(sender, 40),
-			"tx": transactions,
-			"fa": feeAmount,
-		},
-	}
-
-	return json.Marshal(metadata)
-}
-
-func BridgeAmountFull(
-	t *testing.T, ctx context.Context, txProvider wallet.ITxProvider,
-	networkConfig TestCardanoNetworkConfig, multisigAddr, feeAddr string, sender wallet.IWallet,
-	receiverAddr string, sendAmount uint64,
-) string {
-	t.Helper()
-
-	return BridgeAmountFullMultipleReceivers(
-		t, ctx, txProvider, networkConfig, multisigAddr, feeAddr, sender,
-		[]string{receiverAddr}, sendAmount,
-	)
-}
-
-func BridgeAmountFullMultipleReceivers(
-	t *testing.T, ctx context.Context, txProvider wallet.ITxProvider, networkConfig TestCardanoNetworkConfig,
-	multisigAddr, feeAddr string, sender wallet.IWallet,
-	receiverAddrs []string, sendAmount uint64,
-) string {
-	t.Helper()
-
-	require.Greater(t, len(receiverAddrs), 0)
-	require.Less(t, len(receiverAddrs), 5)
-
-	const feeAmount = 1_100_000
-
-	senderAddr, err := GetAddress(networkConfig.NetworkType, sender)
-	require.NoError(t, err)
-
-	receivers := make(map[string]uint64, len(receiverAddrs))
-	for _, receiverAddr := range receiverAddrs {
-		receivers[receiverAddr] = sendAmount
-	}
-
-	bridgingRequestMetadata, err := CreateMetaData(
-		senderAddr.String(), receivers, GetDestinationChainID(networkConfig), feeAmount)
-	require.NoError(t, err)
-
-	txHash, err := SendTx(ctx, txProvider, sender,
-		uint64(len(receiverAddrs))*sendAmount+feeAmount, multisigAddr, networkConfig, bridgingRequestMetadata)
-	require.NoError(t, err)
-
-	err = wallet.WaitForTxHashInUtxos(
-		context.Background(), txProvider, multisigAddr, txHash, 60, time.Second*2, IsRecoverableError)
-	require.NoError(t, err)
-
-	return txHash
-}
-
-func BridgeAmountFullMultipleReceiversNexus(
-	ctx context.Context, txProvider wallet.ITxProvider, networkConfig TestCardanoNetworkConfig,
-	multisigAddr, feeAddr string, sender wallet.IWallet,
-	receiverAddrs []string, sendAmount uint64,
-) (string, error) {
-	const (
-		maxReceivers = 4
-		feeAmount    = 1_100_000
-	)
-
-	if len(receiverAddrs) == 0 || len(receiverAddrs) > maxReceivers {
-		return "", fmt.Errorf("invalid receivers length, len: %d", len(receiverAddrs))
-	}
-
-	senderAddr, err := GetAddress(networkConfig.NetworkType, sender)
-	if err != nil {
-		return "", err
-	}
-
-	receivers := make(map[string]uint64, len(receiverAddrs))
-	for _, receiverAddr := range receiverAddrs {
-		receivers[receiverAddr] = sendAmount
-	}
-
-	bridgingRequestMetadata, err := CreateMetaData(
-		senderAddr.String(), receivers, ChainIDNexus, feeAmount)
-	if err != nil {
-		return "", err
-	}
-
-	txHash, err := SendTx(ctx, txProvider, sender,
-		uint64(len(receiverAddrs))*sendAmount+feeAmount, multisigAddr, networkConfig, bridgingRequestMetadata)
-	if err != nil {
-		return "", err
-	}
-
-	return txHash, wallet.WaitForTxHashInUtxos(
-		context.Background(), txProvider, multisigAddr, txHash, 60, time.Second*2, IsRecoverableError)
+	return "", nil
 }

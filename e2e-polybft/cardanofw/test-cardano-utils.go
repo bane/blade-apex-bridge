@@ -335,13 +335,6 @@ func GetTokenAmount(ctx context.Context, txProvider wallet.ITxProvider, addr str
 	return wallet.GetUtxosSum(utxos), nil
 }
 
-// WaitForAmount waits for address to have amount specified by cmpHandler
-func WaitForAmount(ctx context.Context, txRetriever wallet.IUTxORetriever,
-	addr string, cmpHandler func(uint64) bool, numRetries int, waitTime time.Duration,
-) error {
-	return wallet.WaitForAmount(ctx, txRetriever, addr, cmpHandler, numRetries, waitTime, IsRecoverableError)
-}
-
 func ExecuteWithRetryIfNeeded(ctx context.Context, handler func() error) error {
 	for i := 1; ; i++ {
 		err := handler()
@@ -363,14 +356,6 @@ func IsRecoverableError(err error) bool {
 	return strings.Contains(err.Error(), "status code 500")
 }
 
-func GetDestinationChainID(networkConfig TestCardanoNetworkConfig) string {
-	if networkConfig.IsPrime() {
-		return "vector"
-	}
-
-	return "prime"
-}
-
 func GetNetworkMagic(networkType wallet.CardanoNetworkType) uint {
 	switch networkType {
 	case wallet.VectorTestNetNetwork:
@@ -389,13 +374,13 @@ func GetNetworkMagic(networkType wallet.CardanoNetworkType) uint {
 func GetNetworkName(networkType wallet.CardanoNetworkType) string {
 	switch networkType {
 	case wallet.VectorTestNetNetwork:
-		return "vector"
+		return ChainIDVector
 	case wallet.VectorMainNetNetwork:
-		return "vector"
+		return ChainIDVector
 	case wallet.MainNetNetwork:
-		return "prime"
+		return ChainIDPrime
 	case wallet.TestNetNetwork:
-		return "prime"
+		return ChainIDPrime
 	default:
 		return ""
 	}
@@ -418,10 +403,68 @@ func GetTestNetMagicArgs(testnetMagic uint) []string {
 	return []string{"--testnet-magic", strconv.FormatUint(uint64(testnetMagic), 10)}
 }
 
+type BridgingRequestMetadataTransaction struct {
+	Address []string `cbor:"a" json:"a"`
+	Amount  uint64   `cbor:"m" json:"m"`
+}
+
+func CreateCardanoBridgingMetaData(
+	sender string, receivers map[string]uint64, destinationChain ChainID, feeAmount uint64,
+) ([]byte, error) {
+	var transactions = make([]BridgingRequestMetadataTransaction, 0, len(receivers))
+	for addr, amount := range receivers {
+		transactions = append(transactions, BridgingRequestMetadataTransaction{
+			Address: SplitString(addr, 40),
+			Amount:  amount,
+		})
+	}
+
+	metadata := map[string]interface{}{
+		"1": map[string]interface{}{
+			"t":  "bridge",
+			"d":  destinationChain,
+			"s":  SplitString(sender, 40),
+			"tx": transactions,
+			"fa": feeAmount,
+		},
+	}
+
+	return json.Marshal(metadata)
+}
+
 func tryResolveFromEnv(env, name string) string {
 	if bin := os.Getenv(env); bin != "" {
 		return bin
 	}
 	// fallback
 	return name
+}
+
+func GetLogsFile(t *testing.T, filePath string, withStdout bool) io.Writer {
+	t.Helper()
+
+	var writers []io.Writer
+
+	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0600)
+	if err != nil {
+		t.Log("failed to create log file", "err", err, "file", filePath)
+	} else {
+		writers = append(writers, f)
+
+		t.Cleanup(func() {
+			if err := f.Close(); err != nil {
+				t.Log("GetStdout close file error", "err", err)
+			}
+		})
+	}
+
+	if withStdout {
+		writers = append(writers, os.Stdout)
+	}
+
+	if len(writers) == 0 {
+		return io.Discard
+	}
+
+	return io.MultiWriter(writers...)
 }
