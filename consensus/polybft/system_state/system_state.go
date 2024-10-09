@@ -107,25 +107,107 @@ func (s *SystemStateImpl) GetNextCommittedIndex(chainID uint64, chainType ChainT
 func (s *SystemStateImpl) GetBridgeBatchByNumber(numberOfBatch *big.Int) (
 	*contractsapi.SignedBridgeMessageBatch, error) {
 	rawResult, err := s.bridgeStorageContract.Call(
-		"batches",
+		"getCommittedBatch",
 		ethgo.Latest,
 		numberOfBatch)
 	if err != nil {
 		return nil, err
 	}
 
-	bridgeBatch, isOk := rawResult["0"].(*contractsapi.SignedBridgeMessageBatch)
-	if !isOk {
-		return nil, fmt.Errorf("failed to decode bridge batch")
+	decErr := fmt.Errorf("failed to decode")
+
+	rawResult, ok := rawResult["0"].(map[string]interface{})
+	if !ok {
+		return nil, decErr
 	}
 
-	return bridgeBatch, nil
+	sbmb := &contractsapi.SignedBridgeMessageBatch{}
+
+	sbmb.Signature, ok = rawResult["signature"].([2]*big.Int)
+	if !ok {
+		return nil, decErr
+	}
+
+	sbmb.Bitmap, ok = rawResult["bitmap"].([]uint8)
+	if !ok {
+		return nil, decErr
+	}
+
+	batch, ok := rawResult["batch"].(map[string]interface{})
+	if !ok {
+		return nil, decErr
+	}
+
+	messages, ok := batch["messages"].([]map[string]interface{})
+	if !ok {
+		return nil, decErr
+	}
+
+	bridgeMessages := []*contractsapi.BridgeMessage{}
+
+	for _, message := range messages {
+		id, ok := message["id"].(*big.Int)
+		if !ok {
+			return nil, decErr
+		}
+
+		sourceChainID, ok := message["sourceChainId"].(*big.Int)
+		if !ok {
+			return nil, decErr
+		}
+
+		destinationChainID, ok := message["destinationChainId"].(*big.Int)
+		if !ok {
+			return nil, decErr
+		}
+
+		sender, ok := message["sender"].(ethgo.Address)
+		if !ok {
+			return nil, decErr
+		}
+
+		receiver, ok := message["receiver"].(ethgo.Address)
+		if !ok {
+			return nil, decErr
+		}
+
+		payload, ok := message["payload"].([]byte)
+		if !ok {
+			return nil, decErr
+		}
+
+		bridgeMessages = append(bridgeMessages, &contractsapi.BridgeMessage{
+			ID:                 id,
+			SourceChainID:      sourceChainID,
+			DestinationChainID: destinationChainID,
+			Sender:             types.Address(sender),
+			Receiver:           types.Address(receiver),
+			Payload:            payload,
+		})
+	}
+
+	bmb := &contractsapi.BridgeMessageBatch{}
+	bmb.Messages = bridgeMessages
+
+	bmb.SourceChainID, ok = batch["sourceChainId"].(*big.Int)
+	if !ok {
+		return nil, decErr
+	}
+
+	bmb.DestinationChainID, ok = batch["destinationChainId"].(*big.Int)
+	if !ok {
+		return nil, decErr
+	}
+
+	sbmb.Batch = bmb
+
+	return sbmb, nil
 }
 
 func (s *SystemStateImpl) GetValidatorSetByNumber(numberOfValidatorSet *big.Int) (
 	*contractsapi.SignedValidatorSet, error) {
 	rawResult, err := s.bridgeStorageContract.Call(
-		"commitedValidatorSets",
+		"getCommittedValidatorSet",
 		ethgo.Latest,
 		numberOfValidatorSet,
 	)
@@ -133,12 +215,58 @@ func (s *SystemStateImpl) GetValidatorSetByNumber(numberOfValidatorSet *big.Int)
 		return nil, err
 	}
 
-	validatorSet, isOk := rawResult["0"].(*contractsapi.SignedValidatorSet)
-	if !isOk {
-		return nil, fmt.Errorf("failed to decode bridge batch")
+	decErr := fmt.Errorf("failed to decode")
+
+	rawResult, ok := rawResult["0"].(map[string]interface{})
+	if !ok {
+		return nil, decErr
 	}
 
-	return validatorSet, err
+	svs := &contractsapi.SignedValidatorSet{}
+
+	svs.Signature, ok = rawResult["signature"].([2]*big.Int)
+	if !ok {
+		return nil, decErr
+	}
+
+	svs.Bitmap, ok = rawResult["bitmap"].([]uint8)
+	if !ok {
+		return nil, decErr
+	}
+
+	validatorSet := []*contractsapi.Validator{}
+
+	validators, ok := rawResult["newValidatorSet"].([]map[string]interface{})
+	if !ok {
+		return nil, decErr
+	}
+
+	for _, validator := range validators {
+		address, ok := validator["_address"].(ethgo.Address)
+		if !ok {
+			return nil, decErr
+		}
+
+		keys, ok := validator["blsKey"].([4]*big.Int)
+		if !ok {
+			return nil, decErr
+		}
+
+		power, ok := validator["votingPower"].(*big.Int)
+		if !ok {
+			return nil, decErr
+		}
+
+		validatorSet = append(validatorSet, &contractsapi.Validator{
+			Address:     types.Address(address),
+			BlsKey:      keys,
+			VotingPower: power,
+		})
+	}
+
+	svs.NewValidatorSet = validatorSet
+
+	return svs, nil
 }
 
 var _ contract.Provider = &stateProvider{}
