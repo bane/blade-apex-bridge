@@ -109,7 +109,7 @@ func (ber *bridgeEventRelayerImpl) sendTx() {
 		case event := <-ber.eventCh:
 			switch event := event.(type) {
 			case *contractsapi.SignedBridgeMessageBatch:
-				if err := ber.sendBridgeMessageBatch(event); err != nil {
+				if err := ber.sendSignedBridgeMessageBatch(event); err != nil {
 					ber.logger.Error("error occurred while sending bridge message batch transaction", "error", err)
 				}
 			case *contractsapi.SignedValidatorSet:
@@ -123,16 +123,17 @@ func (ber *bridgeEventRelayerImpl) sendTx() {
 	}
 }
 
-// sendBridgeMessageBatch sends bridge message batch execute transaction to the external and internal chains
-func (ber *bridgeEventRelayerImpl) sendBridgeMessageBatch(event *contractsapi.SignedBridgeMessageBatch) error {
+// sendSignedBridgeMessageBatch sends bridge message batch execute transaction to the external and internal chains
+func (ber *bridgeEventRelayerImpl) sendSignedBridgeMessageBatch(event *contractsapi.SignedBridgeMessageBatch) error {
 	var (
 		txRelayer          = ber.internalTxRelayer
-		destinationChainID = event.Batch.DestinationChainID.Uint64()
+		destinationChainID = event.DestinationChainID.Uint64()
+		sourceChainID      = event.SourceChainID.Uint64()
 		to                 = ber.bridgeConfig[destinationChainID].InternalGatewayAddr
 		exists             bool
 	)
 
-	if event.Batch.DestinationChainID.Cmp(ber.internalChainID) != 0 {
+	if event.DestinationChainID.Cmp(ber.internalChainID) != 0 {
 		txRelayer, exists = ber.externalTxRelayers[destinationChainID]
 		if !exists {
 			return fmt.Errorf("tx relayer for chain %d not found", destinationChainID)
@@ -141,8 +142,27 @@ func (ber *bridgeEventRelayerImpl) sendBridgeMessageBatch(event *contractsapi.Si
 		to = ber.bridgeConfig[destinationChainID].ExternalGatewayAddr
 	}
 
+	events, err := ber.state.getBridgeMessageEventsForBridgeBatch(
+		event.StartID.Uint64(), event.EndID.Uint64(), nil, sourceChainID, destinationChainID)
+	if err != nil {
+		return err
+	}
+
+	messages := make([]*contractsapi.BridgeMessage, 0)
+
+	for _, event := range events {
+		messages = append(messages,
+			&contractsapi.BridgeMessage{
+				ID:                 event.ID,
+				SourceChainID:      event.SourceChainID,
+				DestinationChainID: event.DestinationChainID,
+				Sender:             event.Sender,
+				Receiver:           event.Receiver,
+				Payload:            event.Data})
+	}
+
 	input, err := (&contractsapi.ReceiveBatchGatewayFn{
-		Batch:     event.Batch,
+		Batch:     messages,
 		Signature: event.Signature,
 		Bitmap:    event.Bitmap,
 	}).EncodeAbi()

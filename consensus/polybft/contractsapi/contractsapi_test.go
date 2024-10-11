@@ -45,16 +45,19 @@ func TestEncoding_Method(t *testing.T) {
 func TestEncoding_Struct(t *testing.T) {
 	t.Parallel()
 
-	bridgeBatch := BridgeMessageBatch{
-		Messages:           []*BridgeMessage{},
+	bridgeBatch := SignedBridgeMessageBatch{
+		RootHash:           types.ZeroHash,
+		StartID:            big.NewInt(25),
+		EndID:              big.NewInt(35),
 		SourceChainID:      big.NewInt(1),
 		DestinationChainID: big.NewInt(0),
+		Signature:          [2]*big.Int{big.NewInt(1), big.NewInt(2)},
 	}
 
 	encoding, err := bridgeBatch.EncodeAbi()
 	require.NoError(t, err)
 
-	var bridgeBatchDecoded BridgeMessageBatch
+	var bridgeBatchDecoded SignedBridgeMessageBatch
 
 	require.NoError(t, bridgeBatchDecoded.DecodeAbi(encoding))
 	require.Equal(t, bridgeBatch.SourceChainID, bridgeBatchDecoded.SourceChainID)
