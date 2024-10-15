@@ -412,7 +412,7 @@ func (b *bridgeEventManager) getAggSignatureForBridgeBatchMessage(blockNumber ui
 			return polytypes.Signature{}, err
 		}
 
-		bmap.Set(uint64(index)) //nolint:gosec
+		bmap.Set(uint64(index))
 
 		signatures = append(signatures, signature)
 		signers[types.StringToAddress(vote.Sender)] = struct{}{}

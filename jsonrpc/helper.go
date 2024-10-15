@@ -4,6 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
+	"os/user"
+	"path/filepath"
+	"runtime/pprof"
+	"strings"
 
 	"github.com/0xPolygon/polygon-edge/types"
 )
@@ -269,4 +274,35 @@ func DecodeTxn(arg *txnArgs, store nonceGetter, forceSetNonce bool) (*types.Tran
 	txn.ComputeHash()
 
 	return txn, nil
+}
+
+// expandHomeDirectory expands home directory in file paths and sanitizes it.
+// For example ~someuser/tmp will not be expanded.
+func expandHomeDirectory(p string) string {
+	if strings.HasPrefix(p, "~/") || strings.HasPrefix(p, "~\\") {
+		home := os.Getenv("HOME")
+		if home == "" {
+			if usr, err := user.Current(); err == nil {
+				home = usr.HomeDir
+			}
+		}
+
+		if home != "" {
+			p = home + p[1:]
+		}
+	}
+
+	return filepath.Clean(p)
+}
+
+func writeProfile(name, file string) error {
+	p := pprof.Lookup(name)
+
+	f, err := os.Create(expandHomeDirectory(file))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return p.WriteTo(f, 0)
 }

@@ -137,8 +137,8 @@ func TestE2E_Bridge_ExternalChainTokensTransfers(t *testing.T) {
 				rootERC20Token,
 				bridgeCfg.ExternalERC20PredicateAddr,
 				bridgeHelper.TestAccountPrivKey,
-				strings.Join(receivers[:], ","),
-				strings.Join(amounts[:], ","),
+				strings.Join(receivers, ","),
+				strings.Join(amounts, ","),
 				"",
 				cluster.Bridges[bridgeOne].JSONRPCAddr(),
 				bridgeHelper.TestAccountPrivKey,
@@ -366,9 +366,9 @@ func TestE2E_Bridge_ERC721Transfer(t *testing.T) {
 			rootERC721Addr,
 			bridgeCfg.ExternalERC721PredicateAddr,
 			bridgeHelper.TestAccountPrivKey,
-			strings.Join(receivers[:], ","),
+			strings.Join(receivers, ","),
 			"",
-			strings.Join(tokenIDs[:], ","),
+			strings.Join(tokenIDs, ","),
 			cluster.Bridges[bridgeOne].JSONRPCAddr(),
 			bridgeHelper.TestAccountPrivKey,
 			false),
@@ -535,9 +535,9 @@ func TestE2E_Bridge_ERC1155Transfer(t *testing.T) {
 			rootERC1155Addr,
 			bridgeCfg.ExternalERC1155PredicateAddr,
 			bridgeHelper.TestAccountPrivKey,
-			strings.Join(receivers[:], ","),
-			strings.Join(amounts[:], ","),
-			strings.Join(tokenIDs[:], ","),
+			strings.Join(receivers, ","),
+			strings.Join(amounts, ","),
+			strings.Join(tokenIDs, ","),
 			cluster.Bridges[bridgeOne].JSONRPCAddr(),
 			bridgeHelper.TestAccountPrivKey,
 			false),
@@ -1021,8 +1021,8 @@ func TestE2E_Bridge_Transfers_AccessLists(t *testing.T) {
 				rootERC20Token,
 				bridgeCfg.ExternalERC20PredicateAddr,
 				bridgeHelper.TestAccountPrivKey,
-				strings.Join(receivers[:], ","),
-				strings.Join(depositAmounts[:], ","),
+				strings.Join(receivers, ","),
+				strings.Join(depositAmounts, ","),
 				"",
 				cluster.Bridges[bridgeOne].JSONRPCAddr(),
 				bridgeHelper.TestAccountPrivKey,
@@ -1063,8 +1063,8 @@ func TestE2E_Bridge_Transfers_AccessLists(t *testing.T) {
 		err = cluster.Bridges[bridgeOne].Withdraw(
 			common.ERC20,
 			hex.EncodeToString(rawKey),
-			strings.Join(receivers[:], ","),
-			strings.Join(withdrawAmounts[:], ","),
+			strings.Join(receivers, ","),
+			strings.Join(withdrawAmounts, ","),
 			"",
 			validatorSrv.JSONRPCAddr(),
 			bridgeCfg.InternalERC20PredicateAddr,
@@ -1079,8 +1079,8 @@ func TestE2E_Bridge_Transfers_AccessLists(t *testing.T) {
 		err = cluster.Bridges[bridgeOne].Withdraw(
 			common.ERC20,
 			hex.EncodeToString(rawKey),
-			strings.Join(receivers[:], ","),
-			strings.Join(withdrawAmounts[:], ","),
+			strings.Join(receivers, ","),
+			strings.Join(withdrawAmounts, ","),
 			"",
 			validatorSrv.JSONRPCAddr(),
 			bridgeCfg.InternalERC20PredicateAddr,
@@ -1095,8 +1095,8 @@ func TestE2E_Bridge_Transfers_AccessLists(t *testing.T) {
 		err = cluster.Bridges[bridgeOne].Withdraw(
 			common.ERC20,
 			hex.EncodeToString(rawKey),
-			strings.Join(receivers[:], ","),
-			strings.Join(withdrawAmounts[:], ","),
+			strings.Join(receivers, ","),
+			strings.Join(withdrawAmounts, ","),
 			"",
 			validatorSrv.JSONRPCAddr(),
 			bridgeCfg.InternalERC20PredicateAddr,
@@ -1220,7 +1220,7 @@ func TestE2E_Bridge_NonMintableERC20Token_WithPremine(t *testing.T) {
 		if isValidator {
 			require.True(t, balance.Cmp(childExpected) >= 0) // because of London fork
 		} else {
-			//this check is implemented because non-validators incur fees, potentially resulting in a balance lower than anticipated
+			// this check is implemented because non-validators incur fees, potentially resulting in a balance lower than anticipated
 			require.True(t, balance.Cmp(expectedValue.Sub(childExpected, offset)) >= 0)
 		}
 	}

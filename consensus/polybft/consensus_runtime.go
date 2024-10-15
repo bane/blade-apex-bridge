@@ -37,7 +37,10 @@ import (
 	"github.com/0xPolygon/polygon-edge/types"
 )
 
-const stateFileName = "consensusState.db"
+const (
+	stateFileName      = "consensusState.db"
+	rewardLookbackSize = uint64(1)
+)
 
 var (
 	// errNotAValidator represents "node is not a validator" error message
@@ -453,7 +456,7 @@ func (c *consensusRuntime) FSM() error {
 		}
 	}
 
-	ff.distributeRewardsInput, err = c.calculateDistributeRewardsInput(isFirstBlockOfEpoch, isEndOfEpoch,
+	ff.distributeRewardsInput, err = c.calculateDistributeRewardsInput(isFirstBlockOfEpoch,
 		pendingBlockNumber, parent, epoch.Number)
 	if err != nil {
 		return fmt.Errorf("cannot calculate uptime info: %w", err)
@@ -569,12 +572,12 @@ func createCommitEpochInput(
 
 // calculateDistributeRewardsInput calculates distribute rewards input data
 func (c *consensusRuntime) calculateDistributeRewardsInput(
-	isFirstBlockOfEpoch, isEndOfEpoch bool,
+	isFirstBlockOfEpoch bool,
 	pendingBlockNumber uint64,
 	lastFinalizedBlock *types.Header,
 	epochID uint64,
 ) (*contractsapi.DistributeRewardForEpochManagerFn, error) {
-	if !governance.IsRewardDistributionBlock(c.config.Forks, isFirstBlockOfEpoch, isEndOfEpoch, pendingBlockNumber) {
+	if !isRewardDistributionBlock(isFirstBlockOfEpoch, pendingBlockNumber) {
 		// we don't have to distribute rewards at this block
 		return nil, nil
 	}
@@ -640,12 +643,10 @@ func (c *consensusRuntime) calculateDistributeRewardsInput(
 		}
 	}
 
-	lookbackSize := governance.GetLookbackSizeForRewardDistribution(c.config.Forks, pendingBlockNumber)
-
 	// calculate uptime for blocks from previous epoch that were not processed in previous uptime
 	// since we can not calculate uptime for the last block in epoch (because of parent signatures)
-	if blockHeader.Number > lookbackSize {
-		for i := uint64(0); i < lookbackSize; i++ {
+	if blockHeader.Number > rewardLookbackSize {
+		for i := uint64(0); i < rewardLookbackSize; i++ {
 			validators, err := c.backend.GetValidators(blockHeader.Number-2, nil)
 			if err != nil {
 				return nil, err
@@ -1141,4 +1142,10 @@ func (c *consensusRuntime) logRoundChangeMessage(
 		"numOfPrepareMsgs", preparedMsgsLen,
 		"certificateSize", common.ToMB(rawCertificate),
 		"certificateProposalSize", common.ToMB(rawCertificateProposalMsg))
+}
+
+// isRewardDistributionBlock indicates if reward distribution transaction
+// should happen in given block
+func isRewardDistributionBlock(isFirstBlockOfEpoch bool, pendingBlockNumber uint64) bool {
+	return isFirstBlockOfEpoch && pendingBlockNumber > 1
 }

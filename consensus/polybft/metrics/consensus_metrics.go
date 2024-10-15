@@ -5,7 +5,7 @@ import (
 
 	polytypes "github.com/0xPolygon/polygon-edge/consensus/polybft/types"
 	"github.com/0xPolygon/polygon-edge/types"
-	"github.com/armon/go-metrics"
+	"github.com/hashicorp/go-metrics"
 )
 
 const (
@@ -17,8 +17,8 @@ const (
 // (such as block interval, number of transactions and block rounds metrics)
 func UpdateBlockMetrics(currentBlock *types.Block, parentHeader *types.Header) error {
 	if currentBlock.Number() > 1 {
-		parentTime := time.Unix(int64(parentHeader.Timestamp), 0)        //nolint:gosec
-		headerTime := time.Unix(int64(currentBlock.Header.Timestamp), 0) //nolint:gosec
+		parentTime := time.Unix(int64(parentHeader.Timestamp), 0)
+		headerTime := time.Unix(int64(currentBlock.Header.Timestamp), 0)
 		// update the block interval metric
 		metrics.SetGauge([]string{ConsensusMetricsPrefix, "block_interval"}, float32(headerTime.Sub(parentTime).Seconds()))
 	}

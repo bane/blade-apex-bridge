@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -224,7 +223,7 @@ func runExternalChain(ctx context.Context, outputter command.OutputFormatter, cl
 		// in current folder
 		pwdDir, err := os.Getwd()
 		if err != nil {
-			log.Fatal(err)
+			return err
 		} else {
 			mountDir = filepath.Join(pwdDir, params.dataDir)
 		}

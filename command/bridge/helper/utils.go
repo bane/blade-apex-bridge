@@ -195,9 +195,7 @@ func GetValidatorInfo(validatorAddr types.Address, supernetManagerAddr, stakeMan
 		IsWhitelisted: innerMap["isWhitelisted"].(bool),
 	}
 
-	stakeOfFn := &contractsapi.StakeOfStakeManagerFn{
-		Validator: validatorAddr,
-	}
+	stakeOfFn := &contractsapi.StakeOfStakeManagerFn{Validator: validatorAddr}
 
 	encode, err = stakeOfFn.EncodeAbi()
 	if err != nil {

@@ -91,9 +91,9 @@ func (e *env) ToEnv(t testing.TB) runtime.TxContext {
 		Coinbase:   stringToAddressT(t, e.Coinbase),
 		BaseFee:    baseFee,
 		Difficulty: stringToHashT(t, e.Difficulty),
-		GasLimit:   stringToInt64T(t, e.GasLimit),
-		Number:     stringToInt64T(t, e.Number),
-		Timestamp:  stringToInt64T(t, e.Timestamp),
+		GasLimit:   stringToUint64T(t, e.GasLimit),
+		Number:     stringToUint64T(t, e.Number),
+		Timestamp:  stringToUint64T(t, e.Timestamp),
 	}
 }
 
@@ -189,7 +189,10 @@ func stringToInt64T(t testing.TB, str string) int64 {
 
 func buildState(allocs map[types.Address]*chain.GenesisAccount) (state.State, state.Snapshot, types.Hash, error) {
 	s := itrie.NewState(itrie.NewMemoryStorage())
-	snap := s.NewSnapshot()
+	snap, err := s.NewSnapshot(types.ZeroHash)
+	if err != nil {
+		return nil, nil, types.ZeroHash, err
+	}
 
 	txn := state.NewTxn(snap)
 

@@ -228,7 +228,7 @@ func (s *stakeManager) UpdateValidatorSet(epoch uint64, maxValidatorSetSize uint
 	stakeMap := fullValidatorSet.Validators
 
 	// slice of all validator set
-	newValidatorSet := stakeMap.GetSorted(int(maxValidatorSetSize)) //nolint:gosec
+	newValidatorSet := stakeMap.GetSorted(int(maxValidatorSetSize))
 	// set of all addresses that will be in next validator set
 	addressesSet := make(map[types.Address]struct{}, len(newValidatorSet))
 

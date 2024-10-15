@@ -218,7 +218,8 @@ func TestE2E_TxPool_TransactionWithHeaderInstructions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(types.ReceiptSuccess), receipt.Status)
 
-	receipt, err = ABITransaction(relayer, sidechainKey, contractsapi.TestWriteBlockMetadata, types.Address(receipt.ContractAddress), "init", []interface{}{})
+	receipt, err = ABITransaction(relayer, sidechainKey, contractsapi.TestWriteBlockMetadata,
+		types.Address(receipt.ContractAddress), "init", []interface{}{})
 	require.NoError(t, err)
 	require.Equal(t, uint64(types.ReceiptSuccess), receipt.Status)
 
@@ -330,7 +331,6 @@ func sendTransaction(t *testing.T, client *jsonrpc.EthClient, sender crypto.Key,
 	require.NoError(t, err)
 
 	txnRlp := signedTxn.MarshalRLPTo(nil)
-	require.NoError(t, err)
 
 	_, err = client.SendRawTransaction(txnRlp)
 	require.NoError(t, err)

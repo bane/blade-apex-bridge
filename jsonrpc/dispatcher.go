@@ -12,8 +12,8 @@ import (
 	"unicode"
 
 	"github.com/0xPolygon/polygon-edge/accounts"
-	"github.com/armon/go-metrics"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-metrics"
 	jsonIter "github.com/json-iterator/go"
 )
 
@@ -206,18 +206,23 @@ func (d *Dispatcher) handleSubscribe(req Request, conn wsConn) (string, Error) {
 	}
 
 	var filterID string
-	if subscribeMethod == "newHeads" {
+
+	switch subscribeMethod {
+	case "newHeads":
 		filterID = d.filterManager.NewBlockFilter(conn)
-	} else if subscribeMethod == "logs" {
+
+	case "logs":
 		logQuery, err := decodeLogQueryFromInterface(params[1])
 		if err != nil {
 			return "", NewInternalError(err.Error())
 		}
 
 		filterID = d.filterManager.NewLogFilter(logQuery, conn)
-	} else if subscribeMethod == "newPendingTransactions" {
+
+	case "newPendingTransactions":
 		filterID = d.filterManager.NewPendingTxFilter(conn)
-	} else {
+
+	default:
 		return "", NewSubscriptionNotFoundError(subscribeMethod)
 	}
 
@@ -489,7 +494,7 @@ func (d *Dispatcher) registerService(serviceName string, service interface{}) er
 			continue
 		}
 
-		name := lowerCaseFirst(mv.Name)
+		name := lowerCaseFirstRune(mv.Name)
 		funcName := serviceName + "_" + name
 		fd := &funcData{
 			fv: mv.Func,
@@ -579,10 +584,11 @@ func getError(v reflect.Value) error {
 	return extractedErr
 }
 
-func lowerCaseFirst(str string) string {
-	for i, v := range str {
-		return string(unicode.ToLower(v)) + str[i+1:]
+// lowerCaseFirstRune converts the first character of the string to lowercase.
+func lowerCaseFirstRune(str string) string {
+	if len(str) == 0 {
+		return ""
 	}
 
-	return ""
+	return string(unicode.ToLower(rune(str[0]))) + str[1:]
 }

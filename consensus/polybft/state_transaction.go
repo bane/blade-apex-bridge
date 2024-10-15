@@ -24,19 +24,24 @@ func decodeStateTransaction(txData []byte) (contractsapi.ABIEncoder, error) {
 		obj                  contractsapi.ABIEncoder
 	)
 
-	if bytes.Equal(sig, commitBridgeTxFn.Sig()) {
+	switch {
+	case bytes.Equal(sig, commitBridgeTxFn.Sig()):
 		// bridge batch
 		obj = &bridge.BridgeBatchSigned{}
-	} else if bytes.Equal(sig, commitEpochFn.Sig()) {
+
+	case bytes.Equal(sig, commitEpochFn.Sig()):
 		// commit epoch
 		obj = &contractsapi.CommitEpochEpochManagerFn{}
-	} else if bytes.Equal(sig, distributeRewardsFn.Sig()) {
+
+	case bytes.Equal(sig, distributeRewardsFn.Sig()):
 		// distribute rewards
 		obj = &contractsapi.DistributeRewardForEpochManagerFn{}
-	} else if bytes.Equal(sig, commitValidatorSetFn.Sig()) {
+
+	case bytes.Equal(sig, commitValidatorSetFn.Sig()):
 		// commit validator set
 		obj = &contractsapi.CommitValidatorSetBridgeStorageFn{}
-	} else {
+
+	default:
 		return nil, fmt.Errorf("unknown state transaction")
 	}
 

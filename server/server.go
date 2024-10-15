@@ -479,7 +479,7 @@ type txpoolHub struct {
 
 // getAccountImpl is used for fetching account state from both TxPool and JSON-RPC
 func getAccountImpl(state state.State, root types.Hash, addr types.Address) (*state.Account, error) {
-	snap, err := state.NewSnapshotAt(root)
+	snap, err := state.NewSnapshot(root)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get snapshot for root '%s': %w", root, err)
 	}
@@ -696,7 +696,7 @@ func (j *jsonRPCHub) GetStorage(stateRoot types.Hash, addr types.Address, slot t
 		return nil, err
 	}
 
-	snap, err := j.state.NewSnapshotAt(stateRoot)
+	snap, err := j.state.NewSnapshot(stateRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -704,6 +704,21 @@ func (j *jsonRPCHub) GetStorage(stateRoot types.Hash, addr types.Address, slot t
 	res := snap.GetStorage(addr, account.Root, slot)
 
 	return res.Bytes(), nil
+}
+
+func (j *jsonRPCHub) Get(key string) ([]byte, error) {
+	hash := types.StringToHash(key)
+
+	data, ok, err := j.state.Get(hash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get data for root hash: %w", err)
+	}
+
+	if !ok {
+		return nil, fmt.Errorf("data not found for root hash: %s", hash.String())
+	}
+
+	return data, nil
 }
 
 func (j *jsonRPCHub) GetCode(root types.Hash, addr types.Address) ([]byte, error) {
@@ -718,6 +733,43 @@ func (j *jsonRPCHub) GetCode(root types.Hash, addr types.Address) ([]byte, error
 	}
 
 	return code, nil
+}
+
+// Has returns true if the DB does contains the given key.
+func (j *jsonRPCHub) Has(rootHash types.Hash) bool {
+	return j.state.Has(rootHash)
+}
+
+// DumpTree retrieves accounts based on the specified criteria for the given block.
+func (j *jsonRPCHub) DumpTree(block *types.Block, opts *state.DumpInfo) (*state.Dump, error) {
+	parentHeader, ok := j.GetHeaderByHash(block.ParentHash())
+	if !ok {
+		return nil, fmt.Errorf("parent header not found for hash: %s", block.ParentHash().String())
+	}
+
+	dump := &state.Dump{}
+	if _, err := j.Executor.GetDumpTree(dump, parentHeader.StateRoot, block, opts); err != nil {
+		return nil, fmt.Errorf("failed to get dump tree: %w", err)
+	}
+
+	return dump, nil
+}
+
+// GetIteratorDumpTree returns a set of accounts based on the given criteria and depends on the starting element.
+func (j *jsonRPCHub) GetIteratorDumpTree(block *types.Block, opts *state.DumpInfo) (*state.IteratorDump, error) {
+	parentHeader, ok := j.GetHeaderByHash(block.ParentHash())
+	if !ok {
+		return nil, fmt.Errorf("parent header not found for hash: %s", block.ParentHash().String())
+	}
+
+	itDump := &state.IteratorDump{}
+	if nextKey, err := j.Executor.GetDumpTree(&itDump.Dump, parentHeader.StateRoot, block, opts); err != nil {
+		return nil, err
+	} else {
+		itDump.Next = nextKey
+	}
+
+	return itDump, nil
 }
 
 func (j *jsonRPCHub) ApplyTxn(
@@ -790,6 +842,50 @@ func (j *jsonRPCHub) TraceBlock(
 	}
 
 	return results, nil
+}
+
+// IntermediateRoots executes a block, and returns a list
+// of intermediate roots: the state root after each transaction.
+func (j *jsonRPCHub) IntermediateRoots(
+	block *types.Block,
+	tracer tracer.Tracer,
+) ([]types.Hash, error) {
+	if block.Number() == 0 {
+		return nil, errors.New("genesis block can't have transaction")
+	}
+
+	parentHeader, ok := j.GetHeaderByHash(block.ParentHash())
+	if !ok {
+		return nil, errors.New("parent header not found")
+	}
+
+	blockProposer := types.BytesToAddress(block.Header.Miner)
+
+	transition, err := j.BeginTxn(parentHeader.StateRoot, block.Header, blockProposer)
+	if err != nil {
+		return nil, err
+	}
+
+	transition.SetTracer(tracer)
+
+	roots := make([]types.Hash, len(block.Transactions))
+
+	for idx, tx := range block.Transactions {
+		tracer.Clear()
+
+		if _, err := transition.Apply(tx); err != nil {
+			return nil, err
+		}
+
+		_, h, err := transition.Commit()
+		if err != nil {
+			return nil, fmt.Errorf("failed to commit the state changes: %w", err)
+		}
+
+		roots[idx] = h
+	}
+
+	return roots, nil
 }
 
 // TraceTxn traces a transaction in the block, associated with the given hash

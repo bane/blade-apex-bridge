@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -84,6 +85,7 @@ func MultiJoinSerial(t *testing.T, srvs []*TestServer) {
 		srv, dst := srvs[i], srvs[i+1]
 		dials = append(dials, srv, dst)
 	}
+
 	MultiJoin(t, dials...)
 }
 
@@ -345,6 +347,7 @@ func NewTestServers(t *testing.T, num int, conf func(*TestServerConfig)) []*Test
 
 		srv := NewTestServer(t, dataDir, func(c *TestServerConfig) {
 			c.SetLogsDir(logsDir)
+			c.SetName(strconv.Itoa(i))
 			c.SetSaveLogs(true)
 			conf(c)
 		})
@@ -422,6 +425,7 @@ func WaitForServersToSeal(servers []*TestServer, desiredHeight uint64) []error {
 			}
 		}(i)
 	}
+
 	wg.Wait()
 
 	return waitErrors

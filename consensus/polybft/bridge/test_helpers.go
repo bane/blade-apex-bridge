@@ -55,7 +55,7 @@ func generateBridgeMessageEvents(t *testing.T, eventsCount int, startIdx uint64)
 	bridgeMessageEvents := make([]*contractsapi.BridgeMsgEvent, eventsCount)
 	for i := 0; i < eventsCount; i++ {
 		bridgeMessageEvents[i] = &contractsapi.BridgeMsgEvent{
-			ID:                 big.NewInt(int64(startIdx + uint64(i))), //nolint:gosec
+			ID:                 new(big.Int).SetUint64(startIdx + uint64(i)),
 			Sender:             types.StringToAddress(fmt.Sprintf("0x5%d", i)),
 			Receiver:           types.StringToAddress(fmt.Sprintf("0x4%d", i)),
 			Data:               polytesting.GenerateRandomBytes(t),

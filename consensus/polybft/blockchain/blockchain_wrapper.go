@@ -147,7 +147,7 @@ func (p *BlockchainWrapper) UnubscribeEvents(subscription blockchain.Subscriptio
 }
 
 func (p *BlockchainWrapper) GetChainID() uint64 {
-	return uint64(p.blockchain.Config().ChainID) //nolint:gosec
+	return uint64(p.blockchain.Config().ChainID)
 }
 
 func (p *BlockchainWrapper) GetReceiptsByHash(hash types.Hash) ([]*types.Receipt, error) {

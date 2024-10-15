@@ -302,7 +302,6 @@ func deployContracts(
 			default:
 				return contract.initializeFn(outputter, txr,
 					initialValidators, bridgeConfig, deployerKey, chainID)
-
 			}
 		})
 	}

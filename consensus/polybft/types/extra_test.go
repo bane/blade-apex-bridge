@@ -568,7 +568,6 @@ func Test_GetIbftExtraClean(t *testing.T) {
 
 	extraTwo := &Extra{}
 	require.NoError(t, extraTwo.UnmarshalRLP(extraClean))
-	require.True(t, extra.Validators.Equals(extra.Validators))
 	require.Equal(t, extra.Parent.AggregatedSignature, extraTwo.Parent.AggregatedSignature)
 	require.Equal(t, extra.Parent.Bitmap, extraTwo.Parent.Bitmap)
 
