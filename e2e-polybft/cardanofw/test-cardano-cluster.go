@@ -591,7 +591,6 @@ func (c *TestCardanoCluster) CopyConfigFilesAndInitDirectoriesStep2(networkType 
 				if maxLovelaceSupply, ok := v.(float64); ok {
 					prevMax = uint64(maxLovelaceSupply)
 				} else {
-					//nolint:gosec
 					prevMax = uint64(v.(int)) //nolint:forcetypeassert
 				}
 			}
@@ -694,6 +693,7 @@ func (c *TestCardanoCluster) GenesisCreateStaked(startTime time.Time) error {
 	exprectedErr := fmt.Sprintf(
 		"%d genesis keys, %d non-delegating UTxO keys, %d stake pools, %d delegating UTxO keys, %d delegation map entries",
 		c.Config.NodesCount, c.Config.NodesCount, c.Config.NodesCount, c.Config.NodesCount, c.Config.NodesCount)
+
 	args := append([]string{
 		"genesis", "create-staked",
 		"--genesis-dir", c.Config.Dir(""),

@@ -11,8 +11,8 @@ import (
 	"github.com/0xPolygon/polygon-edge/types"
 	"github.com/Ethernal-Tech/cardano-infrastructure/indexer"
 	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
+	"github.com/Ethernal-Tech/ethgo/abi"
 	"github.com/stretchr/testify/require"
-	"github.com/umbracle/ethgo/abi"
 )
 
 func TestE2E_ApexBridge_TestCardanoVerifySignaturePrecompile(t *testing.T) {
@@ -47,10 +47,10 @@ func TestE2E_ApexBridge_TestCardanoVerifySignaturePrecompile(t *testing.T) {
 	require.NoError(t, err)
 
 	txHash, _ := hex.DecodeString(txInfo.Hash)
+	invalidKey := [32]byte{}
 
 	cw, err := cardanowallet.GenerateWallet(false)
 	require.NoError(t, err)
-	invalidKey := [32]byte{}
 
 	checkValidity := func(t *testing.T,
 		txRawOrMsg []byte, signature []byte, verificationKey []byte, isTx bool, shouldBeValid bool) {

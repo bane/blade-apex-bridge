@@ -13,9 +13,9 @@ import (
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/cardanofw"
 	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
+	"github.com/Ethernal-Tech/ethgo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/umbracle/ethgo"
 )
 
 const (
@@ -24,7 +24,7 @@ const (
 )
 
 func TestE2E_ApexBridgeWithNexus(t *testing.T) {
-	if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+	if cardanofw.ShouldSkipE2RRedundantTests() {
 		t.Skip()
 	}
 
@@ -110,7 +110,7 @@ func TestE2E_ApexBridgeWithNexus(t *testing.T) {
 }
 
 func TestE2E_ApexBridgeWithNexus_NtP_ValidScenarios(t *testing.T) {
-	if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+	if cardanofw.ShouldSkipE2RRedundantTests() {
 		t.Skip()
 	}
 
@@ -228,7 +228,6 @@ func TestE2E_ApexBridgeWithNexus_NtP_ValidScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		for sequenceIdx := 0; sequenceIdx < instances; sequenceIdx++ {
-
 			var wg sync.WaitGroup
 			for i := 0; i < parallelInstances; i++ {
 				wg.Add(1)
@@ -514,7 +513,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 	user := apex.Users[userCnt-1]
 
 	t.Run("From Prime to Nexus one by one - wait for other side", func(t *testing.T) {
-		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		if cardanofw.ShouldSkipE2RRedundantTests() {
 			t.Skip()
 		}
 
@@ -542,7 +541,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("From Prime to Nexus one by one - don't wait for other side", func(t *testing.T) {
-		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		if cardanofw.ShouldSkipE2RRedundantTests() {
 			t.Skip()
 		}
 
@@ -572,7 +571,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("From Prime to Nexus parallel", func(t *testing.T) {
-		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		if cardanofw.ShouldSkipE2RRedundantTests() {
 			t.Skip()
 		}
 
@@ -615,7 +614,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("From Prime to Nexus sequential and parallel", func(t *testing.T) {
-		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		if cardanofw.ShouldSkipE2RRedundantTests() {
 			t.Skip()
 		}
 
@@ -640,7 +639,6 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 						cardanofw.ChainIDPrime, cardanofw.ChainIDNexus,
 						apex.Users[idx], new(big.Int).SetUint64(sendAmountDfm), user,
 					)
-					require.NoError(t, err)
 
 					fmt.Printf("Seq: %v, Tx %v sent. hash: %s\n", sequence+1, idx+1, txHash)
 				}(sequenceIdx, i)
@@ -663,7 +661,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("From Prime to Nexus sequential and parallel with max receivers", func(t *testing.T) {
-		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		if cardanofw.ShouldSkipE2RRedundantTests() {
 			t.Skip()
 		}
 
@@ -703,7 +701,6 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 						cardanofw.ChainIDPrime, cardanofw.ChainIDNexus,
 						apex.Users[idx], new(big.Int).SetUint64(sendAmountDfm), destinationUsers...,
 					)
-					require.NoError(t, err)
 
 					fmt.Printf("Seq: %v, Tx %v sent. hash: %s\n", sequence+1, idx+1, txHash)
 				}(sequenceIdx, i)
@@ -738,7 +735,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("From Prime to Nexus sequential and parallel - one node goes off in the midle", func(t *testing.T) {
-		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		if cardanofw.ShouldSkipE2RRedundantTests() {
 			t.Skip()
 		}
 
@@ -776,7 +773,6 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 						cardanofw.ChainIDPrime, cardanofw.ChainIDNexus,
 						apex.Users[idx], new(big.Int).SetUint64(sendAmountDfm), user,
 					)
-					require.NoError(t, err)
 
 					fmt.Printf("Seq: %v, Tx %v sent. hash: %s\n", sequence+1, idx+1, txHash)
 				}(sequenceIdx, i)
@@ -803,7 +799,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("Both directions sequential", func(t *testing.T) {
-		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		if cardanofw.ShouldSkipE2RRedundantTests() {
 			t.Skip()
 		}
 
@@ -986,7 +982,6 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 
 		wg.Add(2)
 
-		//nolint:dupl
 		go func() {
 			defer wg.Done()
 
@@ -1098,7 +1093,6 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 
 		wg.Add(2)
 
-		//nolint:dupl
 		go func() {
 			defer wg.Done()
 
@@ -1506,7 +1500,7 @@ func TestE2E_ApexBridgeWithNexus_ValidScenarios_BigTest(t *testing.T) {
 						cardanofw.ChainIDPrime, cardanofw.ChainIDNexus,
 						apex.Users[idx], new(big.Int).SetUint64(sendAmountDfm), user,
 					)
-					require.NoError(t, err)
+
 					fmt.Printf("Tx %v sent. hash: %s\n", idx+1, txHash)
 				} else {
 					const feeAmount = 1_100_000
@@ -1557,7 +1551,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 	sendAmountDfm, sendAmountEth := convertToEthValues(1)
 
 	t.Run("Test insufficient gas price dynamicTx=true", func(t *testing.T) {
-		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		if cardanofw.ShouldSkipE2RRedundantTests() {
 			t.Skip()
 		}
 
@@ -1627,7 +1621,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 	})
 
 	t.Run("Test insufficient gas price dynamicTx=false", func(t *testing.T) {
-		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		if cardanofw.ShouldSkipE2RRedundantTests() {
 			t.Skip()
 		}
 
@@ -1759,7 +1753,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 
 	//nolint:dupl
 	t.Run("Test failed batch", func(t *testing.T) {
-		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		if cardanofw.ShouldSkipE2RRedundantTests() {
 			t.Skip()
 		}
 
@@ -1806,7 +1800,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 
 	//nolint:dupl
 	t.Run("Test failed batch 5 times in a row", func(t *testing.T) {
-		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		if cardanofw.ShouldSkipE2RRedundantTests() {
 			t.Skip()
 		}
 
@@ -1852,7 +1846,7 @@ func TestE2E_ApexBridgeWithNexus_BatchFailed(t *testing.T) {
 	})
 
 	t.Run("Test multiple failed batches in a row", func(t *testing.T) {
-		if shouldSkip := os.Getenv("SKIP_E2E_REDUNDANT_TESTS"); shouldSkip == "true" {
+		if cardanofw.ShouldSkipE2RRedundantTests() {
 			t.Skip()
 		}
 

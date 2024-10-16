@@ -11,7 +11,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/umbracle/ethgo/abi"
+	"github.com/Ethernal-Tech/ethgo/abi"
 
 	gensc "github.com/0xPolygon/polygon-edge/consensus/polybft/contractsapi"
 	"github.com/0xPolygon/polygon-edge/contracts"
@@ -543,8 +543,8 @@ import (
 	"math/big"
 
 	"github.com/0xPolygon/polygon-edge/types"
-	"github.com/umbracle/ethgo/abi"
-	"github.com/umbracle/ethgo"
+	"github.com/Ethernal-Tech/ethgo/abi"
+	"github.com/Ethernal-Tech/ethgo"
 )
 
 `
@@ -689,7 +689,8 @@ func generateType(generatedData *generatedData, name string, obj *abi.Type, res 
 
 		var typ string
 
-		if elem.Kind() == abi.KindTuple {
+		switch elem.Kind() {
+		case abi.KindTuple:
 			// Struct
 			nestedType, err := generateNestedType(generatedData, tupleElem.Name, elem, res)
 			if err != nil {
@@ -697,30 +698,49 @@ func generateType(generatedData *generatedData, name string, obj *abi.Type, res 
 			}
 
 			typ = nestedType
-		} else if elem.Kind() == abi.KindSlice && elem.Elem().Kind() == abi.KindTuple {
-			// []Struct
-			nestedType, err := generateNestedType(generatedData, getInternalType(tupleElem.Name, elem), elem.Elem(), res)
-			if err != nil {
-				return "", err
+
+		case abi.KindSlice:
+			switch elem.Elem().Kind() {
+			case abi.KindTuple:
+				// []Struct
+				nestedType, err := generateNestedType(generatedData, getInternalType(tupleElem.Name, elem), elem.Elem(), res)
+				if err != nil {
+					return "", err
+				}
+
+				typ = "[]" + nestedType
+			case abi.KindAddress:
+				// for address slice or arrays use the native `types.Address` type instead of `ethgo.Address`
+				typ = "[]types.Address"
+			default:
+				typ = elem.GoType().String()
 			}
 
-			typ = "[]" + nestedType
-		} else if elem.Kind() == abi.KindArray && elem.Elem().Kind() == abi.KindTuple {
-			// [n]Struct
-			nestedType, err := generateNestedType(generatedData, getInternalType(tupleElem.Name, elem), elem.Elem(), res)
-			if err != nil {
-				return "", err
+		case abi.KindArray:
+			switch elem.Elem().Kind() {
+			case abi.KindTuple:
+				// [n]Struct
+				nestedType, err := generateNestedType(generatedData, getInternalType(tupleElem.Name, elem), elem.Elem(), res)
+				if err != nil {
+					return "", err
+				}
+
+				typ = "[" + strconv.Itoa(elem.Size()) + "]" + nestedType
+
+			case abi.KindAddress:
+				// for address slice or arrays use the native `types.Address` type instead of `ethgo.Address`
+				typ = "[]types.Address"
+
+			default:
+				// for the rest of the types use the go type returned by abi
+				typ = elem.GoType().String()
 			}
 
-			typ = "[" + strconv.Itoa(elem.Size()) + "]" + nestedType
-		} else if elem.Kind() == abi.KindAddress {
+		case abi.KindAddress:
 			// for address use the native `types.Address` type instead of `ethgo.Address`
 			typ = "types.Address"
-		} else if (elem.Kind() == abi.KindArray || elem.Kind() == abi.KindSlice) &&
-			elem.Elem().Kind() == abi.KindAddress {
-			// for address slice or arrays use the native `types.Address` type instead of `ethgo.Address`
-			typ = "[]types.Address"
-		} else {
+
+		default:
 			// for the rest of the types use the go type returned by abi
 			typ = elem.GoType().String()
 		}
@@ -728,15 +748,15 @@ func generateType(generatedData *generatedData, name string, obj *abi.Type, res 
 		// []byte and [n]byte get rendered as []uint68 and [n]uint8, since we do not have any
 		// uint8 internally in polybft, we can use regexp to replace those values with the
 		// correct byte representation
-		typ = strings.Replace(typ, "[32]uint8", "types.Hash", -1)
-		typ = strings.Replace(typ, "]uint8", "]byte", -1)
+		typ = strings.ReplaceAll(typ, "[32]uint8", "types.Hash")
+		typ = strings.ReplaceAll(typ, "]uint8", "]byte")
 
 		// Trim the leading _ from name if it exists
 		fieldName := strings.TrimPrefix(tupleElem.Name, "_")
 
 		// Replacement of Id for ID to make the linter happy
 		fieldName = strings.Title(fieldName)
-		fieldName = strings.Replace(fieldName, "Id", "ID", -1)
+		fieldName = strings.ReplaceAll(fieldName, "Id", "ID")
 
 		str = append(str, fmt.Sprintf("%s %s `abi:\"%s\"`", fieldName, typ, tupleElem.Name))
 	}

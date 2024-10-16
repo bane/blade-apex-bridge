@@ -21,9 +21,9 @@ import (
 	"github.com/0xPolygon/polygon-edge/server/proto"
 	txpoolProto "github.com/0xPolygon/polygon-edge/txpool/proto"
 	"github.com/0xPolygon/polygon-edge/types"
+	"github.com/Ethernal-Tech/ethgo"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"github.com/umbracle/ethgo"
 	"google.golang.org/grpc"
 )
 
@@ -143,7 +143,7 @@ func NewTestServer(t *testing.T, clusterConfig *TestClusterConfig,
 	srv := &TestServer{
 		t:             t,
 		clusterConfig: clusterConfig,
-		address:       types.Address(key.Address()),
+		address:       key.Address(),
 		config:        config,
 	}
 	srv.Start()

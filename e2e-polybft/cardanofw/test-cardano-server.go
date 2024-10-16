@@ -111,8 +111,8 @@ func (t TestCardanoServer) Port() int {
 	return t.config.Port
 }
 
-func (c *TestCardanoServer) NetworkAddress() string {
-	return fmt.Sprintf("localhost:%d", c.config.Port)
+func (t *TestCardanoServer) NetworkAddress() string {
+	return fmt.Sprintf("localhost:%d", t.config.Port)
 }
 
 func (t *TestCardanoServer) getTxProvider() (cardanowallet.ITxProvider, error) {

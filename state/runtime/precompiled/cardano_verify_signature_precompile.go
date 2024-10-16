@@ -9,7 +9,7 @@ import (
 	"github.com/0xPolygon/polygon-edge/types"
 	cardano_indexer "github.com/Ethernal-Tech/cardano-infrastructure/indexer"
 	cardano_wallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
-	"github.com/umbracle/ethgo/abi"
+	"github.com/Ethernal-Tech/ethgo/abi"
 )
 
 var cardanoVerifySignaturePrecompileInputABIType = abi.MustNewType("tuple(bytes, bytes, bytes32, bool)")

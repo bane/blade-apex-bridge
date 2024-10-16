@@ -9,10 +9,10 @@ import (
 
 	"github.com/0xPolygon/polygon-edge/txpool/proto"
 	"github.com/0xPolygon/polygon-edge/types"
+	"github.com/Ethernal-Tech/ethgo"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/umbracle/ethgo"
 )
 
 var (
@@ -470,19 +470,20 @@ func TestDispatcherBatchRequest(t *testing.T) {
 
 			assert.NoError(t, expectBatchJSONResult(res, &batchResp))
 
-			if c.name == "leading-whitespace" {
+			switch c.name {
+			case "leading-whitespace":
 				assert.Len(t, batchResp, 4)
 
 				for index, resp := range batchResp {
 					assert.Equal(t, c.batchResponse[index].Error, resp.Error)
 				}
-			} else if c.name == "valid-batch-req" {
+			case "valid-batch-req":
 				assert.Len(t, batchResp, 6)
 
 				for index, resp := range batchResp {
 					assert.Equal(t, c.batchResponse[index].Error, resp.Error)
 				}
-			} else if c.name == "no-limits" {
+			case "no-limits":
 				assert.Len(t, batchResp, 12)
 
 				for index, resp := range batchResp {
@@ -559,10 +560,36 @@ func TestDispatcher_WebsocketConnection_Unsubscribe(t *testing.T) {
 	assert.Equal(t, "true", string(resp.Result))
 }
 
+func TestLowerCaseFirstRune(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"Debug_CPUProfile", "debug_CPUProfile"},
+		{"BlockNumber", "blockNumber"},
+		{"CPUProfileNew", "cPUProfileNew"},
+		{"", ""},
+		{"A", "a"},
+		{"a", "a"},
+		{"AB", "aB"},
+		{"aB", "aB"},
+		{"1234", "1234"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			result := lowerCaseFirstRune(test.input)
+			if result != test.expected {
+				t.Errorf("lowerCaseFirst(%q) = %q; want %q", test.input, result, test.expected)
+			}
+		})
+	}
+}
+
 func newTestDispatcher(tb testing.TB, logger hclog.Logger, store JSONRPCStore, params *dispatcherParams) *Dispatcher {
 	tb.Helper()
 
-	d, err := newDispatcher(logger, store, params)
+	d, err := newDispatcher(logger, store, params, nil)
 	require.NoError(tb, err)
 
 	return d

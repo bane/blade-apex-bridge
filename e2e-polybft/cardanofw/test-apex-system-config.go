@@ -161,43 +161,6 @@ func WithUserCardanoFund(userCardanoFund uint64) ApexSystemOptions {
 	}
 }
 
-func (c *ApexSystemConfig) applyPremineFundingOptions(users []*TestApexUser) {
-	if len(c.PrimeClusterConfig.InitialFundsKeys) == 0 {
-		c.PrimeClusterConfig.InitialFundsKeys = make([]string, 0, len(users))
-	}
-
-	if len(c.VectorClusterConfig.InitialFundsKeys) == 0 {
-		c.VectorClusterConfig.InitialFundsKeys = make([]string, 0, len(users))
-	}
-
-	if len(c.NexusInitialFundsKeys) == 0 {
-		c.NexusInitialFundsKeys = make([]types.Address, 0, len(users))
-	}
-
-	if c.PrimeClusterConfig.InitialFundsAmount == 0 {
-		c.PrimeClusterConfig.InitialFundsAmount = c.UserCardanoFund
-	}
-
-	if c.VectorClusterConfig.InitialFundsAmount == 0 {
-		c.VectorClusterConfig.InitialFundsAmount = c.UserCardanoFund
-	}
-
-	for _, user := range users {
-		c.PrimeClusterConfig.InitialFundsKeys = append(
-			c.PrimeClusterConfig.InitialFundsKeys, hex.EncodeToString(user.PrimeAddress.Bytes()))
-
-		if user.HasVectorWallet {
-			c.VectorClusterConfig.InitialFundsKeys = append(
-				c.VectorClusterConfig.InitialFundsKeys, hex.EncodeToString(user.VectorAddress.Bytes()))
-		}
-
-		if user.HasNexusWallet {
-			c.NexusInitialFundsKeys = append(
-				c.NexusInitialFundsKeys, user.NexusAddress)
-		}
-	}
-}
-
 func getDefaultApexSystemConfig() *ApexSystemConfig {
 	return &ApexSystemConfig{
 		APIValidatorID: 1,
@@ -238,17 +201,53 @@ func getDefaultApexSystemConfig() *ApexSystemConfig {
 	}
 }
 
-func (as *ApexSystemConfig) ServiceCount() int {
+func (asc *ApexSystemConfig) ServiceCount() int {
 	// Prime
 	count := 1
 
-	if as.VectorEnabled {
+	if asc.VectorEnabled {
 		count++
 	}
 
-	if as.NexusEnabled {
+	if asc.NexusEnabled {
 		count++
 	}
 
 	return count
+}
+
+func (asc *ApexSystemConfig) applyPremineFundingOptions(users []*TestApexUser) {
+	if len(asc.PrimeClusterConfig.InitialFundsKeys) == 0 {
+		asc.PrimeClusterConfig.InitialFundsKeys = make([]string, 0, len(users))
+	}
+
+	if len(asc.VectorClusterConfig.InitialFundsKeys) == 0 {
+		asc.VectorClusterConfig.InitialFundsKeys = make([]string, 0, len(users))
+	}
+
+	if len(asc.NexusInitialFundsKeys) == 0 {
+		asc.NexusInitialFundsKeys = make([]types.Address, 0, len(users))
+	}
+
+	if asc.PrimeClusterConfig.InitialFundsAmount == 0 {
+		asc.PrimeClusterConfig.InitialFundsAmount = asc.UserCardanoFund
+	}
+
+	if asc.VectorClusterConfig.InitialFundsAmount == 0 {
+		asc.VectorClusterConfig.InitialFundsAmount = asc.UserCardanoFund
+	}
+
+	for _, user := range users {
+		asc.PrimeClusterConfig.InitialFundsKeys = append(asc.PrimeClusterConfig.InitialFundsKeys,
+			hex.EncodeToString(user.PrimeAddress.Bytes()))
+
+		if user.HasVectorWallet {
+			asc.VectorClusterConfig.InitialFundsKeys = append(asc.VectorClusterConfig.InitialFundsKeys,
+				hex.EncodeToString(user.VectorAddress.Bytes()))
+		}
+
+		if user.HasNexusWallet {
+			asc.NexusInitialFundsKeys = append(asc.NexusInitialFundsKeys, user.NexusAddress)
+		}
+	}
 }

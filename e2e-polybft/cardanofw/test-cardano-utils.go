@@ -468,3 +468,11 @@ func GetLogsFile(t *testing.T, filePath string, withStdout bool) io.Writer {
 
 	return io.MultiWriter(writers...)
 }
+
+func IsEnvVarTrue(name string) bool {
+	return os.Getenv(name) == "true"
+}
+
+func ShouldSkipE2RRedundantTests() bool {
+	return IsEnvVarTrue("SKIP_E2E_REDUNDANT_TESTS")
+}

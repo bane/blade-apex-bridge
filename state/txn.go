@@ -1,6 +1,8 @@
 package state
 
 import (
+	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -28,6 +30,7 @@ type readSnapshot interface {
 	GetStorage(addr types.Address, root types.Hash, key types.Hash) types.Hash
 	GetAccount(addr types.Address) (*Account, error)
 	GetCode(hash types.Hash) ([]byte, bool)
+	GetRootHash() types.Hash
 }
 
 var (
@@ -65,6 +68,85 @@ func newTxn(snapshot readSnapshot) *Txn {
 		txn:       i.Txn(),
 		codeCache: codeCache,
 	}
+}
+
+// GetDumpTree function returns accounts based on the selected criteria.
+func (txn *Txn) GetDumpTree(dumpObject *Dump, opts *DumpInfo, deleteEmptyObjects bool) ([]byte, error) {
+	if err := txn.CleanDeleteObjects(deleteEmptyObjects); err != nil {
+		return nil, err
+	}
+
+	var (
+		nextKey         []byte
+		hasStartKey     = opts.Start != nil && len(opts.Start) > 0 && !bytes.Equal(opts.Start, types.EmptyRootHash.Bytes())
+		committedIradix = txn.txn.Commit()
+	)
+
+	dumpObject.Accounts = make(map[types.Address]DumpAccount)
+
+	committedIradix.Root().Walk(func(k []byte, v interface{}) bool {
+		a, ok := v.(*StateObject)
+		if !ok {
+			return false
+		}
+
+		if hasStartKey {
+			if !bytes.Equal(opts.Start, k) {
+				return false
+			}
+
+			hasStartKey = false
+		}
+
+		if opts.Max > 0 && len(dumpObject.Accounts) >= opts.Max {
+			nextKey = k
+
+			return true
+		}
+
+		if k == nil && opts.OnlyWithAddresses {
+			return false
+		}
+
+		addrBytes := types.BytesToAddress(k)
+		dumpAccount := DumpAccount{
+			Nonce:    a.Account.Nonce,
+			Address:  addrBytes,
+			Balance:  a.Account.Balance.String(),
+			Root:     a.Account.Root.Bytes(),
+			CodeHash: a.Account.CodeHash,
+			Key:      k,
+		}
+
+		if !opts.SkipCode {
+			dumpAccount.Code = a.Code
+		}
+
+		if !a.Deleted && !opts.SkipStorage && a.Txn != nil {
+			dumpAccount.Storage = make(map[types.Hash]string)
+
+			a.Txn.Root().Walk(func(k []byte, v interface{}) bool {
+				if k == nil || v == nil {
+					return false
+				}
+
+				bytesValue, ok := v.([]byte)
+				if !ok {
+					return false
+				}
+
+				dumpAccount.Storage[types.BytesToHash(k)] = hex.EncodeToString(bytesValue)
+
+				return false
+			})
+		}
+
+		dumpObject.Accounts[addrBytes] = dumpAccount
+
+		return false
+	})
+
+	return nextKey, nil
 }
 
 // Snapshot takes a snapshot at this point in time
@@ -285,21 +367,25 @@ func (txn *Txn) SetStorage(
 	if original == value {
 		if original == types.ZeroHash { // reset to original nonexistent slot (2.2.2.1)
 			// Storage was used as memory (allocation and deallocation occurred within the same contract)
-			if config.Berlin {
+			switch {
+			case config.Berlin:
 				// Refund: SstoreSetGasEIP2200 - WarmStorageReadCostEIP2929
 				txn.AddRefund(19900)
-			} else if config.Istanbul {
+			case config.Istanbul:
 				txn.AddRefund(19200)
-			} else {
+			default:
 				txn.AddRefund(19800)
 			}
 		} else { // reset to original existing slot (2.2.2.2)
-			if config.Berlin {
+			switch {
+			case config.Berlin:
 				// Refund: SstoreResetGasEIP2200 - ColdStorageReadCostEIP2929 - WarmStorageReadCostEIP2929
 				txn.AddRefund(2800)
-			} else if config.Istanbul {
+
+			case config.Istanbul:
 				txn.AddRefund(4200)
-			} else {
+
+			default:
 				txn.AddRefund(4800)
 			}
 		}
@@ -642,21 +728,19 @@ func (txn *Txn) Commit(deleteEmptyObjects bool) ([]*Object, error) {
 		}
 		if a.Deleted {
 			obj.Deleted = true
-		} else {
-			if a.Txn != nil {
-				a.Txn.Root().Walk(func(k []byte, v interface{}) bool {
-					store := &StorageObject{Key: k}
-					if v == nil {
-						store.Deleted = true
-					} else {
-						store.Val = v.([]byte) //nolint:forcetypeassert
-					}
+		} else if a.Txn != nil {
+			a.Txn.Root().Walk(func(k []byte, v interface{}) bool {
+				store := &StorageObject{Key: k}
+				if v == nil {
+					store.Deleted = true
+				} else {
+					store.Val = v.([]byte) //nolint:forcetypeassert
+				}
 
-					obj.Storage = append(obj.Storage, store)
+				obj.Storage = append(obj.Storage, store)
 
-					return false
-				})
-			}
+				return false
+			})
 		}
 
 		objs = append(objs, obj)

@@ -71,7 +71,6 @@ func NewApexSystem(
 func (a *ApexSystem) createApexUsers() (err error) {
 	a.Users = make([]*TestApexUser, a.Config.UserCnt)
 
-	//nolint:gosec
 	for i := 0; i < int(a.Config.UserCnt); i++ {
 		a.Users[i], err = NewTestApexUser(
 			a.Config.PrimeClusterConfig.NetworkType,
