@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -59,6 +60,12 @@ type debugBlockchainStore interface {
 
 	// Has returns true if the DB does contains the given key.
 	Has(hashRoot types.Hash) bool
+
+	// Stat returns a particular internal stat of the database.
+	Stat(property string) (string, error)
+
+	// Compact flattens the underlying data store for the given key range.
+	Compact(start []byte, limit []byte) error
 
 	// Get gets the value for the given key. It returns ErrNotFound if the
 	// DB does not contains the key.
@@ -913,6 +920,39 @@ func (d *Debug) GetAccessibleState(from, to BlockNumber) (interface{}, error) {
 
 			// No state found
 			return 0, fmt.Errorf("no accessible state found between the block numbers %d and %d", start, end)
+		},
+	)
+}
+
+// ChaindbProperty returns leveldb properties of the key-value database.
+func (d *Debug) ChaindbProperty(property string) (interface{}, error) {
+	return d.throttling.AttemptRequest(
+		context.Background(),
+		func() (interface{}, error) {
+			if property == "" {
+				property = "leveldb.stats"
+			} else if !strings.HasPrefix(property, "leveldb.") {
+				property = "leveldb." + property
+			}
+
+			return d.store.Stat(property)
+		},
+	)
+}
+
+// ChaindbCompact flattens the entire key-value database into a single level,
+// removing all unused slots and merging all keys.
+func (d *Debug) ChaindbCompact() (interface{}, error) {
+	return d.throttling.AttemptRequest(
+		context.Background(),
+		func() (interface{}, error) {
+			for b := byte(0); b < 255; b++ {
+				if err := d.store.Compact([]byte{b}, []byte{b + 1}); err != nil {
+					return false, err
+				}
+			}
+
+			return true, nil
 		},
 	)
 }

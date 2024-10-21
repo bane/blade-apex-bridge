@@ -741,6 +741,16 @@ func (j *jsonRPCHub) Has(rootHash types.Hash) bool {
 	return j.state.Has(rootHash)
 }
 
+// Has returns true if the DB does contains the given key.
+func (j *jsonRPCHub) Stat(property string) (string, error) {
+	return j.state.Stat(property)
+}
+
+// Has returns true if the DB does contains the given key.
+func (j *jsonRPCHub) Compact(start []byte, limit []byte) error {
+	return j.state.Compact(start, limit)
+}
+
 // DumpTree retrieves accounts based on the specified criteria for the given block.
 func (j *jsonRPCHub) DumpTree(block *types.Block, opts *state.DumpInfo) (*state.Dump, error) {
 	parentHeader, ok := j.GetHeaderByHash(block.ParentHash())
