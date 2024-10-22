@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
@@ -26,22 +25,9 @@ var cardanoFiles embed.FS
 
 const hostIP = "127.0.0.1"
 
-type RunCardanoClusterConfig struct {
-	ID                 int
-	NodesCount         int
-	NetworkType        wallet.CardanoNetworkType
-	InitialFundsKeys   []string
-	InitialFundsAmount uint64
-}
-
-type TestCardanoNetworkConfig struct {
-	NetworkMagic uint
-	NetworkType  wallet.CardanoNetworkType
-}
-
 type TestCardanoClusterConfig struct {
-	ID int
-	TestCardanoNetworkConfig
+	ID             int
+	NetworkType    wallet.CardanoNetworkType
 	SecurityParam  int
 	NodesCount     int
 	StartNodeID    int
@@ -110,12 +96,6 @@ func WithOgmiosPort(ogmiosPort int) CardanoClusterOption {
 	}
 }
 
-func WithNetworkMagic(networkMagic uint) CardanoClusterOption {
-	return func(h *TestCardanoClusterConfig) {
-		h.NetworkMagic = networkMagic
-	}
-}
-
 func WithID(id int) CardanoClusterOption {
 	return func(h *TestCardanoClusterConfig) {
 		h.ID = id
@@ -141,57 +121,9 @@ func WithInitialFunds(initialFundsKeys []string, initialFundsAmount uint64) Card
 	}
 }
 
-func RunCardanoCluster(
-	t *testing.T,
-	config *RunCardanoClusterConfig,
-) (*TestCardanoCluster, error) {
-	t.Helper()
-
-	networkMagic := GetNetworkMagic(config.NetworkType)
-	networkName := GetNetworkName(config.NetworkType)
-	ogmiosLogsFilePath := filepath.Join("..", "..", "e2e-logs-cardano",
-		fmt.Sprintf("ogmios-%s-%s.log", networkName, strings.ReplaceAll(t.Name(), "/", "_")))
-
-	cluster, err := NewCardanoTestCluster(
-		WithID(config.ID+1),
-		WithNodesCount(config.NodesCount),
-		WithStartTimeDelay(time.Second*5),
-		WithPort(5100+config.ID*100),
-		WithOgmiosPort(1337+config.ID),
-		WithNetworkMagic(networkMagic),
-		WithNetworkType(config.NetworkType),
-		WithConfigGenesisDir(networkName),
-		WithInitialFunds(config.InitialFundsKeys, config.InitialFundsAmount),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Printf("Waiting for sockets to be ready\n")
-
-	if err := cluster.WaitForReady(time.Minute * 2); err != nil {
-		return nil, err
-	}
-
-	if err := cluster.StartOgmios(config.ID, GetLogsFile(t, ogmiosLogsFilePath, false)); err != nil {
-		return nil, err
-	}
-
-	if err := cluster.WaitForBlockWithState(10, time.Second*120); err != nil {
-		return nil, err
-	}
-
-	fmt.Printf("Cluster %d is ready\n", config.ID)
-
-	return cluster, nil
-}
-
 func NewCardanoTestCluster(opts ...CardanoClusterOption) (cluster *TestCardanoCluster, err error) {
 	config := &TestCardanoClusterConfig{
-		TestCardanoNetworkConfig: TestCardanoNetworkConfig{
-			NetworkType:  wallet.TestNetNetwork,
-			NetworkMagic: 42,
-		},
+		NetworkType:    wallet.TestNetNetwork,
 		SecurityParam:  10,
 		NodesCount:     3,
 		InitialSupply:  new(big.Int).SetUint64(11_111_111_112_000_000),
@@ -257,7 +189,7 @@ func (c *TestCardanoCluster) NewTestServer(id int, port int) error {
 		//StdOut:       c.Config.GetStdout(fmt.Sprintf("node-%d", id)),
 		ConfigFile:   c.Config.Dir("configuration.yaml"),
 		NodeDir:      c.Config.Dir(fmt.Sprintf("node-spo%d", id)),
-		NetworkMagic: c.Config.NetworkMagic,
+		NetworkMagic: GetNetworkMagic(c.Config.NetworkType),
 		NetworkID:    c.Config.NetworkType,
 	})
 	if err != nil {
@@ -323,10 +255,6 @@ func (c *TestCardanoCluster) OgmiosURL() string {
 
 func (c *TestCardanoCluster) NetworkAddress() string {
 	return fmt.Sprintf("localhost:%d", c.Config.Port)
-}
-
-func (c *TestCardanoCluster) NetworkConfig() TestCardanoNetworkConfig {
-	return c.Config.TestCardanoNetworkConfig
 }
 
 func (c *TestCardanoCluster) Stats() ([]*wallet.QueryTipData, bool, error) {
@@ -518,7 +446,7 @@ func (c *TestCardanoCluster) InitGenesis(startTime int64, genesisDir string) err
 
 	args := []string{
 		"byron", "genesis", "genesis",
-		"--protocol-magic", strconv.FormatUint(uint64(c.Config.NetworkMagic), 10),
+		"--protocol-magic", strconv.FormatUint(uint64(GetNetworkMagic(c.Config.NetworkType)), 10),
 		"--start-time", strconv.FormatInt(startTime, 10),
 		"--k", strconv.Itoa(c.Config.SecurityParam),
 		"--n-poor-addresses", "0",
@@ -704,7 +632,7 @@ func (c *TestCardanoCluster) GenesisCreateStaked(startTime time.Time) error {
 		"--gen-pools", strconv.Itoa(c.Config.NodesCount),
 		"--gen-stake-delegs", strconv.Itoa(c.Config.NodesCount),
 		"--gen-utxo-keys", strconv.Itoa(c.Config.NodesCount),
-	}, GetTestNetMagicArgs(c.Config.NetworkMagic)...)
+	}, GetTestNetMagicArgs(GetNetworkMagic(c.Config.NetworkType))...)
 
 	err := RunCommand(ResolveCardanoCliBinary(c.Config.NetworkType), args, os.Stdout)
 	if strings.Contains(err.Error(), exprectedErr) {

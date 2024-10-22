@@ -37,13 +37,12 @@ type CardanoWallet struct {
 }
 
 type TestApexValidator struct {
-	ID                     int
-	APIPort                int
-	dataDirPath            string
-	cluster                *framework.TestCluster
-	server                 *framework.TestServer
-	node                   *framework.Node
-	BatcherBN256PrivateKey *bn256.PrivateKey
+	ID          int
+	APIPort     int
+	dataDirPath string
+	cluster     *framework.TestCluster
+	server      *framework.TestServer
+	node        *framework.Node
 }
 
 func NewTestApexValidator(
@@ -120,44 +119,23 @@ func (cv *TestApexValidator) RegisterChain(
 }
 
 func (cv *TestApexValidator) GenerateConfigs(
-	primeNetworkAddress string,
-	primeNetworkMagic uint,
-	primeNetworkID uint,
-	primeOgmiosURL string,
-	primeSlotRoundingThreshold uint64,
-	primeTTLInc uint64,
-	vectorNetworkAddress string,
-	vectorNetworkMagic uint,
-	vectorNetworkID uint,
-	vectorOgmiosURL string,
-	vectorSlotRoundingThreshold uint64,
-	vectorTTLInc uint64,
 	apiPort int,
 	apiKey string,
 	telemetryConfig string,
-	nexusNodeURL string,
+	args ...string,
 ) error {
 	cv.APIPort = apiPort
 	logsPath := filepath.Join(cv.dataDirPath, BridgingLogsDir)
 	dbsPath := filepath.Join(cv.dataDirPath, BridgingDBsDir)
 
-	args := []string{
+	args = append([]string{
 		"generate-configs",
 		"--validator-data-dir", cv.server.DataDir(),
 		"--output-dir", cv.GetBridgingConfigsDir(),
 		"--output-validator-components-file-name", ValidatorComponentsConfigFileName,
 		"--output-relayer-file-name", RelayerConfigFileName,
-		"--prime-network-address", primeNetworkAddress,
-		"--prime-network-magic", fmt.Sprint(primeNetworkMagic),
-		"--prime-network-id", fmt.Sprint(primeNetworkID),
-		"--prime-ogmios-url", primeOgmiosURL,
-		"--vector-network-address", vectorNetworkAddress,
-		"--vector-network-magic", fmt.Sprint(vectorNetworkMagic),
-		"--vector-network-id", fmt.Sprint(vectorNetworkID),
-		"--vector-ogmios-url", vectorOgmiosURL,
 		"--bridge-node-url", cv.server.JSONRPCAddr(),
 		"--bridge-sc-address", contracts.Bridge.String(),
-		"--nexus-node-url", nexusNodeURL,
 		"--relayer-data-dir", cv.GetNexusTestDir(),
 		"--logs-path", logsPath,
 		"--dbs-path", dbsPath,
@@ -165,27 +143,7 @@ func (cv *TestApexValidator) GenerateConfigs(
 		"--api-keys", apiKey,
 		"--telemetry", telemetryConfig,
 		"--relayer-data-dir", cv.server.DataDir(),
-	}
-
-	if primeTTLInc > 0 {
-		args = append(args,
-			"--prime-ttl-slot-inc", fmt.Sprint(primeTTLInc),
-		)
-	}
-
-	if vectorTTLInc > 0 {
-		args = append(args,
-			"--vector-ttl-slot-inc", fmt.Sprint(vectorTTLInc),
-		)
-	}
-
-	if primeSlotRoundingThreshold > 0 {
-		args = append(args, "--prime-slot-rounding-threshold", fmt.Sprint(primeSlotRoundingThreshold))
-	}
-
-	if vectorSlotRoundingThreshold > 0 {
-		args = append(args, "--vector-slot-rounding-threshold", fmt.Sprint(vectorSlotRoundingThreshold))
-	}
+	}, args...)
 
 	if err := RunCommand(ResolveApexBridgeBinary(), args, os.Stdout); err != nil {
 		return err

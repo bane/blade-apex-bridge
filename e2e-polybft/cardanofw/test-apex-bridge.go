@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +27,12 @@ func SetupAndRunApexBridge(
 
 	fmt.Printf("Starting chains...\n")
 
-	apexSystem.StartChains(t)
+	// stop all chains and the bridge
+	t.Cleanup(func() {
+		assert.NoError(t, apexSystem.StopAll())
+	})
+
+	require.NoError(t, apexSystem.StartChains(t))
 
 	fmt.Printf("Chains have been started. Starting bridge chain...\n")
 
@@ -42,16 +48,17 @@ func SetupAndRunApexBridge(
 
 	fmt.Printf("Chains have been registered\n")
 
-	require.NoError(t, apexSystem.CreateCardanoMultisigAddresses())
+	require.NoError(t, apexSystem.CreateAddresses())
 
-	fmt.Printf("Cardano Multisig addresses have been created\n")
+	fmt.Printf("Multisig addresses have been created\n")
 
-	require.NoError(t, apexSystem.FundCardanoMultisigAddresses(ctx))
+	require.NoError(t, apexSystem.InitContracts(ctx))
 
-	if apexSystem.Config.NexusEnabled {
-		apexSystem.Nexus.SetupChain(t, apexSystem.GetBridgeDefaultJSONRPCAddr(),
-			apexSystem.GetBridgeAdmin(), apexSystem.GetNexusRelayerWalletAddr())
-	}
+	fmt.Printf("Contracts have been set up\n")
+
+	require.NoError(t, apexSystem.FundWallets(ctx))
+
+	fmt.Printf("Wallets have been funded\n")
 
 	require.NoError(t, apexSystem.GenerateConfigs())
 

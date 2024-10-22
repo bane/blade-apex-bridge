@@ -3,9 +3,7 @@ package cardanofw
 import (
 	"encoding/hex"
 
-	"github.com/0xPolygon/polygon-edge/consensus/polybft"
 	"github.com/0xPolygon/polygon-edge/types"
-	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
 
 type ChainID = string
@@ -16,48 +14,26 @@ const (
 	ChainIDNexus  ChainID = "nexus"
 
 	RunRelayerOnValidatorID = 1
-
-	defaultFundTokenAmount    = uint64(100_000_000_000)
-	defaultFundEthTokenAmount = uint64(100_000)
 )
 
 type ApexSystemConfig struct {
-	// Apex
-	VectorEnabled bool
-
 	APIValidatorID int // -1 all validators
 	APIPortStart   int
 	APIKey         string
-
-	VectorTTLInc                uint64
-	VectorSlotRoundingThreshold uint64
-	PrimeTTLInc                 uint64
-	PrimeSlotRoundingThreshold  uint64
 
 	TelemetryConfig               string
 	TargetOneCardanoClusterServer bool
 
 	BladeValidatorCount int
 
-	PrimeClusterConfig  *RunCardanoClusterConfig
-	VectorClusterConfig *RunCardanoClusterConfig
-
-	// Nexus EVM
-	NexusEnabled bool
-
-	NexusValidatorCount   int
-	NexusStartingPort     int64
-	NexusBurnContractInfo *polybft.BurnContractInfo
-	NexusInitialFundsKeys []types.Address
+	PrimeConfig  *TestCardanoChainConfig
+	VectorConfig *TestCardanoChainConfig
+	NexusConfig  *TestEVMChainConfig
 
 	CustomOracleHandler  func(mp map[string]interface{})
 	CustomRelayerHandler func(mp map[string]interface{})
 
-	FundTokenAmount    uint64
-	FundEthTokenAmount uint64
-
-	UserCnt         uint
-	UserCardanoFund uint64
+	UserCnt uint
 }
 
 type ApexSystemOptions func(*ApexSystemConfig)
@@ -80,17 +56,15 @@ func WithAPIKey(apiKey string) ApexSystemOptions {
 	}
 }
 
-func WithVectorTTL(threshold, ttlInc uint64) ApexSystemOptions {
+func WithVectorEnabled(enabled bool) ApexSystemOptions {
 	return func(h *ApexSystemConfig) {
-		h.VectorSlotRoundingThreshold = threshold
-		h.VectorTTLInc = ttlInc
+		h.VectorConfig.IsEnabled = enabled
 	}
 }
 
-func WithPrimeTTL(threshold, ttlInc uint64) ApexSystemOptions {
+func WithNexusEnabled(enabled bool) ApexSystemOptions {
 	return func(h *ApexSystemConfig) {
-		h.PrimeSlotRoundingThreshold = threshold
-		h.PrimeTTLInc = ttlInc
+		h.NexusConfig.IsEnabled = enabled
 	}
 }
 
@@ -106,39 +80,21 @@ func WithTargetOneCardanoClusterServer(targetOneCardanoClusterServer bool) ApexS
 	}
 }
 
-func WithVectorEnabled(enabled bool) ApexSystemOptions {
+func WithPrimeConfig(config *TestCardanoChainConfig) ApexSystemOptions {
 	return func(h *ApexSystemConfig) {
-		h.VectorEnabled = enabled
+		h.PrimeConfig = config
 	}
 }
 
-func WithNexusEnabled(enabled bool) ApexSystemOptions {
+func WithVectorConfig(config *TestCardanoChainConfig) ApexSystemOptions {
 	return func(h *ApexSystemConfig) {
-		h.NexusEnabled = enabled
+		h.VectorConfig = config
 	}
 }
 
-func WithNexusStartintPort(port int64) ApexSystemOptions {
+func WithNexusConfig(config *TestEVMChainConfig) ApexSystemOptions {
 	return func(h *ApexSystemConfig) {
-		h.NexusStartingPort = port
-	}
-}
-
-func WithNexusBurningContract(contractInfo *polybft.BurnContractInfo) ApexSystemOptions {
-	return func(h *ApexSystemConfig) {
-		h.NexusBurnContractInfo = contractInfo
-	}
-}
-
-func WithPrimeClusterConfig(config *RunCardanoClusterConfig) ApexSystemOptions {
-	return func(h *ApexSystemConfig) {
-		h.PrimeClusterConfig = config
-	}
-}
-
-func WithVectorClusterConfig(config *RunCardanoClusterConfig) ApexSystemOptions {
-	return func(h *ApexSystemConfig) {
-		h.VectorClusterConfig = config
+		h.NexusConfig = config
 	}
 }
 
@@ -155,12 +111,6 @@ func WithUserCnt(userCnt uint) ApexSystemOptions {
 	}
 }
 
-func WithUserCardanoFund(userCardanoFund uint64) ApexSystemOptions {
-	return func(h *ApexSystemConfig) {
-		h.UserCardanoFund = userCardanoFund
-	}
-}
-
 func getDefaultApexSystemConfig() *ApexSystemConfig {
 	return &ApexSystemConfig{
 		APIValidatorID: 1,
@@ -169,35 +119,14 @@ func getDefaultApexSystemConfig() *ApexSystemConfig {
 
 		BladeValidatorCount: 4,
 
-		PrimeClusterConfig: &RunCardanoClusterConfig{
-			ID:          0,
-			NodesCount:  4,
-			NetworkType: cardanowallet.TestNetNetwork,
-		},
-		VectorClusterConfig: &RunCardanoClusterConfig{
-			ID:          1,
-			NodesCount:  4,
-			NetworkType: cardanowallet.VectorTestNetNetwork,
-		},
-
-		NexusValidatorCount: 4,
-		NexusStartingPort:   int64(30400),
-
-		VectorEnabled: true,
-		NexusEnabled:  false,
-		NexusBurnContractInfo: &polybft.BurnContractInfo{
-			BlockNumber: 0,
-			Address:     types.ZeroAddress,
-		},
+		PrimeConfig:  NewPrimeChainConfig(),
+		VectorConfig: NewVectorChainConfig(true),
+		NexusConfig:  NewNexusChainConfig(false),
 
 		CustomOracleHandler:  nil,
 		CustomRelayerHandler: nil,
 
-		FundTokenAmount:    defaultFundTokenAmount,
-		FundEthTokenAmount: defaultFundEthTokenAmount,
-
-		UserCnt:         10,
-		UserCardanoFund: 5_000_000,
+		UserCnt: 10,
 	}
 }
 
@@ -205,11 +134,11 @@ func (asc *ApexSystemConfig) ServiceCount() int {
 	// Prime
 	count := 1
 
-	if asc.VectorEnabled {
+	if asc.VectorConfig.IsEnabled {
 		count++
 	}
 
-	if asc.NexusEnabled {
+	if asc.NexusConfig.IsEnabled {
 		count++
 	}
 
@@ -217,37 +146,29 @@ func (asc *ApexSystemConfig) ServiceCount() int {
 }
 
 func (asc *ApexSystemConfig) applyPremineFundingOptions(users []*TestApexUser) {
-	if len(asc.PrimeClusterConfig.InitialFundsKeys) == 0 {
-		asc.PrimeClusterConfig.InitialFundsKeys = make([]string, 0, len(users))
+	if len(asc.PrimeConfig.PreminesAddresses) == 0 {
+		asc.PrimeConfig.PreminesAddresses = make([]string, 0, len(users))
 	}
 
-	if len(asc.VectorClusterConfig.InitialFundsKeys) == 0 {
-		asc.VectorClusterConfig.InitialFundsKeys = make([]string, 0, len(users))
+	if len(asc.VectorConfig.PreminesAddresses) == 0 {
+		asc.VectorConfig.PreminesAddresses = make([]string, 0, len(users))
 	}
 
-	if len(asc.NexusInitialFundsKeys) == 0 {
-		asc.NexusInitialFundsKeys = make([]types.Address, 0, len(users))
-	}
-
-	if asc.PrimeClusterConfig.InitialFundsAmount == 0 {
-		asc.PrimeClusterConfig.InitialFundsAmount = asc.UserCardanoFund
-	}
-
-	if asc.VectorClusterConfig.InitialFundsAmount == 0 {
-		asc.VectorClusterConfig.InitialFundsAmount = asc.UserCardanoFund
+	if len(asc.NexusConfig.PreminesAddresses) == 0 {
+		asc.NexusConfig.PreminesAddresses = make([]types.Address, 0, len(users))
 	}
 
 	for _, user := range users {
-		asc.PrimeClusterConfig.InitialFundsKeys = append(asc.PrimeClusterConfig.InitialFundsKeys,
+		asc.PrimeConfig.PreminesAddresses = append(asc.PrimeConfig.PreminesAddresses,
 			hex.EncodeToString(user.PrimeAddress.Bytes()))
 
 		if user.HasVectorWallet {
-			asc.VectorClusterConfig.InitialFundsKeys = append(asc.VectorClusterConfig.InitialFundsKeys,
+			asc.VectorConfig.PreminesAddresses = append(asc.VectorConfig.PreminesAddresses,
 				hex.EncodeToString(user.VectorAddress.Bytes()))
 		}
 
 		if user.HasNexusWallet {
-			asc.NexusInitialFundsKeys = append(asc.NexusInitialFundsKeys, user.NexusAddress)
+			asc.NexusConfig.PreminesAddresses = append(asc.NexusConfig.PreminesAddresses, user.NexusAddress)
 		}
 	}
 }

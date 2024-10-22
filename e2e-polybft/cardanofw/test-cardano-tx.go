@@ -19,11 +19,11 @@ func SendTx(ctx context.Context,
 	cardanoWallet wallet.IWallet,
 	amount uint64,
 	receiver string,
-	networkConfig TestCardanoNetworkConfig,
+	networkType wallet.CardanoNetworkType,
 	metadata []byte,
 ) (res string, err error) {
 	err = ExecuteWithRetryIfNeeded(ctx, func() error {
-		res, err = sendTx(ctx, txProvider, cardanoWallet, amount, receiver, networkConfig, metadata)
+		res, err = sendTx(ctx, txProvider, cardanoWallet, amount, receiver, networkType, metadata)
 
 		return err
 	})
@@ -36,17 +36,17 @@ func sendTx(ctx context.Context,
 	cardanoWallet wallet.IWallet,
 	amount uint64,
 	receiver string,
-	networkConfig TestCardanoNetworkConfig,
+	networkType wallet.CardanoNetworkType,
 	metadata []byte,
 ) (string, error) {
-	caddr, err := GetAddress(networkConfig.NetworkType, cardanoWallet)
+	caddr, err := GetAddress(networkType, cardanoWallet)
 	if err != nil {
 		return "", err
 	}
 
 	cardanoWalletAddr := caddr.String()
-	networkTestMagic := networkConfig.NetworkMagic
-	cardanoCliBinary := ResolveCardanoCliBinary(networkConfig.NetworkType)
+	networkTestMagic := GetNetworkMagic(networkType)
+	cardanoCliBinary := ResolveCardanoCliBinary(networkType)
 
 	protocolParams, err := txProvider.GetProtocolParameters(ctx)
 	if err != nil {

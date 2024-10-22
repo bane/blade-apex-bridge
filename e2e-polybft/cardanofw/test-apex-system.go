@@ -1,21 +1,15 @@
 package cardanofw
 
 import (
-	"bytes"
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 	"os"
-	"regexp"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/0xPolygon/polygon-edge/contracts"
 	"github.com/0xPolygon/polygon-edge/crypto"
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
 	"github.com/0xPolygon/polygon-edge/types"
@@ -23,23 +17,37 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type CardanoChainInfo struct {
+	NetworkAddress string
+	OgmiosURL      string
+	MultisigAddr   string
+	FeeAddr        string
+}
+
+func (ci *CardanoChainInfo) GetTxProvider() cardanowallet.ITxProvider {
+	return cardanowallet.NewTxProviderOgmios(ci.OgmiosURL)
+}
+
+type EVMChainInfo struct {
+	GatewayAddress types.Address
+	Node           *framework.TestServer
+	RelayerAddress types.Address
+	AdminKey       *crypto.ECDSAKey
+}
+
 type ApexSystem struct {
-	PrimeCluster  *TestCardanoCluster
-	VectorCluster *TestCardanoCluster
-	Nexus         *TestEVMBridge
 	BridgeCluster *framework.TestCluster
 	Config        *ApexSystemConfig
+	bladeAdmin    *crypto.ECDSAKey
 
 	validators  []*TestApexValidator
 	relayerNode *framework.Node
 
-	PrimeMultisigAddr     string
-	PrimeMultisigFeeAddr  string
-	VectorMultisigAddr    string
-	VectorMultisigFeeAddr string
+	chains []ITestApexChain
 
-	nexusRelayerWallet *crypto.ECDSAKey
-	bladeAdmin         *crypto.ECDSAKey
+	PrimeInfo  CardanoChainInfo
+	VectorInfo CardanoChainInfo
+	NexusInfo  EVMChainInfo
 
 	dataDirPath string
 
@@ -54,13 +62,33 @@ func NewApexSystem(
 		opt(config)
 	}
 
-	apex := &ApexSystem{
-		Config:      config,
-		dataDirPath: dataDirPath,
+	nexus, err := NewTestEVMChain(config.NexusConfig)
+	if err != nil {
+		return nil, err
 	}
 
-	if err := apex.createApexUsers(); err != nil {
-		return nil, err
+	users := make([]*TestApexUser, config.UserCnt)
+	for i := range users {
+		users[i], err = NewTestApexUser(
+			config.PrimeConfig.NetworkType,
+			config.VectorConfig.IsEnabled,
+			config.VectorConfig.NetworkType,
+			config.NexusConfig.IsEnabled,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create a new apex user: %w", err)
+		}
+	}
+
+	apex := &ApexSystem{
+		Config:      config,
+		Users:       users,
+		dataDirPath: dataDirPath,
+		chains: []ITestApexChain{
+			NewTestCardanoChain(config.PrimeConfig),
+			NewTestCardanoChain(config.VectorConfig),
+			nexus,
+		},
 	}
 
 	apex.Config.applyPremineFundingOptions(apex.Users)
@@ -68,58 +96,20 @@ func NewApexSystem(
 	return apex, nil
 }
 
-func (a *ApexSystem) createApexUsers() (err error) {
-	a.Users = make([]*TestApexUser, a.Config.UserCnt)
-
-	for i := 0; i < int(a.Config.UserCnt); i++ {
-		a.Users[i], err = NewTestApexUser(
-			a.Config.PrimeClusterConfig.NetworkType,
-			a.Config.VectorEnabled,
-			a.Config.VectorClusterConfig.NetworkType,
-			a.Config.NexusEnabled,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create a new apex user: %w", err)
-		}
-	}
-
-	return nil
-}
-
-func (a *ApexSystem) StopChains() {
-	wg := sync.WaitGroup{}
-	errorsContainer := [2]error{}
-
+func (a *ApexSystem) StopAll() error {
 	fmt.Println("Stopping chains...")
 
-	if a.PrimeCluster != nil {
-		wg.Add(1)
+	errs := make([]error, len(a.chains))
+	wg := sync.WaitGroup{}
 
-		go func() {
+	wg.Add(len(a.chains))
+
+	for i, chain := range a.chains {
+		go func(idx int, chain ITestApexChain) {
 			defer wg.Done()
 
-			errorsContainer[0] = a.PrimeCluster.Stop()
-		}()
-	}
-
-	if a.VectorCluster != nil {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			errorsContainer[1] = a.VectorCluster.Stop()
-		}()
-	}
-
-	if a.Nexus != nil {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			a.Nexus.Cluster.Stop()
-		}()
+			errs[idx] = chain.Stop()
+		}(i, chain)
 	}
 
 	if a.BridgeCluster != nil {
@@ -136,44 +126,19 @@ func (a *ApexSystem) StopChains() {
 
 	wg.Wait()
 
-	fmt.Printf("Chains has been stopped...%v\n", errors.Join(errorsContainer[:]...))
+	err := errors.Join(errs...)
+
+	fmt.Printf("Chains has been stopped...%v\n", err)
+
+	return err
 }
 
-func (a *ApexSystem) StartChains(t *testing.T) {
+func (a *ApexSystem) StartChains(t *testing.T) error {
 	t.Helper()
 
-	wg := &sync.WaitGroup{}
-	errorsContainer := [3]error{}
-
-	wg.Add(a.Config.ServiceCount())
-
-	go func() {
-		defer wg.Done()
-
-		a.PrimeCluster, errorsContainer[0] = RunCardanoCluster(t, a.Config.PrimeClusterConfig)
-	}()
-
-	if a.Config.VectorEnabled {
-		go func() {
-			defer wg.Done()
-
-			a.VectorCluster, errorsContainer[1] = RunCardanoCluster(t, a.Config.VectorClusterConfig)
-		}()
-	}
-
-	if a.Config.NexusEnabled {
-		go func() {
-			defer wg.Done()
-
-			a.Nexus, errorsContainer[2] = RunEVMChain(t, a.Config)
-		}()
-	}
-
-	wg.Wait()
-
-	t.Cleanup(a.StopChains) // cleanup everything
-
-	require.NoError(t, errors.Join(errorsContainer[:]...))
+	return a.execForEachChain(func(chain ITestApexChain) error {
+		return chain.RunChain(t)
+	})
 }
 
 func (a *ApexSystem) StartBridgeChain(t *testing.T) {
@@ -198,132 +163,112 @@ func (a *ApexSystem) StartBridgeChain(t *testing.T) {
 	a.BridgeCluster.WaitForReady(t)
 }
 
-func (a *ApexSystem) GetPrimeGenesisWallet(t *testing.T) cardanowallet.IWallet {
-	t.Helper()
+func (a *ApexSystem) CreateWallets() (err error) {
+	return a.execForEachValidator(func(i int, validator *TestApexValidator) error {
+		for _, chain := range a.chains {
+			if err := chain.CreateWallets(validator); err != nil {
+				return fmt.Errorf("operation failed for validator = %d and chain = %s: %w",
+					i, chain.ChainID(), err)
+			}
+		}
 
-	result, err := GetGenesisWalletFromCluster(a.PrimeCluster.Config.TmpDir, 2)
-	require.NoError(t, err)
-
-	return result
+		return nil
+	})
 }
 
-func (a *ApexSystem) GetVectorGenesisWallet(t *testing.T) cardanowallet.IWallet {
-	t.Helper()
-
-	result, err := GetGenesisWalletFromCluster(a.VectorCluster.Config.TmpDir, 2)
-	require.NoError(t, err)
-
-	return result
-}
-
-func (a *ApexSystem) GetPrimeTxProvider() cardanowallet.ITxProvider {
-	return cardanowallet.NewTxProviderOgmios(a.PrimeCluster.OgmiosURL())
-}
-
-func (a *ApexSystem) GetVectorTxProvider() cardanowallet.ITxProvider {
-	return cardanowallet.NewTxProviderOgmios(a.VectorCluster.OgmiosURL())
-}
-
-func (a *ApexSystem) PrimeTransfer(
-	t *testing.T, ctx context.Context,
-	sender cardanowallet.IWallet, sendAmount uint64, receiver string,
-) {
-	t.Helper()
-
-	a.transferCardano(
-		t, ctx, a.GetPrimeTxProvider(),
-		sender, sendAmount, receiver, a.PrimeCluster.NetworkConfig())
-}
-
-func (a *ApexSystem) VectorTransfer(
-	t *testing.T, ctx context.Context,
-	sender cardanowallet.IWallet, sendAmount uint64, receiver string,
-) {
-	t.Helper()
-
-	a.transferCardano(
-		t, ctx, a.GetVectorTxProvider(),
-		sender, sendAmount, receiver, a.VectorCluster.NetworkConfig())
-}
-
-func (a *ApexSystem) transferCardano(
-	t *testing.T,
-	ctx context.Context, txProvider cardanowallet.ITxProvider,
-	sender cardanowallet.IWallet, sendAmount uint64,
-	receiver string, networkConfig TestCardanoNetworkConfig,
-) {
-	t.Helper()
-
-	prevAmount, err := GetTokenAmount(ctx, txProvider, receiver)
-	require.NoError(t, err)
-
-	_, err = SendTx(ctx, txProvider, sender,
-		sendAmount, receiver, networkConfig, []byte{})
-	require.NoError(t, err)
-
-	err = cardanowallet.WaitForAmount(
-		context.Background(), txProvider, receiver, func(val uint64) bool {
-			return val == prevAmount+sendAmount
-		}, 60, time.Second*2, IsRecoverableError)
-	require.NoError(t, err)
-}
-
-func (a *ApexSystem) GetVectorNetworkType() cardanowallet.CardanoNetworkType {
-	if a.Config.VectorEnabled && a.VectorCluster != nil {
-		return a.VectorCluster.Config.NetworkType
+func (a *ApexSystem) CreateAddresses() error {
+	// must not be parallelized because each request use same admin wallet
+	for _, chain := range a.chains {
+		if err := chain.CreateAddresses(a.bladeAdmin, a.GetBridgeDefaultJSONRPCAddr()); err != nil {
+			return err
+		}
 	}
 
-	return cardanowallet.TestNetNetwork // does not matter really
+	return nil
+}
+
+func (a *ApexSystem) InitContracts(ctx context.Context) error {
+	// must not be parallelized because each request use same admin wallet
+	for _, chain := range a.chains {
+		if err := chain.InitContracts(a.bladeAdmin, a.GetBridgeDefaultJSONRPCAddr()); err != nil {
+			return err
+		}
+	}
+
+	// after contracts have been initialized populate all the needed things into apex object
+	for _, chain := range a.chains {
+		chain.PopulateApexSystem(a)
+	}
+
+	return nil
+}
+
+func (a *ApexSystem) FundWallets(ctx context.Context) error {
+	return a.execForEachChain(func(chain ITestApexChain) error {
+		return chain.FundWallets(ctx)
+	})
+}
+
+func (a *ApexSystem) RegisterChains() error {
+	return a.execForEachValidator(func(i int, validator *TestApexValidator) error {
+		for _, chain := range a.chains {
+			if err := chain.RegisterChain(validator); err != nil {
+				return fmt.Errorf("operation failed for validator = %d and chain = %s: %w",
+					i, chain.ChainID(), err)
+			}
+		}
+
+		return nil
+	})
+}
+
+func (a *ApexSystem) GenerateConfigs() error {
+	return a.execForEachValidator(func(i int, validator *TestApexValidator) error {
+		telemetryConfig := ""
+		if i == 0 {
+			telemetryConfig = a.Config.TelemetryConfig
+		}
+
+		serverIndx := i
+		if a.Config.TargetOneCardanoClusterServer {
+			serverIndx = 0
+		}
+
+		var args []string
+
+		for _, chain := range a.chains {
+			args = append(args, chain.GetGenerateConfigsParams(serverIndx)...)
+		}
+
+		err := validator.GenerateConfigs(a.Config.APIPortStart+i, a.Config.APIKey, telemetryConfig, args...)
+		if err != nil {
+			return err
+		}
+
+		if handler := a.Config.CustomOracleHandler; handler != nil {
+			fileName := validator.GetValidatorComponentsConfig()
+			if err := UpdateJSONFile(fileName, fileName, handler, false); err != nil {
+				return err
+			}
+		}
+
+		if handler := a.Config.CustomRelayerHandler; handler != nil && RunRelayerOnValidatorID == validator.ID {
+			fileName := validator.GetRelayerConfig()
+			if err := UpdateJSONFile(fileName, fileName, handler, false); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }
 
 func (a *ApexSystem) GetBridgeDefaultJSONRPCAddr() string {
 	return a.BridgeCluster.Servers[0].JSONRPCAddr()
 }
 
-func (a *ApexSystem) GetNexusDefaultJSONRPCAddr() string {
-	return a.Nexus.GetDefaultJSONRPCAddr()
-}
-
 func (a *ApexSystem) GetBridgeAdmin() *crypto.ECDSAKey {
 	return a.bladeAdmin
-}
-
-func (a *ApexSystem) CreateWallets() (err error) {
-	for _, validator := range a.validators {
-		if err = validator.CardanoWalletCreate(ChainIDPrime); err != nil {
-			return err
-		}
-
-		if a.Config.VectorEnabled {
-			if err = validator.CardanoWalletCreate(ChainIDVector); err != nil {
-				return err
-			}
-		}
-
-		if a.Config.NexusEnabled {
-			validator.BatcherBN256PrivateKey, err = validator.getEvmBatcherWallet()
-			if err != nil {
-				return err
-			}
-
-			if validator.ID == RunRelayerOnValidatorID {
-				if err = validator.createEvmSpecificWallet("relayer-evm"); err != nil {
-					return err
-				}
-
-				a.nexusRelayerWallet, err = validator.getEvmRelayerWallet()
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	return err
-}
-
-func (a *ApexSystem) GetNexusRelayerWalletAddr() types.Address {
-	return a.nexusRelayerWallet.Address()
 }
 
 func (a *ApexSystem) GetValidatorsCount() int {
@@ -336,157 +281,6 @@ func (a *ApexSystem) GetValidator(t *testing.T, idx int) *TestApexValidator {
 	require.True(t, idx >= 0 && idx < len(a.validators))
 
 	return a.validators[idx]
-}
-
-func (a *ApexSystem) RegisterChains() error {
-	tokenSupply := new(big.Int).SetUint64(a.Config.FundTokenAmount)
-
-	errs := make([]error, len(a.validators))
-	wg := sync.WaitGroup{}
-
-	wg.Add(len(a.validators))
-
-	for i, validator := range a.validators {
-		go func(validator *TestApexValidator, indx int) {
-			defer wg.Done()
-
-			errs[indx] = validator.RegisterChain(ChainIDPrime, tokenSupply, ChainTypeCardano)
-			if errs[indx] != nil {
-				return
-			}
-
-			if a.Config.VectorEnabled {
-				errs[indx] = validator.RegisterChain(ChainIDVector, tokenSupply, ChainTypeCardano)
-				if errs[indx] != nil {
-					return
-				}
-			}
-
-			if a.Config.NexusEnabled {
-				errs[indx] = validator.RegisterChain(ChainIDNexus, tokenSupply, ChainTypeEVM)
-				if errs[indx] != nil {
-					return
-				}
-			}
-		}(validator, i)
-	}
-
-	wg.Wait()
-
-	return errors.Join(errs...)
-}
-
-func (a *ApexSystem) GenerateConfigs() error {
-	errs := make([]error, len(a.validators))
-	wg := sync.WaitGroup{}
-
-	wg.Add(len(a.validators))
-
-	for i, validator := range a.validators {
-		go func(validator *TestApexValidator, indx int) {
-			defer wg.Done()
-
-			telemetryConfig := ""
-			if indx == 0 {
-				telemetryConfig = a.Config.TelemetryConfig
-			}
-
-			var (
-				primeNetworkAddr   string
-				primeNetworkMagic  uint
-				primeNetworkID     uint
-				vectorOgmiosURL    = "http://localhost:1000"
-				vectorNetworkAddr  = "localhost:5499"
-				vectorNetworkMagic = uint(0)
-				vectorNetworkID    = uint(0)
-				nexusNodeURL       = "http://localhost:5500"
-			)
-
-			if a.Config.TargetOneCardanoClusterServer {
-				primeNetworkAddr = a.PrimeCluster.NetworkAddress()
-				primeNetworkMagic = a.PrimeCluster.Config.NetworkMagic
-				primeNetworkID = uint(a.PrimeCluster.Config.NetworkType)
-			} else {
-				primeServer := a.PrimeCluster.Servers[indx%len(a.PrimeCluster.Servers)]
-				primeNetworkAddr = primeServer.NetworkAddress()
-				primeNetworkMagic = primeServer.config.NetworkMagic
-				primeNetworkID = uint(primeServer.config.NetworkID)
-			}
-
-			if a.Config.VectorEnabled {
-				vectorOgmiosURL = a.VectorCluster.OgmiosURL()
-
-				if a.Config.TargetOneCardanoClusterServer {
-					vectorNetworkAddr = a.VectorCluster.NetworkAddress()
-					vectorNetworkMagic = a.VectorCluster.Config.NetworkMagic
-					vectorNetworkID = uint(a.VectorCluster.Config.NetworkType)
-				} else {
-					vectorServer := a.VectorCluster.Servers[indx%len(a.VectorCluster.Servers)]
-					vectorNetworkAddr = vectorServer.NetworkAddress()
-					vectorNetworkMagic = vectorServer.config.NetworkMagic
-					vectorNetworkID = uint(vectorServer.config.NetworkID)
-				}
-			}
-
-			if a.Config.NexusEnabled {
-				nexusNodeURLIndx := 0
-				if a.Config.TargetOneCardanoClusterServer {
-					nexusNodeURLIndx = indx % len(a.Nexus.Cluster.Servers)
-				}
-
-				nexusNodeURL = a.Nexus.Cluster.Servers[nexusNodeURLIndx].JSONRPCAddr()
-			}
-
-			errs[indx] = validator.GenerateConfigs(
-				primeNetworkAddr,
-				primeNetworkMagic,
-				primeNetworkID,
-				a.PrimeCluster.OgmiosURL(),
-				a.Config.PrimeSlotRoundingThreshold,
-				a.Config.PrimeTTLInc,
-				vectorNetworkAddr,
-				vectorNetworkMagic,
-				vectorNetworkID,
-				vectorOgmiosURL,
-				a.Config.VectorSlotRoundingThreshold,
-				a.Config.VectorTTLInc,
-				a.Config.APIPortStart+indx,
-				a.Config.APIKey,
-				telemetryConfig,
-				nexusNodeURL,
-			)
-		}(validator, i)
-	}
-
-	wg.Wait()
-
-	if err := errors.Join(errs...); err != nil {
-		return err
-	}
-
-	if handler := a.Config.CustomOracleHandler; handler != nil {
-		for _, val := range a.validators {
-			err := UpdateJSONFile(
-				val.GetValidatorComponentsConfig(), val.GetValidatorComponentsConfig(), handler, false)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	if handler := a.Config.CustomRelayerHandler; handler != nil {
-		for _, val := range a.validators {
-			if RunRelayerOnValidatorID != val.ID {
-				continue
-			}
-
-			if err := UpdateJSONFile(val.GetRelayerConfig(), val.GetRelayerConfig(), handler, false); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }
 
 func (a *ApexSystem) StartValidatorComponents(ctx context.Context) (err error) {
@@ -570,161 +364,15 @@ func (a *ApexSystem) ApexBridgeProcessesRunning() bool {
 	return true
 }
 
-func (a *ApexSystem) FundCardanoMultisigAddresses(
-	ctx context.Context,
-) error {
-	const (
-		numOfRetries = 90
-		waitTime     = time.Second * 2
-	)
-
-	var fundTokenAmount = a.Config.FundTokenAmount
-
-	fund := func(cluster *TestCardanoCluster, fundTokenAmount uint64, addr string) (string, error) {
-		txProvider := cardanowallet.NewTxProviderOgmios(cluster.OgmiosURL())
-
-		defer txProvider.Dispose()
-
-		genesisWallet, err := GetGenesisWalletFromCluster(cluster.Config.TmpDir, 1)
-		if err != nil {
-			return "", err
-		}
-
-		txHash, err := SendTx(ctx, txProvider, genesisWallet, fundTokenAmount,
-			addr, cluster.NetworkConfig(), []byte{})
-		if err != nil {
-			return "", err
-		}
-
-		err = cardanowallet.WaitForTxHashInUtxos(
-			ctx, txProvider, addr, txHash, numOfRetries, waitTime, IsRecoverableError)
-		if err != nil {
-			return "", err
-		}
-
-		return txHash, nil
-	}
-
-	txHash, err := fund(a.PrimeCluster, fundTokenAmount, a.PrimeMultisigAddr)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Prime multisig addr funded: %s\n", txHash)
-
-	txHash, err = fund(a.PrimeCluster, fundTokenAmount, a.PrimeMultisigFeeAddr)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Prime fee addr funded: %s\n", txHash)
-
-	if a.Config.VectorEnabled {
-		txHash, err := fund(a.VectorCluster, fundTokenAmount, a.VectorMultisigAddr)
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("Vector multisig addr funded: %s\n", txHash)
-
-		txHash, err = fund(a.VectorCluster, fundTokenAmount, a.VectorMultisigFeeAddr)
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("Vector fee addr funded: %s\n", txHash)
-	}
-
-	return nil
-}
-
-func (a *ApexSystem) CreateCardanoMultisigAddresses() (err error) {
-	a.PrimeMultisigAddr, a.PrimeMultisigFeeAddr, err = a.cardanoCreateAddress(a.PrimeCluster.Config.NetworkType, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create addresses for prime: %w", err)
-	}
-
-	if a.Config.VectorEnabled {
-		a.VectorMultisigAddr, a.VectorMultisigFeeAddr, err = a.cardanoCreateAddress(a.VectorCluster.Config.NetworkType, nil)
-		if err != nil {
-			return fmt.Errorf("failed to create addresses for vector: %w", err)
-		}
-	}
-
-	return nil
-}
-
-func (a *ApexSystem) cardanoCreateAddress(
-	network cardanowallet.CardanoNetworkType, keys []string,
-) (string, string, error) {
-	bridgeAdminPk, err := a.bladeAdmin.MarshallPrivateKey()
-	if err != nil {
-		return "", "", err
-	}
-
-	bothAddresses := false
-
-	args := []string{
-		"create-address",
-		"--network-id", fmt.Sprint(network),
-	}
-
-	if len(keys) == 0 {
-		args = append(args,
-			"--bridge-url", a.GetBridgeDefaultJSONRPCAddr(),
-			"--bridge-addr", contracts.Bridge.String(),
-			"--chain", GetNetworkName(network),
-			"--bridge-key", hex.EncodeToString(bridgeAdminPk))
-
-		bothAddresses = true
-	}
-
-	for _, key := range keys {
-		args = append(args, "--key", key)
-	}
-
-	var outb bytes.Buffer
-
-	err = RunCommand(ResolveApexBridgeBinary(), args, io.MultiWriter(os.Stdout, &outb))
-	if err != nil {
-		return "", "", err
-	}
-
-	if !bothAddresses {
-		return strings.TrimSpace(strings.ReplaceAll(outb.String(), "Address = ", "")), "", nil
-	}
-
-	multisig, fee, output := "", "", outb.String()
-	reGateway := regexp.MustCompile(`Multisig Address\s*=\s*([^\s]+)`)
-	reNativeTokenWallet := regexp.MustCompile(`Fee Payer Address\s*=\s*([^\s]+)`)
-
-	if match := reGateway.FindStringSubmatch(output); len(match) > 0 {
-		multisig = match[1]
-	}
-
-	if match := reNativeTokenWallet.FindStringSubmatch(output); len(match) > 0 {
-		fee = match[1]
-	}
-
-	return multisig, fee, nil
-}
 func (a *ApexSystem) GetBalance(
-	ctx context.Context, user *TestApexUser, chain ChainID,
+	ctx context.Context, user *TestApexUser, chainID ChainID,
 ) (*big.Int, error) {
-	switch chain {
-	case ChainIDPrime:
-		balance, err := GetTokenAmount(ctx, a.GetPrimeTxProvider(), user.GetAddress(ChainIDPrime))
-
-		return new(big.Int).SetUint64(balance), err
-	case ChainIDVector:
-		balance, err := GetTokenAmount(ctx, a.GetVectorTxProvider(), user.GetAddress(ChainIDVector))
-
-		return new(big.Int).SetUint64(balance), err
-	case ChainIDNexus:
-		return a.Nexus.GetAddressEthAmount(ctx, user.NexusAddress)
+	chain, err := a.getChain(chainID)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("unsupported chain")
+	return chain.GetAddressBalance(ctx, user.GetAddress(chainID))
 }
 
 func (a *ApexSystem) WaitForGreaterAmount(
@@ -763,6 +411,23 @@ func (a *ApexSystem) WaitForAmount(
 	}, isRecoverableError...)
 }
 
+func (a *ApexSystem) SubmitTx(
+	ctx context.Context, sourceChain ChainID, destinationChain ChainID,
+	sender *TestApexUser, receiver *TestApexUser, amount *big.Int, data []byte,
+) (string, error) {
+	privateKey, err := sender.GetPrivateKey(sourceChain)
+	if err != nil {
+		return "", err
+	}
+
+	chain, err := a.getChain(sourceChain)
+	if err != nil {
+		return "", err
+	}
+
+	return chain.SendTx(ctx, privateKey, receiver.GetAddress(destinationChain), amount, data)
+}
+
 func (a *ApexSystem) SubmitBridgingRequest(
 	t *testing.T, ctx context.Context,
 	sourceChain ChainID, destinationChain ChainID,
@@ -788,9 +453,9 @@ func (a *ApexSystem) SubmitBridgingRequest(
 
 	// check if bridging direction is supported
 	require.False(t,
-		!a.Config.VectorEnabled && (sourceChain == ChainIDVector || destinationChain == ChainIDVector))
+		!a.Config.VectorConfig.IsEnabled && (sourceChain == ChainIDVector || destinationChain == ChainIDVector))
 	require.False(t,
-		!a.Config.NexusEnabled && (sourceChain == ChainIDNexus || destinationChain == ChainIDNexus))
+		!a.Config.NexusConfig.IsEnabled && (sourceChain == ChainIDNexus || destinationChain == ChainIDNexus))
 	require.True(t,
 		sourceChain == ChainIDPrime ||
 			(sourceChain == ChainIDVector && destinationChain == ChainIDPrime) ||
@@ -801,126 +466,85 @@ func (a *ApexSystem) SubmitBridgingRequest(
 	require.Greater(t, len(receivers), 0)
 	require.Less(t, len(receivers), 5)
 
-	// check if users are valid for the bridging - do they have necessary wallets
-	require.True(t, sourceChain != ChainIDVector || sender.HasVectorWallet)
-	require.True(t, sourceChain != ChainIDNexus || sender.HasNexusWallet)
+	receiversMap := make(map[string]*big.Int, len(receivers))
 
 	for _, receiver := range receivers {
 		require.True(t, destinationChain != ChainIDVector || receiver.HasVectorWallet)
 		require.True(t, destinationChain != ChainIDNexus || receiver.HasNexusWallet)
+
+		receiversMap[receiver.GetAddress(destinationChain)] = sendAmount
 	}
 
-	if sourceChain == ChainIDPrime || sourceChain == ChainIDVector {
-		return a.submitCardanoBridgingRequest(t, ctx,
-			sourceChain, destinationChain, sender, sendAmount.Uint64(), receivers...)
-	} else {
-		return a.submitEvmBridgingRequest(t, ctx,
-			sourceChain, destinationChain, sender, sendAmount, receivers...)
-	}
-}
-func (a *ApexSystem) submitEvmBridgingRequest(
-	t *testing.T, _ context.Context,
-	sourceChain ChainID, destinationChain ChainID,
-	sender *TestApexUser, sendAmount *big.Int, receivers ...*TestApexUser,
-) string {
-	t.Helper()
+	// check if users are valid for the bridging - do they have necessary wallets
+	require.True(t, sourceChain != ChainIDVector || sender.HasVectorWallet)
+	require.True(t, sourceChain != ChainIDNexus || sender.HasNexusWallet)
 
-	const (
-		feeAmount = 1_100_000
-	)
-
-	feeAmountWei := new(big.Int).SetUint64(feeAmount)
-	feeAmountWei.Mul(feeAmountWei, new(big.Int).Exp(big.NewInt(10), big.NewInt(12), nil))
-
-	senderPrivateKey, err := sender.GetPrivateKey(sourceChain)
+	privateKey, err := sender.GetPrivateKey(sourceChain)
 	require.NoError(t, err)
 
-	params := []string{
-		"sendtx",
-		"--tx-type", "evm",
-		"--gateway-addr", a.Nexus.Gateway.String(),
-		"--nexus-url", a.GetNexusDefaultJSONRPCAddr(),
-		"--key", senderPrivateKey,
-		"--chain-dst", destinationChain,
-		"--fee", feeAmountWei.String(),
-	}
-
-	receiversParam := make([]string, 0, len(receivers))
-	for i := 0; i < len(receivers); i++ {
-		receiversParam = append(
-			receiversParam,
-			"--receiver", fmt.Sprintf("%s:%s", receivers[i].GetAddress(destinationChain), sendAmount),
-		)
-	}
-
-	params = append(params, receiversParam...)
-
-	var outb bytes.Buffer
-
-	err = RunCommand(ResolveApexBridgeBinary(), params, io.MultiWriter(os.Stdout, &outb))
+	txHash, err := a.GetChainMust(t, sourceChain).BridgingRequest(ctx, destinationChain, privateKey, receiversMap)
 	require.NoError(t, err)
-
-	txHash, output := "", outb.String()
-	reTxHash := regexp.MustCompile(`Tx Hash\s*=\s*([^\s]+)`)
-
-	if match := reTxHash.FindStringSubmatch(output); len(match) > 0 {
-		txHash = match[1]
-	}
 
 	return txHash
 }
 
-func (a *ApexSystem) submitCardanoBridgingRequest(
-	t *testing.T, ctx context.Context,
-	sourceChain ChainID, destinationChain ChainID,
-	sender *TestApexUser, sendAmount uint64, receivers ...*TestApexUser,
-) string {
+func (a *ApexSystem) GetChainMust(t *testing.T, chainID string) ITestApexChain {
 	t.Helper()
 
-	const (
-		feeAmount              = 1_100_000
-		waitForTxNumRetries    = 60
-		waitForTxRetryWaitTime = time.Second * 2
-	)
+	chain, err := a.getChain(chainID)
+	require.NoError(t, err)
 
-	var (
-		txProvider    cardanowallet.ITxProvider
-		networkConfig TestCardanoNetworkConfig
-		bridgingAddr  string
-	)
+	return chain
+}
 
-	if sourceChain == ChainIDPrime {
-		txProvider = a.GetPrimeTxProvider()
-		networkConfig = a.PrimeCluster.NetworkConfig()
-		bridgingAddr = a.PrimeMultisigAddr
-	} else if sourceChain == ChainIDVector {
-		txProvider = a.GetVectorTxProvider()
-		networkConfig = a.VectorCluster.NetworkConfig()
-		bridgingAddr = a.VectorMultisigAddr
+func (a *ApexSystem) execForEachChain(handler func(chain ITestApexChain) error) error {
+	errs := make([]error, len(a.chains))
+	wg := &sync.WaitGroup{}
+
+	wg.Add(len(a.chains))
+
+	for i, ch := range a.chains {
+		go func(idx int, chain ITestApexChain) {
+			defer wg.Done()
+
+			if err := handler(chain); err != nil {
+				errs[idx] = fmt.Errorf("operation failed for chain %s: %w", chain.ChainID(), err)
+			}
+		}(i, ch)
 	}
 
-	receiverAddrsMap := make(map[string]uint64, len(receivers))
+	wg.Wait()
 
-	for _, receiver := range receivers {
-		addr := receiver.GetAddress(destinationChain)
-		receiverAddrsMap[addr] += sendAmount
+	return errors.Join(errs...)
+}
+
+func (a *ApexSystem) execForEachValidator(handler func(i int, validator *TestApexValidator) error) error {
+	errs := make([]error, len(a.validators))
+	wg := &sync.WaitGroup{}
+
+	wg.Add(len(a.validators))
+
+	for i, valid := range a.validators {
+		go func(idx int, validator *TestApexValidator) {
+			defer wg.Done()
+
+			if err := handler(idx, validator); err != nil {
+				errs[idx] = fmt.Errorf("operation failed for validator = %d: %w", idx, err)
+			}
+		}(i, valid)
 	}
 
-	require.NotNil(t, txProvider)
+	wg.Wait()
 
-	senderWallet, senderAddr := sender.GetCardanoWallet(sourceChain)
+	return errors.Join(errs...)
+}
 
-	bridgingRequestMetadata, err := CreateCardanoBridgingMetaData(
-		senderAddr.String(), receiverAddrsMap, destinationChain, feeAmount)
-	require.NoError(t, err)
+func (a *ApexSystem) getChain(chainID string) (ITestApexChain, error) {
+	for _, chain := range a.chains {
+		if chain.ChainID() == chainID {
+			return chain, nil
+		}
+	}
 
-	txHash, err := SendTx(ctx, txProvider, senderWallet,
-		uint64(len(receivers))*sendAmount+feeAmount, bridgingAddr, networkConfig, bridgingRequestMetadata)
-	require.NoError(t, err)
-
-	err = cardanowallet.WaitForTxHashInUtxos(
-		ctx, txProvider, bridgingAddr, txHash, waitForTxNumRetries, waitForTxRetryWaitTime, IsRecoverableError)
-	require.NoError(t, err)
-
-	return txHash
+	return nil, fmt.Errorf("unknown chain: %s", chainID)
 }
