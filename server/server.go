@@ -736,6 +736,15 @@ func (j *jsonRPCHub) GetCode(root types.Hash, addr types.Address) ([]byte, error
 	return code, nil
 }
 
+func (j *jsonRPCHub) GetCodeByCodeHash(codeHash types.Hash) ([]byte, error) {
+	code, ok := j.state.GetCode(codeHash)
+	if !ok {
+		return nil, fmt.Errorf("unable to fetch code")
+	}
+
+	return code, nil
+}
+
 // Has returns true if the DB does contains the given key.
 func (j *jsonRPCHub) Has(rootHash types.Hash) bool {
 	return j.state.Has(rootHash)

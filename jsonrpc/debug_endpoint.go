@@ -71,6 +71,9 @@ type debugBlockchainStore interface {
 	// DB does not contains the key.
 	Get(key string) ([]byte, error)
 
+	// GetCode retrieves the bytecode associated with a specific code hash.
+	GetCodeByCodeHash(codeHash types.Hash) ([]byte, error)
+
 	// GetIteratorDumpTree returns a set of accounts based on the given criteria and depends on the starting element.
 	GetIteratorDumpTree(block *types.Block, opts *state.DumpInfo) (*state.IteratorDump, error)
 
@@ -953,6 +956,17 @@ func (d *Debug) ChaindbCompact() (interface{}, error) {
 			}
 
 			return true, nil
+		},
+	)
+}
+
+// ChaindbCompact flattens the entire key-value database into a single level,
+// removing all unused slots and merging all keys.
+func (d *Debug) Preimage(codeHash types.Hash) (interface{}, error) {
+	return d.throttling.AttemptRequest(
+		context.Background(),
+		func() (interface{}, error) {
+			return d.store.GetCodeByCodeHash(codeHash)
 		},
 	)
 }
