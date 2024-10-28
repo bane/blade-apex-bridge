@@ -93,6 +93,10 @@ type debugBlockchainStore interface {
 	// of intermediate roots: the state root after each transaction.
 	IntermediateRoots(*types.Block, tracer.Tracer) ([]types.Hash, error)
 
+	// StorageRangeAt returns the storage at the given block height and transaction index.
+	StorageRangeAt(storageRangeResult *state.StorageRangeResult, block *types.Block,
+		addr *types.Address, keyStart []byte, txIndex, maxResult int) error
+
 	// TraceTxn traces a transaction in the block, associated with the given hash
 	TraceTxn(*types.Block, types.Hash, tracer.Tracer) (interface{}, error)
 
@@ -700,21 +704,24 @@ func (d *Debug) TraceChain(start, end BlockNumber, config *TraceConfig) (interfa
 				return nil, err
 			}
 
-			if startNum >= endNum {
+			if startNum > endNum {
 				return nil, fmt.Errorf("end block (#%d) needs to come after start block (#%d)", endNum, startNum)
 			}
 
 			blocks := int(endNum-startNum) + 1
 			results := make([]BlockTraceResult, blocks)
 			resultCh := make(chan BlockTraceResult, blocks)
+			maxConcurrency := runtime.NumCPU() - 1
+			semaphore := make(chan struct{}, maxConcurrency)
 
 			var wg sync.WaitGroup
-
 			for i := 0; i < blocks; i++ {
 				wg.Add(1)
+				semaphore <- struct{}{}
 
 				go func(i int) {
 					defer wg.Done()
+					defer func() { <-semaphore }()
 
 					blockNum := startNum + uint64(i)
 					traceResult := BlockTraceResult{Block: blockNum}
@@ -896,7 +903,7 @@ func (d *Debug) GetAccessibleState(from, to BlockNumber) (interface{}, error) {
 					}
 				}
 
-				return 0, fmt.Errorf("'from' and 'to' block numbers must be different")
+				return 0, fmt.Errorf("no accessible state found in the block %d", start)
 			}
 
 			delta := int64(1)
@@ -949,7 +956,7 @@ func (d *Debug) ChaindbCompact() (interface{}, error) {
 	return d.throttling.AttemptRequest(
 		context.Background(),
 		func() (interface{}, error) {
-			for b := byte(0); b < 255; b++ {
+			for b := byte(0); b <= 255; b++ {
 				if err := d.store.Compact([]byte{b}, []byte{b + 1}); err != nil {
 					return false, err
 				}
@@ -960,8 +967,7 @@ func (d *Debug) ChaindbCompact() (interface{}, error) {
 	)
 }
 
-// ChaindbCompact flattens the entire key-value database into a single level,
-// removing all unused slots and merging all keys.
+// Preimage is a debug API function that returns the preimage for a sha3 hash, if known.
 func (d *Debug) Preimage(codeHash types.Hash) (interface{}, error) {
 	return d.throttling.AttemptRequest(
 		context.Background(),
@@ -979,6 +985,26 @@ func (d *Debug) DbGet(key string) (interface{}, error) {
 		context.Background(),
 		func() (interface{}, error) {
 			return d.store.Get(key)
+		},
+	)
+}
+
+// StorageRangeAt returns the storage at the given block height and transaction index.
+func (d *Debug) StorageRangeAt(blockHash types.Hash, txIndex int, contractAddress types.Address,
+	keyStart []byte, maxResult int) (interface{}, error) {
+	return d.throttling.AttemptRequest(
+		context.Background(),
+		func() (interface{}, error) {
+			storageRangeResult := state.StorageRangeResult{}
+
+			block, ok := d.store.GetBlockByHash(blockHash, true)
+			if !ok {
+				return nil, fmt.Errorf("block %s not found", blockHash)
+			}
+
+			err := d.store.StorageRangeAt(&storageRangeResult, block, &contractAddress, keyStart, txIndex, maxResult)
+
+			return storageRangeResult, err
 		},
 	)
 }

@@ -750,12 +750,12 @@ func (j *jsonRPCHub) Has(rootHash types.Hash) bool {
 	return j.state.Has(rootHash)
 }
 
-// Has returns true if the DB does contains the given key.
+// Stat returns a particular internal stat of the database.
 func (j *jsonRPCHub) Stat(property string) (string, error) {
 	return j.state.Stat(property)
 }
 
-// Has returns true if the DB does contains the given key.
+// Compact flattens the underlying data store for the given key range.
 func (j *jsonRPCHub) Compact(start []byte, limit []byte) error {
 	return j.state.Compact(start, limit)
 }
@@ -790,6 +790,44 @@ func (j *jsonRPCHub) GetIteratorDumpTree(block *types.Block, opts *state.DumpInf
 	}
 
 	return itDump, nil
+}
+
+// StorageRangeAt returns the storage at the given block height and transaction index.
+func (j *jsonRPCHub) StorageRangeAt(storageRangeResult *state.StorageRangeResult, block *types.Block,
+	addr *types.Address, keyStart []byte, txIndex, maxResult int) error {
+	if block.Number() == 0 {
+		return fmt.Errorf("genesis block can't have transaction")
+	}
+
+	if txIndex < 0 || txIndex >= len(block.Transactions) {
+		return fmt.Errorf("transaction index %d out of bounds, block contains %d transactions",
+			txIndex, len(block.Transactions))
+	}
+
+	parentHeader, ok := j.GetHeaderByHash(block.ParentHash())
+	if !ok {
+		return fmt.Errorf("parent header not found for block %s", block.ParentHash().String())
+	}
+
+	blockProposer := types.BytesToAddress(block.Header.Miner)
+
+	transition, err := j.BeginTxn(parentHeader.StateRoot, block.Header, blockProposer)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	for idx, tx := range block.Transactions {
+		// Executes transactions until the target transaction is reached
+		if _, err := transition.Apply(tx); err != nil {
+			return fmt.Errorf("failed to apply transaction %d: %w", txIndex, err)
+		}
+
+		if idx == txIndex {
+			break
+		}
+	}
+
+	return transition.StorageRangeAt(storageRangeResult, addr, keyStart, maxResult)
 }
 
 func (j *jsonRPCHub) ApplyTxn(
