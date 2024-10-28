@@ -71,6 +71,7 @@ type TestEVMChain struct {
 	cluster       *framework.TestCluster
 	gatewayAddr   types.Address
 	relayerWallet *crypto.ECDSAKey
+	fundBlockNum  uint64
 }
 
 var _ ITestApexChain = (*TestEVMChain)(nil)
@@ -161,15 +162,20 @@ func (ec *TestEVMChain) FundWallets(ctx context.Context) error {
 		return err
 	}
 
-	_, err = ec.SendTx(ctx, hex.EncodeToString(key), ec.gatewayAddr.String(), ec.config.FundAmount, nil)
+	_, err = ec.sendTx(
+		ctx, hex.EncodeToString(key), ec.relayerWallet.Address().String(), ec.config.FundRelayerAmount, nil)
 	if err != nil {
 		return err
 	}
 
-	_, err = ec.SendTx(
-		ctx, hex.EncodeToString(key), ec.relayerWallet.Address().String(), ec.config.FundRelayerAmount, nil)
+	receipt, err := ec.sendTx(ctx, hex.EncodeToString(key), ec.gatewayAddr.String(), ec.config.FundAmount, nil)
+	if err != nil {
+		return err
+	}
 
-	return err
+	ec.fundBlockNum = receipt.BlockNumber
+
+	return nil
 }
 
 func (ec *TestEVMChain) InitContracts(bridgeAdmin *crypto.ECDSAKey, bridgeURL string) error {
@@ -244,6 +250,7 @@ func (ec *TestEVMChain) PopulateApexSystem(apexSystem *ApexSystem) {
 			Node:           ec.cluster.Servers[0],
 			RelayerAddress: ec.relayerWallet.Address(),
 			AdminKey:       ec.admin,
+			FundBlockNum:   ec.fundBlockNum,
 		}
 	}
 }
@@ -306,9 +313,20 @@ func (ec *TestEVMChain) BridgingRequest(
 func (ec *TestEVMChain) SendTx(
 	ctx context.Context, privateKey string, receiver string, amount *big.Int, data []byte,
 ) (string, error) {
-	privateKeyECDSA, err := crypto.HexToECDSA(privateKey)
+	rec, err := ec.sendTx(ctx, privateKey, receiver, amount, data)
 	if err != nil {
 		return "", err
+	}
+
+	return rec.TransactionHash.String(), nil
+}
+
+func (ec *TestEVMChain) sendTx(
+	ctx context.Context, privateKey string, receiver string, amount *big.Int, data []byte,
+) (*ethgo.Receipt, error) {
+	privateKeyECDSA, err := crypto.HexToECDSA(privateKey)
+	if err != nil {
+		return nil, err
 	}
 
 	txRelayer, err := txrelayer.NewTxRelayer(
@@ -317,7 +335,7 @@ func (ec *TestEVMChain) SendTx(
 		txrelayer.WithEstimateGasFallback(),
 	)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	key := crypto.NewECDSAKey(privateKeyECDSA)
@@ -330,10 +348,10 @@ func (ec *TestEVMChain) SendTx(
 		types.WithTo(&receiverAddr),
 	)), key)
 	if err != nil {
-		return "", err
+		return nil, err
 	} else if receipt.Status != uint64(types.ReceiptSuccess) {
-		return "", fmt.Errorf("fund relayer failed: %d", receipt.Status)
+		return nil, fmt.Errorf("fund relayer failed: %d", receipt.Status)
 	}
 
-	return receipt.TransactionHash.String(), nil
+	return receipt, nil
 }

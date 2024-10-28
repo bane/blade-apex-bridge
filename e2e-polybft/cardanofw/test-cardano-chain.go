@@ -66,6 +66,8 @@ type TestCardanoChain struct {
 	cluster         *TestCardanoCluster
 	multisigAddr    string
 	multisigFeeAddr string
+	fundBlockSlot   uint64
+	fundBlockHash   string
 }
 
 var _ ITestApexChain = (*TestCardanoChain)(nil)
@@ -112,6 +114,8 @@ func (ec *TestCardanoChain) RunChain(t *testing.T) error {
 
 	fmt.Printf("Waiting for sockets to be ready\n")
 
+	ec.cluster = cluster // at this point in time cluster has already been created
+
 	if err := cluster.WaitForReady(time.Minute * 2); err != nil {
 		return err
 	}
@@ -125,8 +129,6 @@ func (ec *TestCardanoChain) RunChain(t *testing.T) error {
 	}
 
 	fmt.Printf("Cluster %d is ready\n", ec.config.ID)
-
-	ec.cluster = cluster
 
 	return nil
 }
@@ -205,6 +207,15 @@ func (ec *TestCardanoChain) FundWallets(ctx context.Context) error {
 
 	fmt.Printf("%s fee addr funded: %s\n", GetNetworkName(ec.config.NetworkType), txHash)
 
+	// retrieve latest tip
+	tip, err := cardWallet.NewTxProviderOgmios(ec.cluster.OgmiosURL()).GetTip(ctx)
+	if err != nil {
+		return err
+	}
+
+	ec.fundBlockHash = tip.Hash
+	ec.fundBlockSlot = tip.Slot
+
 	return nil
 }
 
@@ -241,21 +252,21 @@ func (ec *TestCardanoChain) GetGenerateConfigsParams(indx int) (result []string)
 }
 
 func (ec *TestCardanoChain) PopulateApexSystem(apexSystem *ApexSystem) {
+	chainInfo := CardanoChainInfo{
+		NetworkAddress: ec.cluster.Servers[0].NetworkAddress(),
+		OgmiosURL:      ec.cluster.OgmiosURL(),
+		MultisigAddr:   ec.multisigAddr,
+		FeeAddr:        ec.multisigFeeAddr,
+		SocketPath:     ec.cluster.OgmiosServer.SocketPath(),
+		FundBlockHash:  ec.fundBlockHash,
+		FundBlockSlot:  ec.fundBlockSlot,
+	}
+
 	switch ec.ChainID() {
 	case ChainIDPrime:
-		apexSystem.PrimeInfo = CardanoChainInfo{
-			NetworkAddress: ec.cluster.Servers[0].NetworkAddress(),
-			OgmiosURL:      ec.cluster.OgmiosURL(),
-			MultisigAddr:   ec.multisigAddr,
-			FeeAddr:        ec.multisigFeeAddr,
-		}
+		apexSystem.PrimeInfo = chainInfo
 	case ChainIDVector:
-		apexSystem.VectorInfo = CardanoChainInfo{
-			NetworkAddress: ec.cluster.Servers[0].NetworkAddress(),
-			OgmiosURL:      ec.cluster.OgmiosURL(),
-			MultisigAddr:   ec.multisigAddr,
-			FeeAddr:        ec.multisigFeeAddr,
-		}
+		apexSystem.VectorInfo = chainInfo
 	}
 }
 

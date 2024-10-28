@@ -22,6 +22,9 @@ type CardanoChainInfo struct {
 	OgmiosURL      string
 	MultisigAddr   string
 	FeeAddr        string
+	SocketPath     string
+	FundBlockHash  string
+	FundBlockSlot  uint64
 }
 
 func (ci *CardanoChainInfo) GetTxProvider() cardanowallet.ITxProvider {
@@ -33,6 +36,7 @@ type EVMChainInfo struct {
 	Node           *framework.TestServer
 	RelayerAddress types.Address
 	AdminKey       *crypto.ECDSAKey
+	FundBlockNum   uint64
 }
 
 type ApexSystem struct {

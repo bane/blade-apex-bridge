@@ -56,11 +56,13 @@ func Test_OnlyRunApexBridge_WithNexusAndVector(t *testing.T) {
 	fmt.Printf("prime ogmios url: %s\n", apex.PrimeInfo.OgmiosURL)
 	fmt.Printf("prime bridging addr: %s\n", apex.PrimeInfo.MultisigAddr)
 	fmt.Printf("prime fee addr: %s\n", apex.PrimeInfo.FeeAddr)
+	fmt.Printf("prime socket path: %s\n", apex.PrimeInfo.SocketPath)
 
 	fmt.Printf("vector network url: %s\n", apex.VectorInfo.NetworkAddress)
 	fmt.Printf("vector ogmios url: %s\n", apex.VectorInfo.OgmiosURL)
 	fmt.Printf("vector bridging addr: %s\n", apex.VectorInfo.MultisigAddr)
 	fmt.Printf("vector fee addr: %s\n", apex.VectorInfo.FeeAddr)
+	fmt.Printf("vector socket path: %s\n", apex.VectorInfo.SocketPath)
 
 	user := apex.Users[0]
 	userPrimeSK, err := user.GetPrivateKey(cardanofw.ChainIDPrime)
