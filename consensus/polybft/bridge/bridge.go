@@ -115,15 +115,17 @@ func NewBridge(runtime Runtime,
 			topic:             bridgeTopic,
 			key:               runtimeConfig.Key,
 			maxNumberOfEvents: maxNumberOfBatchEvents,
-		}, runtime, externalChainID, internalChainID)
+		}, runtime, externalChainID, internalChainID, blockchain)
 		bridge.bridgeManagers[externalChainID] = bridgeManager
 
 		if err := bridgeManager.Start(runtimeConfig); err != nil {
 			return nil, fmt.Errorf("error starting bridge manager for chainID: %d, err: %w", externalChainID, err)
 		}
+
+		eventProvider.Subscribe(bridgeManager)
 	}
 
-	relayer, err := newBridgeEventRelayer(blockchain, runtimeConfig, logger)
+	relayer, err := newBridgeEventRelayer(blockchain, runtimeConfig, logger, store)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +152,7 @@ func (b *bridge) Close() {
 // and calls PostBlock in each bridge manager
 func (b *bridge) PostBlock(req *oracle.PostBlockRequest) error {
 	for chainID, bridgeManager := range b.bridgeManagers {
-		if err := bridgeManager.PostBlock(); err != nil {
+		if err := bridgeManager.PostBlock(req); err != nil {
 			return fmt.Errorf("erorr bridge post block, chainID: %d, err: %w", chainID, err)
 		}
 	}
@@ -181,15 +183,15 @@ func (b *bridge) PostEpoch(req *oracle.PostEpochRequest) error {
 
 // BridgeBatch returns the pending signed bridge batches as a list of signed bridge batches
 func (b *bridge) BridgeBatch(pendingBlockNumber uint64) ([]*BridgeBatchSigned, error) {
-	bridgeBatches := make([]*BridgeBatchSigned, 0, len(b.bridgeManagers))
+	bridgeBatches := make([]*BridgeBatchSigned, 0)
 
 	for chainID, bridgeManager := range b.bridgeManagers {
-		bridgeBatch, err := bridgeManager.BridgeBatch(pendingBlockNumber)
+		signedBridgeBatches, err := bridgeManager.BridgeBatch(pendingBlockNumber)
 		if err != nil {
 			return nil, fmt.Errorf("error while getting signed batches for chainID: %d, err: %w", chainID, err)
 		}
 
-		bridgeBatches = append(bridgeBatches, bridgeBatch)
+		bridgeBatches = append(bridgeBatches, signedBridgeBatches...)
 	}
 
 	return bridgeBatches, nil
@@ -212,21 +214,19 @@ func (b *bridge) GetTransactions(blockInfo oracle.NewBlockInfo) ([]*types.Transa
 
 	if blockInfo.IsEndOfSprint {
 		for chainID, bridgeManager := range b.bridgeManagers {
-			bridgeBatch, err := bridgeManager.BridgeBatch(blockInfo.CurrentBlock())
+			bridgeBatches, err := bridgeManager.BridgeBatch(blockInfo.CurrentBlock())
 			if err != nil {
 				return nil, fmt.Errorf("error while getting signed batches for chainID: %d, err: %w", chainID, err)
 			}
 
-			if bridgeBatch == nil {
-				continue
-			}
+			for _, batch := range bridgeBatches {
+				tx, err := createBridgeBatchTx(batch)
+				if err != nil {
+					return nil, fmt.Errorf("error while creating bridge batch tx for chainID: %d, err: %w", chainID, err)
+				}
 
-			tx, err := createBridgeBatchTx(bridgeBatch)
-			if err != nil {
-				return nil, fmt.Errorf("error while creating bridge batch tx for chainID: %d, err: %w", chainID, err)
+				txs = append(txs, tx)
 			}
-
-			txs = append(txs, tx)
 		}
 	}
 
@@ -295,7 +295,7 @@ func (b *bridge) VerifyTransactions(blockInfo oracle.NewBlockInfo, txs []*types.
 		}
 	}
 
-	if blockInfo.IsFirstBlockOfEpoch {
+	if blockInfo.IsFirstBlockOfEpoch && blockInfo.ParentBlock.Number > 0 {
 		hasValidatorChanges, err := doesParentBlockHasValidatorChanges(blockInfo.ParentBlock)
 		if err != nil {
 			return err
