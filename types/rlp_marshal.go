@@ -190,7 +190,7 @@ func (t *Transaction) MarshalRLPTo(dst []byte) []byte {
 	return MarshalRLPTo(t.MarshalRLPWith, dst)
 }
 
-func (t *Transactions) MarshalRLPTo(dst []byte) []byte {
+func (t Transactions) MarshalRLPTo(dst []byte) []byte {
 	return MarshalRLPTo(t.MarshalRLPWith, dst)
 }
 
