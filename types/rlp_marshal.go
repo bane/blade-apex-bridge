@@ -189,3 +189,17 @@ func (t *Transaction) MarshalRLPTo(dst []byte) []byte {
 
 	return MarshalRLPTo(t.MarshalRLPWith, dst)
 }
+
+func (t *Transactions) MarshalRLPTo(dst []byte) []byte {
+	return MarshalRLPTo(t.MarshalRLPWith, dst)
+}
+
+func (t *Transactions) MarshalRLPWith(a *fastrlp.Arena) *fastrlp.Value {
+	vv := a.NewArray()
+
+	for _, tt := range *t {
+		vv.Set(tt.MarshalRLPWith(a))
+	}
+
+	return vv
+}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -191,6 +192,9 @@ type TxPool struct {
 	localPeerID peer.ID
 }
 
+var gossipCh chan *types.Transaction
+var gossipWG sync.WaitGroup
+
 // NewTxPool returns a new pool for processing incoming transactions.
 func NewTxPool(
 	logger hclog.Logger,
@@ -247,12 +251,81 @@ func (p *TxPool) updatePending(i int64) {
 	metrics.SetGauge([]string{txPoolMetrics, "pending_transactions"}, float32(newPending))
 }
 
+func (p *TxPool) startGossipBatchers(batchersNum, batchSize int) {
+	// 1 channel for all batchers, give it enough space for bulk requests
+	gossipCh = make(chan *types.Transaction, 4*batchersNum*batchSize)
+
+	for i := 0; i < batchersNum; i++ {
+		gossipWG.Add(1)
+
+		go p.gossipBatcher(batchSize)
+	}
+}
+
+func stopGossipBatchers() {
+	gossipWG.Wait()
+}
+
+func (p *TxPool) gossipBatcher(batchSize int) {
+	var timer *time.Timer
+
+	defer gossipWG.Done()
+	batch := make([]*types.Transaction, 0, batchSize)
+
+	// start timer only if we do batching, otherwise we publish immediately
+	if batchSize > 1 {
+		timer = time.NewTimer(time.Second)
+		defer timer.Stop()
+	}
+
+	for {
+		select {
+		case <-p.shutdownCh:
+			// flush when closing
+			if len(batch) > 0 {
+				p.publish(batch)
+				clear(batch)
+			}
+
+			return
+		case <-timer.C:
+			if len(batch) > 0 {
+				p.publish(batch)
+				clear(batch)
+			}
+		case tx := <-gossipCh:
+			batch = append(batch, tx)
+			if len(batch) >= batchSize {
+				// publish
+				p.publish(batch)
+				clear(batch)
+			}
+		}
+	}
+}
+
+func (p *TxPool) publish(batch []*types.Transaction) {
+	txs := types.Transactions(batch)
+	tx := &proto.Txn{
+		Raw: &any.Any{
+			Value: txs.MarshalRLPTo(nil),
+		},
+	}
+
+	if err := p.topic.Publish(tx); err != nil {
+		p.logger.Error("failed to topic tx", "err", err)
+	}
+}
+
 // Start runs the pool's main loop in the background.
 // On each request received, the appropriate handler
 // is invoked in a separate goroutine.
 func (p *TxPool) Start() {
 	// set default value of txpool pending transactions gauge
 	p.updatePending(0)
+
+	// start gossip batchers
+	p.startGossipBatchers(1, 2500)
 
 	//	run the handler for high gauge level pruning
 	go func() {
@@ -287,6 +360,7 @@ func (p *TxPool) Start() {
 func (p *TxPool) Close() {
 	p.eventManager.Close()
 	close(p.shutdownCh)
+	stopGossipBatchers() // wait for gossip flush
 }
 
 // SetSigner sets the signer the pool will use
@@ -312,15 +386,7 @@ func (p *TxPool) AddTx(tx *types.Transaction) error {
 	// broadcast the transaction only if a topic
 	// subscription is present
 	if p.topic != nil {
-		tx := &proto.Txn{
-			Raw: &any.Any{
-				Value: tx.MarshalRLP(),
-			},
-		}
-
-		if err := p.topic.Publish(tx); err != nil {
-			p.logger.Error("failed to topic tx", "err", err)
-		}
+		gossipCh <- tx
 	}
 
 	return nil
@@ -975,26 +1041,28 @@ func (p *TxPool) addGossipTx(obj interface{}, peerID peer.ID) {
 		return
 	}
 
-	tx := &types.Transaction{}
+	txs := &types.Transactions{}
 
-	// decode tx
-	if err := tx.UnmarshalRLP(raw.Raw.Value); err != nil {
+	// decode txs
+	if err := txs.UnmarshalRLP(raw.Raw.Value); err != nil {
 		p.logger.Error("failed to decode broadcast tx", "err", err)
 
 		return
 	}
 
-	// add tx
-	if err := p.addTx(gossip, tx); err != nil {
-		if errors.Is(err, ErrAlreadyKnown) {
-			if p.logger.IsDebug() {
-				p.logger.Debug("rejecting known tx (gossip)", "hash", tx.Hash().String())
+	// add txs
+	for _, tx := range *txs {
+		if err := p.addTx(gossip, tx); err != nil {
+			if errors.Is(err, ErrAlreadyKnown) {
+				if p.logger.IsDebug() {
+					p.logger.Debug("rejecting known tx (gossip)", "hash", tx.Hash().String())
+				}
+
+				return
 			}
 
-			return
+			p.logger.Error("failed to add broadcast tx", "err", err, "hash", tx.Hash().String())
 		}
-
-		p.logger.Error("failed to add broadcast tx", "err", err, "hash", tx.Hash().String())
 	}
 }
 
