@@ -283,29 +283,27 @@ func (p *TxPool) gossipBatcher(batchSize int) {
 		case <-p.shutdownCh:
 			// flush when closing
 			if len(batch) > 0 {
-				p.publish(batch)
-				clear(batch)
+				p.publish(&batch)
 			}
 
 			return
 		case <-timer.C:
 			if len(batch) > 0 {
-				p.publish(batch)
-				clear(batch)
+				p.publish(&batch)
+				batch = batch[:0]
 			}
 		case tx := <-gossipCh:
 			batch = append(batch, tx)
 			if len(batch) >= batchSize {
-				// publish
-				p.publish(batch)
-				clear(batch)
+				p.publish(&batch)
+				batch = batch[:0]
 			}
 		}
 	}
 }
 
-func (p *TxPool) publish(batch []*types.Transaction) {
-	txs := types.Transactions(batch)
+func (p *TxPool) publish(batch *[]*types.Transaction) {
+	txs := types.Transactions(*batch)
 	tx := &proto.Txn{
 		Raw: &any.Any{
 			Value: txs.MarshalRLPTo(nil),
@@ -315,6 +313,8 @@ func (p *TxPool) publish(batch []*types.Transaction) {
 	if err := p.topic.Publish(tx); err != nil {
 		p.logger.Error("failed to topic tx", "err", err)
 	}
+
+	clear(*batch)
 }
 
 // Start runs the pool's main loop in the background.
