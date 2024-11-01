@@ -274,7 +274,7 @@ func (p *TxPool) gossipBatcher(batchSize int) {
 
 	// start timer only if we do batching, otherwise we publish immediately
 	if batchSize > 1 {
-		timer = time.NewTimer(time.Second)
+		timer = time.NewTimer(time.Millisecond * 500)
 		defer timer.Stop()
 	}
 
