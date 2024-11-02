@@ -229,24 +229,6 @@ func (h *Header) unmarshalRLPFrom(_ *fastrlp.Parser, v *fastrlp.Value) error {
 	return err
 }
 
-func (t *Transactions) UnmarshalRLP(input []byte) error {
-	return UnmarshalRlp(t.unmarshalRLPFrom, input)
-}
-
-func (t *Transactions) unmarshalRLPFrom(p *fastrlp.Parser, v *fastrlp.Value) error {
-	return unmarshalRLPFrom(p, v, func(_ TxType, p *fastrlp.Parser, v *fastrlp.Value) error {
-		obj := &Transaction{}
-
-		if err := obj.UnmarshalRLPFrom(p, v); err != nil {
-			return err
-		}
-
-		*t = append(*t, obj)
-
-		return nil
-	})
-}
-
 func (r *Receipts) UnmarshalRLP(input []byte) error {
 	return UnmarshalRlp(r.unmarshalRLPFrom, input)
 }
@@ -374,6 +356,24 @@ func (l *Log) unmarshalRLPFrom(_ *fastrlp.Parser, v *fastrlp.Value) error {
 	}
 
 	return nil
+}
+
+func (t *Transactions) UnmarshalRLP(input []byte) error {
+	return UnmarshalRlp(t.unmarshalRLPFrom, input)
+}
+
+func (t *Transactions) unmarshalRLPFrom(p *fastrlp.Parser, v *fastrlp.Value) error {
+	return unmarshalRLPFrom(p, v, func(txType TxType, p *fastrlp.Parser, v *fastrlp.Value) error {
+		obj := NewTxWithType(txType)
+
+		if err := obj.UnmarshalRLPFrom(p, v); err != nil {
+			return err
+		}
+
+		*t = append(*t, obj)
+
+		return nil
+	})
 }
 
 // UnmarshalRLP unmarshals transaction from byte slice
