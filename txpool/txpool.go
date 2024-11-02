@@ -267,16 +267,11 @@ func stopGossipBatchers() {
 }
 
 func (p *TxPool) gossipBatcher(batchSize int) {
-	var timer *time.Timer
-
 	defer gossipWG.Done()
 	batch := make([]*types.Transaction, 0, batchSize)
 
-	// start timer only if we do batching, otherwise we publish immediately
-	if batchSize > 1 {
-		timer = time.NewTimer(time.Millisecond * 500)
-		defer timer.Stop()
-	}
+	ticker := time.NewTicker(time.Millisecond * 500)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -287,7 +282,7 @@ func (p *TxPool) gossipBatcher(batchSize int) {
 			}
 
 			return
-		case <-timer.C:
+		case <-ticker.C:
 			if len(batch) > 0 {
 				p.publish(&batch)
 				batch = batch[:0]
