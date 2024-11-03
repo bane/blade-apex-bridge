@@ -263,6 +263,7 @@ func (p *TxPool) startGossipBatchers(batchersNum, batchSize int) {
 }
 
 func stopGossipBatchers() {
+	close(gossipCh)
 	gossipWG.Wait()
 }
 
@@ -270,13 +271,23 @@ func (p *TxPool) gossipBatcher(batchSize int) {
 	defer gossipWG.Done()
 	batch := make([]*types.Transaction, 0, batchSize)
 
-	ticker := time.NewTicker(time.Millisecond * 500)
+	tickerPeriod := time.Hour * 24 // reduce empty looping when no batching
+	if batchSize > 1 {
+		tickerPeriod = time.Millisecond * 500
+	}
+
+	ticker := time.NewTicker(tickerPeriod)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-p.shutdownCh:
 			// flush when closing
+			tx, ok := <-gossipCh
+			if ok {
+				batch = append(batch, tx)
+			}
+
 			if len(batch) > 0 {
 				p.publish(&batch)
 			}
@@ -320,7 +331,7 @@ func (p *TxPool) Start() {
 	p.updatePending(0)
 
 	// start gossip batchers
-	p.startGossipBatchers(1, 2500)
+	p.startGossipBatchers(1, 10000)
 
 	//	run the handler for high gauge level pruning
 	go func() {
