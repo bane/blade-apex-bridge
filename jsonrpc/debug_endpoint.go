@@ -10,7 +10,6 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/0xPolygon/polygon-edge/helper/hex"
@@ -690,6 +689,7 @@ func (d *Debug) GetRawReceipts(filter BlockNumberOrHash) (interface{}, error) {
 	)
 }
 
+// TraceChain traces a range of blocks from `start` to `end` and returns their trace results or an error.
 func (d *Debug) TraceChain(start, end BlockNumber, config *TraceConfig) (interface{}, error) {
 	return d.throttling.AttemptRequest(
 		context.Background(),
@@ -710,21 +710,12 @@ func (d *Debug) TraceChain(start, end BlockNumber, config *TraceConfig) (interfa
 
 			blocks := int(endNum-startNum) + 1
 			results := make([]BlockTraceResult, blocks)
-			resultCh := make(chan BlockTraceResult, blocks)
-			maxConcurrency := runtime.NumCPU() - 1
-			semaphore := make(chan struct{}, maxConcurrency)
+			resultCh := make(chan *BlockTraceResult, blocks)
 
-			var wg sync.WaitGroup
 			for i := 0; i < blocks; i++ {
-				wg.Add(1)
-				semaphore <- struct{}{}
-
 				go func(i int) {
-					defer wg.Done()
-					defer func() { <-semaphore }()
-
 					blockNum := startNum + uint64(i)
-					traceResult := BlockTraceResult{Block: blockNum}
+					traceResult := &BlockTraceResult{Block: blockNum}
 
 					block, ok := d.store.GetBlockByNumber(blockNum, true)
 					if !ok {
@@ -744,16 +735,19 @@ func (d *Debug) TraceChain(start, end BlockNumber, config *TraceConfig) (interfa
 				}(i)
 			}
 
-			go func() {
-				wg.Wait()
-				close(resultCh)
-			}()
+			traceResults := 0
 
-			for traceResult := range resultCh {
-				results[traceResult.Block-startNum] = traceResult
+			for {
+				select {
+				case traceResult := <-resultCh:
+					results[traceResult.Block-startNum] = *traceResult
+
+					traceResults++
+					if traceResults == blocks {
+						return results, nil
+					}
+				}
 			}
-
-			return results, nil
 		},
 	)
 }

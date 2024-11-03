@@ -189,7 +189,7 @@ func (m *memStorage) Has(p []byte) (bool, error) {
 
 // Stat returns a particular internal stat of the database.
 func (m *memStorage) Stat(property string) (string, error) {
-	return "", fmt.Errorf("unknown property")
+	return "", fmt.Errorf("not implemented for in-memory storage")
 }
 
 // Compact is not supported on a memory database, but there's no need either as
