@@ -535,7 +535,7 @@ func (r *BaseLoadTestRunner) calculateResults(blockInfos map[uint64]*BlockInfo, 
 
 		if _, ok := blockTimeMap[block]; !ok {
 			if currentBlockInfo, ok := blockInfos[block]; !ok {
-				currentBlock, err := r.client.GetBlockByNumber(jsonrpc.BlockNumber(parentBlockNum), true)
+				currentBlock, err := r.client.GetBlockByNumber(jsonrpc.BlockNumber(block), true)
 				if err != nil {
 					return err
 				}
