@@ -516,22 +516,22 @@ func (r *BaseLoadTestRunner) calculateResults(blockInfos map[uint64]*BlockInfo, 
 
 	for block := range uniqueBlocks {
 		currentBlockTxsNum := 0
-		parentBlockNum := block - 1
+		nextBlockNum := block + 1
 
-		if _, exists := blockTimeMap[parentBlockNum]; !exists {
-			if parentBlockInfo, exists := blockInfos[parentBlockNum]; !exists {
-				parentBlock, err := r.client.GetBlockByNumber(jsonrpc.BlockNumber(parentBlockNum), false)
+		if _, exists := blockTimeMap[nextBlockNum]; !exists {
+			if nextBlockInfo, exists := blockInfos[nextBlockNum]; !exists {
+				nextBlock, err := r.client.GetBlockByNumber(jsonrpc.BlockNumber(nextBlockNum), false)
 				if err != nil {
 					return err
 				}
 
-				blockTimeMap[parentBlockNum] = parentBlock.Header.Timestamp
+				blockTimeMap[nextBlockNum] = nextBlock.Header.Timestamp
 			} else {
-				blockTimeMap[parentBlockNum] = parentBlockInfo.CreatedAt
+				blockTimeMap[nextBlockNum] = nextBlockInfo.CreatedAt
 			}
 		}
 
-		parentBlockTimestamp := blockTimeMap[parentBlockNum]
+		nextBlockTimestamp := blockTimeMap[nextBlockNum]
 
 		if _, ok := blockTimeMap[block]; !ok {
 			if currentBlockInfo, ok := blockInfos[block]; !ok {
@@ -553,7 +553,7 @@ func (r *BaseLoadTestRunner) calculateResults(blockInfos map[uint64]*BlockInfo, 
 		}
 
 		currentBlockTimestamp := blockTimeMap[block]
-		blockTime := math.Abs(float64(currentBlockTimestamp - parentBlockTimestamp))
+		blockTime := math.Abs(float64(nextBlockTimestamp - currentBlockTimestamp))
 
 		currentBlockTxsPerSecond := float64(currentBlockTxsNum) / blockTime
 
@@ -579,7 +579,7 @@ func (r *BaseLoadTestRunner) calculateResults(blockInfos map[uint64]*BlockInfo, 
 	}
 
 	for _, info := range blockInfos {
-		info.BlockTime = math.Abs(float64(info.CreatedAt - blockTimeMap[info.Number-1]))
+		info.BlockTime = math.Abs(float64(blockTimeMap[info.Number+1] - info.CreatedAt))
 		info.TPS = float64(info.NumTxs) / info.BlockTime
 	}
 
