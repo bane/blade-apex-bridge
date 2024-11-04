@@ -525,6 +525,10 @@ func (r *BaseLoadTestRunner) calculateResults(blockInfos map[uint64]*BlockInfo, 
 					return err
 				}
 
+				if nextBlock == nil {
+					return fmt.Errorf("next block %d not mined yet, increase #txs in test", nextBlockNum)
+				}
+
 				blockTimeMap[nextBlockNum] = nextBlock.Header.Timestamp
 			} else {
 				blockTimeMap[nextBlockNum] = nextBlockInfo.CreatedAt
