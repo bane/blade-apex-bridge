@@ -269,6 +269,7 @@ func stopGossipBatchers() {
 
 func (p *TxPool) gossipBatcher(batchSize int) {
 	defer gossipWG.Done()
+
 	batch := make([]*types.Transaction, 0, batchSize)
 
 	tickerPeriod := time.Hour * 24 // reduce empty looping when no batching
@@ -281,28 +282,25 @@ func (p *TxPool) gossipBatcher(batchSize int) {
 
 	for {
 		select {
-		case <-p.shutdownCh:
-			// flush when closing
-			tx, ok := <-gossipCh
-			if ok {
-				batch = append(batch, tx)
-			}
-
-			if len(batch) > 0 {
-				p.publish(&batch)
-			}
-
-			return
 		case <-ticker.C:
 			if len(batch) > 0 {
 				p.publish(&batch)
 				batch = batch[:0]
 			}
-		case tx := <-gossipCh:
-			batch = append(batch, tx)
-			if len(batch) >= batchSize {
-				p.publish(&batch)
-				batch = batch[:0]
+		case tx, chOpen := <-gossipCh:
+			if chOpen {
+				batch = append(batch, tx)
+				if len(batch) >= batchSize {
+					p.publish(&batch)
+					batch = batch[:0]
+				}
+			} else {
+				// flush when closing
+				if len(batch) > 0 {
+					p.publish(&batch)
+				}
+
+				return
 			}
 		}
 	}
