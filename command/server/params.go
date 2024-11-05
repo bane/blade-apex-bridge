@@ -41,6 +41,7 @@ const (
 	tlsCertFileLocationFlag      = "tls-cert-file"
 	tlsKeyFileLocationFlag       = "tls-key-file"
 	gossipMessageSizeFlag        = "gossip-msg-size"
+	gossipBatchSizeFlag          = "gossip-batch-size"
 
 	relayerFlag = "relayer"
 
@@ -183,6 +184,7 @@ func (p *serverParams) generateConfig() *server.Config {
 		PriceLimit:         p.rawConfig.TxPool.PriceLimit,
 		MaxSlots:           p.rawConfig.TxPool.MaxSlots,
 		MaxAccountEnqueued: p.rawConfig.TxPool.MaxAccountEnqueued,
+		GossipBatchSize:    p.rawConfig.TxPool.GossipBatchSize,
 		SecretsManager:     p.secretsConfig,
 		RestoreFile:        p.getRestoreFilePath(),
 		LogLevel:           hclog.LevelFromString(p.rawConfig.LogLevel),

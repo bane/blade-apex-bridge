@@ -384,6 +384,7 @@ func NewServer(config *Config) (*Server, error) {
 				MaxSlots:           m.config.MaxSlots,
 				PriceLimit:         m.config.PriceLimit,
 				MaxAccountEnqueued: m.config.MaxAccountEnqueued,
+				GossipBatchSize:    m.config.GossipBatchSize,
 				ChainID:            big.NewInt(m.config.Chain.Params.ChainID),
 				PeerID:             m.network.AddrInfo().ID,
 			},

@@ -101,6 +101,7 @@ type Config struct {
 	PriceLimit         uint64
 	MaxSlots           uint64
 	MaxAccountEnqueued uint64
+	GossipBatchSize    uint64
 	ChainID            *big.Int
 	PeerID             peer.ID
 }
@@ -190,10 +191,15 @@ type TxPool struct {
 
 	// localPeerID is the peer ID of the local node that is running the txpool
 	localPeerID peer.ID
+
+	// maximum number of transactions in gossip message
+	gossipBatchSize int
 }
 
-var gossipCh chan *types.Transaction
-var gossipWG sync.WaitGroup
+var (
+	gossipCh chan *types.Transaction
+	gossipWG sync.WaitGroup
+)
 
 // NewTxPool returns a new pool for processing incoming transactions.
 func NewTxPool(
@@ -205,16 +211,17 @@ func NewTxPool(
 	config *Config,
 ) (*TxPool, error) {
 	pool := &TxPool{
-		logger:      logger.Named("txpool"),
-		forks:       forks,
-		store:       store,
-		executables: newPricesQueue(0, nil),
-		accounts:    accountsMap{maxEnqueuedLimit: config.MaxAccountEnqueued},
-		index:       lookupMap{all: make(map[types.Hash]*types.Transaction)},
-		gauge:       slotGauge{height: 0, max: config.MaxSlots},
-		priceLimit:  config.PriceLimit,
-		chainID:     config.ChainID,
-		localPeerID: config.PeerID,
+		logger:          logger.Named("txpool"),
+		forks:           forks,
+		store:           store,
+		executables:     newPricesQueue(0, nil),
+		accounts:        accountsMap{maxEnqueuedLimit: config.MaxAccountEnqueued},
+		index:           lookupMap{all: make(map[types.Hash]*types.Transaction)},
+		gauge:           slotGauge{height: 0, max: config.MaxSlots},
+		priceLimit:      config.PriceLimit,
+		chainID:         config.ChainID,
+		localPeerID:     config.PeerID,
+		gossipBatchSize: int(config.GossipBatchSize),
 
 		//	main loop channels
 		promoteReqCh: make(chan promoteRequest),
@@ -251,14 +258,14 @@ func (p *TxPool) updatePending(i int64) {
 	metrics.SetGauge([]string{txPoolMetrics, "pending_transactions"}, float32(newPending))
 }
 
-func (p *TxPool) startGossipBatchers(batchersNum, batchSize int) {
+func (p *TxPool) startGossipBatchers(batchersNum int) {
 	// 1 channel for all batchers, give it enough space for bulk requests
-	gossipCh = make(chan *types.Transaction, 4*batchersNum*batchSize)
+	gossipCh = make(chan *types.Transaction, 4*batchersNum*p.gossipBatchSize)
 
 	for i := 0; i < batchersNum; i++ {
 		gossipWG.Add(1)
 
-		go p.gossipBatcher(batchSize)
+		go p.gossipBatcher()
 	}
 }
 
@@ -267,13 +274,13 @@ func stopGossipBatchers() {
 	gossipWG.Wait()
 }
 
-func (p *TxPool) gossipBatcher(batchSize int) {
+func (p *TxPool) gossipBatcher() {
 	defer gossipWG.Done()
 
-	batch := make([]*types.Transaction, 0, batchSize)
+	batch := make([]*types.Transaction, 0, p.gossipBatchSize)
 
 	tickerPeriod := time.Hour * 24 // reduce empty looping when no batching
-	if batchSize > 1 {
+	if p.gossipBatchSize > 1 {
 		tickerPeriod = time.Millisecond * 500
 	}
 
@@ -290,7 +297,7 @@ func (p *TxPool) gossipBatcher(batchSize int) {
 		case tx, chOpen := <-gossipCh:
 			if chOpen {
 				batch = append(batch, tx)
-				if len(batch) >= batchSize {
+				if len(batch) >= p.gossipBatchSize {
 					p.publish(&batch)
 					batch = batch[:0]
 				}
@@ -329,7 +336,7 @@ func (p *TxPool) Start() {
 	p.updatePending(0)
 
 	// start gossip batchers
-	p.startGossipBatchers(1, 10000)
+	p.startGossipBatchers(1)
 
 	//	run the handler for high gauge level pruning
 	go func() {
