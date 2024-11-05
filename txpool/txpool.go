@@ -194,12 +194,15 @@ type TxPool struct {
 
 	// maximum number of transactions in gossip message
 	gossipBatchSize int
+
+	// channel for gossip batching
+	gossipCh chan *types.Transaction
+
+	// WG for batch flushing
+	gossipWG sync.WaitGroup
 }
 
-var (
-	gossipCh chan *types.Transaction
-	gossipWG sync.WaitGroup
-)
+const batchersNum = 1
 
 // NewTxPool returns a new pool for processing incoming transactions.
 func NewTxPool(
@@ -227,6 +230,7 @@ func NewTxPool(
 		promoteReqCh: make(chan promoteRequest),
 		pruneCh:      make(chan struct{}),
 		shutdownCh:   make(chan struct{}),
+		gossipCh:     make(chan *types.Transaction, 4*batchersNum*config.GossipBatchSize),
 	}
 
 	// Attach the event manager
@@ -258,24 +262,21 @@ func (p *TxPool) updatePending(i int64) {
 	metrics.SetGauge([]string{txPoolMetrics, "pending_transactions"}, float32(newPending))
 }
 
-func (p *TxPool) startGossipBatchers(batchersNum int) {
-	// 1 channel for all batchers, give it enough space for bulk requests
-	gossipCh = make(chan *types.Transaction, 4*batchersNum*p.gossipBatchSize)
-
+func (p *TxPool) startGossipBatchers() {
 	for i := 0; i < batchersNum; i++ {
-		gossipWG.Add(1)
+		p.gossipWG.Add(1)
 
 		go p.gossipBatcher()
 	}
 }
 
-func stopGossipBatchers() {
-	close(gossipCh)
-	gossipWG.Wait()
+func (p *TxPool) stopGossipBatchers() {
+	close(p.gossipCh)
+	p.gossipWG.Wait()
 }
 
 func (p *TxPool) gossipBatcher() {
-	defer gossipWG.Done()
+	defer p.gossipWG.Done()
 
 	batch := make([]*types.Transaction, 0, p.gossipBatchSize)
 
@@ -294,7 +295,7 @@ func (p *TxPool) gossipBatcher() {
 				p.publish(&batch)
 				batch = batch[:0]
 			}
-		case tx, chOpen := <-gossipCh:
+		case tx, chOpen := <-p.gossipCh:
 			if chOpen {
 				batch = append(batch, tx)
 				if len(batch) >= p.gossipBatchSize {
@@ -336,7 +337,7 @@ func (p *TxPool) Start() {
 	p.updatePending(0)
 
 	// start gossip batchers
-	p.startGossipBatchers(1)
+	p.startGossipBatchers()
 
 	//	run the handler for high gauge level pruning
 	go func() {
@@ -371,7 +372,7 @@ func (p *TxPool) Start() {
 func (p *TxPool) Close() {
 	p.eventManager.Close()
 	close(p.shutdownCh)
-	stopGossipBatchers() // wait for gossip flush
+	p.stopGossipBatchers() // wait for gossip flush
 }
 
 // SetSigner sets the signer the pool will use
@@ -397,7 +398,7 @@ func (p *TxPool) AddTx(tx *types.Transaction) error {
 	// broadcast the transaction only if a topic
 	// subscription is present
 	if p.topic != nil {
-		gossipCh <- tx
+		p.gossipCh <- tx
 	}
 
 	return nil
