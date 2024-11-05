@@ -63,7 +63,7 @@ jobs:
         uses: actions/checkout@v4.1.1
         with:
           repository: Ethernal-Tech/blade-deployment
-          ref: main
+          ref: gossip-batch-size
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4.0.1
         with:
@@ -127,7 +127,7 @@ jobs:
         uses: actions/checkout@v4.1.1
         with:
           repository: Ethernal-Tech/blade-deployment
-          ref: main
+          ref: gossip-batch-size
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4.0.1
         with:
