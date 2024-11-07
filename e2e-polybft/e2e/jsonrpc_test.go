@@ -545,7 +545,13 @@ func TestE2E_JsonRPC(t *testing.T) {
 
 		target := types.Address(txn.Receipt().ContractAddress)
 
-		storageRangeAt, err := ethClient.StorageRangeAt(types.Hash(txn.Receipt().BlockHash), 0, target, []byte{}, 10)
+		storageRangeAt, err := ethClient.StorageRangeAt(
+			types.Hash(txn.Receipt().BlockHash),
+			txn.Receipt().TransactionIndex,
+			target,
+			[]byte{},
+			10,
+		)
 		require.NoError(t, err)
 		require.Len(t, storageRangeAt.Storage, 0)
 
@@ -558,7 +564,13 @@ func TestE2E_JsonRPC(t *testing.T) {
 		txn = cluster.SendTxn(t, key1, types.NewTx(types.NewLegacyTx(types.WithInput(input), types.WithTo(&target))))
 		require.True(t, txn.Succeed())
 
-		storageRangeAt, err = ethClient.StorageRangeAt(types.Hash(txn.Receipt().BlockHash), 0, target, []byte{}, 10)
+		storageRangeAt, err = ethClient.StorageRangeAt(
+			types.Hash(txn.Receipt().BlockHash),
+			txn.Receipt().TransactionIndex,
+			target,
+			[]byte{},
+			10,
+		)
 		require.NoError(t, err)
 		require.Len(t, storageRangeAt.Storage, 1)
 	})
