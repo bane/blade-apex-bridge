@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
@@ -12,6 +13,9 @@ import (
 const (
 	potentialFee     = 250_000
 	ttlSlotNumberInc = 500
+
+	retryWait       = time.Millisecond * 2000
+	retriesMaxCount = 10
 )
 
 func SendTx(ctx context.Context,
@@ -21,14 +25,14 @@ func SendTx(ctx context.Context,
 	receiver string,
 	networkType wallet.CardanoNetworkType,
 	metadata []byte,
-) (res string, err error) {
-	err = ExecuteWithRetryIfNeeded(ctx, func() error {
-		res, err = sendTx(ctx, txProvider, cardanoWallet, amount, receiver, networkType, metadata)
+) (txHash string, err error) {
+	err = wallet.ExecuteWithRetry(ctx, retriesMaxCount, retryWait, func() (bool, error) {
+		txHash, err = sendTx(ctx, txProvider, cardanoWallet, amount, receiver, networkType, metadata)
 
-		return err
-	})
+		return err == nil, err
+	}, IsRecoverableError)
 
-	return res, err
+	return txHash, err
 }
 
 func sendTx(ctx context.Context,

@@ -31,6 +31,7 @@ type TestCardanoChainConfig struct {
 	NodesCount             int
 	InitialHotWalletAmount *big.Int
 	FundAmount             uint64
+	FundFeeAmount          uint64
 	PreminesAddresses      []string
 	PremineAmount          uint64
 	SlotRoundingThreshold  uint64
@@ -43,9 +44,10 @@ func NewPrimeChainConfig() *TestCardanoChainConfig {
 		ID:                     0,
 		NetworkType:            cardWallet.TestNetNetwork,
 		NodesCount:             4,
-		InitialHotWalletAmount: new(big.Int).SetUint64(defaultFundTokenAmount), // big.NewInt(0),
+		InitialHotWalletAmount: big.NewInt(0),
 		PremineAmount:          defaultPremineAmount,
 		FundAmount:             defaultFundTokenAmount,
+		FundFeeAmount:          defaultFundTokenAmount,
 	}
 }
 
@@ -55,9 +57,10 @@ func NewVectorChainConfig(isEnabled bool) *TestCardanoChainConfig {
 		ID:                     1,
 		NetworkType:            cardWallet.VectorTestNetNetwork,
 		NodesCount:             4,
-		InitialHotWalletAmount: new(big.Int).SetUint64(defaultFundTokenAmount), // big.NewInt(0),
+		InitialHotWalletAmount: big.NewInt(0),
 		PremineAmount:          defaultPremineAmount,
 		FundAmount:             defaultFundTokenAmount,
+		FundFeeAmount:          defaultFundTokenAmount,
 	}
 }
 
@@ -185,27 +188,30 @@ func (ec *TestCardanoChain) CreateAddresses(
 }
 
 func (ec *TestCardanoChain) FundWallets(ctx context.Context) error {
-	genesisWallet, err := GetGenesisWalletFromCluster(ec.cluster.Config.TmpDir, 1)
+	privateKey, err := ec.GetAdminPrivateKey()
 	if err != nil {
 		return err
 	}
 
-	privateKey := hex.EncodeToString(genesisWallet.GetSigningKey())
-	fundAmount := new(big.Int).SetUint64(ec.config.FundAmount)
+	if ec.config.FundFeeAmount != 0 {
+		txHash, err := ec.SendTx(
+			ctx, privateKey, ec.multisigFeeAddr, new(big.Int).SetUint64(ec.config.FundFeeAmount), nil)
+		if err != nil {
+			return err
+		}
 
-	txHash, err := ec.SendTx(ctx, privateKey, ec.multisigAddr, fundAmount, nil)
-	if err != nil {
-		return err
+		fmt.Printf("%s fee addr funded: %s\n", GetNetworkName(ec.config.NetworkType), txHash)
 	}
 
-	fmt.Printf("%s multisig addr funded: %s\n", GetNetworkName(ec.config.NetworkType), txHash)
+	if ec.config.FundAmount != 0 {
+		txHash, err := ec.SendTx(
+			ctx, privateKey, ec.multisigAddr, new(big.Int).SetUint64(ec.config.FundAmount), nil)
+		if err != nil {
+			return err
+		}
 
-	txHash, err = ec.SendTx(ctx, privateKey, ec.multisigFeeAddr, fundAmount, nil)
-	if err != nil {
-		return err
+		fmt.Printf("%s multisig addr funded: %s\n", GetNetworkName(ec.config.NetworkType), txHash)
 	}
-
-	fmt.Printf("%s fee addr funded: %s\n", GetNetworkName(ec.config.NetworkType), txHash)
 
 	// retrieve latest tip
 	tip, err := cardWallet.NewTxProviderOgmios(ec.cluster.OgmiosURL()).GetTip(ctx)
@@ -349,4 +355,17 @@ func (ec *TestCardanoChain) SendTx(
 	}
 
 	return txHash, nil
+}
+
+func (ec *TestCardanoChain) GetHotWalletAddress() string {
+	return ec.multisigAddr
+}
+
+func (ec *TestCardanoChain) GetAdminPrivateKey() (string, error) {
+	genesisWallet, err := GetGenesisWalletFromCluster(ec.cluster.Config.TmpDir, 1)
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(genesisWallet.GetSigningKey()), nil
 }

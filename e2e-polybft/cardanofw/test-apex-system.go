@@ -213,6 +213,22 @@ func (a *ApexSystem) FundWallets(ctx context.Context) error {
 	})
 }
 
+func (a *ApexSystem) FundChainHotWallet(ctx context.Context, chainID string, amount *big.Int) error {
+	chain, err := a.getChain(chainID)
+	if err != nil {
+		return err
+	}
+
+	pk, err := chain.GetAdminPrivateKey()
+	if err != nil {
+		return err
+	}
+
+	_, err = chain.SendTx(ctx, pk, chain.GetHotWalletAddress(), amount, nil)
+
+	return err
+}
+
 func (a *ApexSystem) RegisterChains() error {
 	return a.execForEachValidator(func(i int, validator *TestApexValidator) error {
 		for _, chain := range a.chains {

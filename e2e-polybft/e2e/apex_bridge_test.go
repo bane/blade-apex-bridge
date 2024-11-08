@@ -259,54 +259,102 @@ func TestE2E_ApexBridge_BatchRecreated(t *testing.T) {
 	defer timeoutTimer.Stop()
 
 	var (
-		wentFromFailedOnDestinationToIncludedInBatch bool
-		prevStatus                                   string
-		currentStatus                                string
+		timeout bool
 	)
 
-	apiURL, err := apex.GetBridgingAPI()
-	require.NoError(t, err)
+	_, timeout = cardanofw.WaitForBatchState(
+		ctx, apex, cardanofw.ChainIDPrime, txHash, apiKey, false, true, cardanofw.BatchStateIncludedInBatch)
 
-	requestURL := fmt.Sprintf(
-		"%s/api/BridgingRequestState/Get?chainId=%s&txHash=%s", apiURL, cardanofw.ChainIDPrime, txHash)
+	require.False(t, timeout)
+}
 
-	fmt.Printf("Bridging request txHash = %s\n", txHash)
-
-for_loop:
-	for {
-		select {
-		case <-timeoutTimer.C:
-			fmt.Printf("Timeout\n")
-
-			break for_loop
-		case <-ctx.Done():
-			fmt.Printf("Done\n")
-
-			break for_loop
-		case <-time.After(time.Millisecond * 500):
-		}
-
-		currentState, err := cardanofw.GetBridgingRequestState(ctx, requestURL, apiKey)
-		if err != nil || currentState == nil {
-			continue
-		}
-
-		prevStatus = currentStatus
-		currentStatus = currentState.Status
-
-		if prevStatus != currentStatus {
-			fmt.Printf("currentStatus = %s\n", currentStatus)
-		}
-
-		if prevStatus == "FailedToExecuteOnDestination" &&
-			(currentStatus == "IncludedInBatch" || currentStatus == "SubmittedToDestination") {
-			wentFromFailedOnDestinationToIncludedInBatch = true
-
-			break for_loop
-		}
+func TestE2E_FundAmount(t *testing.T) {
+	if cardanofw.ShouldSkipE2RRedundantTests() {
+		t.Skip()
 	}
 
-	require.True(t, wentFromFailedOnDestinationToIncludedInBatch)
+	const (
+		apiKey           = "test_api_key"
+		userCnt          = 10
+		fundAmountPrime  = 100_000_000
+		fundAmountVector = 100_000_000
+	)
+
+	ctx, cncl := context.WithCancel(context.Background())
+	defer cncl()
+
+	primeConfig, vectorConfig := cardanofw.NewPrimeChainConfig(), cardanofw.NewVectorChainConfig(true)
+	primeConfig.FundAmount = 1_000_000
+	vectorConfig.FundAmount = 1_000_000
+
+	apex := cardanofw.SetupAndRunApexBridge(
+		t, ctx,
+		cardanofw.WithPrimeConfig(primeConfig),
+		cardanofw.WithVectorConfig(vectorConfig),
+		cardanofw.WithAPIKey(apiKey),
+		cardanofw.WithUserCnt(userCnt),
+	)
+
+	defer require.True(t, apex.ApexBridgeProcessesRunning())
+
+	user := apex.Users[userCnt-1]
+
+	testCases := []struct {
+		name       string
+		sendAmount *big.Int
+		fromChain  cardanofw.ChainID
+		toChain    cardanofw.ChainID
+		fundAmount int64
+	}{
+		{
+			name:       "From prime to vector - not enough funds",
+			sendAmount: new(big.Int).SetUint64(5_000_000),
+			fromChain:  cardanofw.ChainIDPrime,
+			toChain:    cardanofw.ChainIDVector,
+			fundAmount: fundAmountVector,
+		},
+		{
+			name:       "From vector to prime - not enough funds",
+			sendAmount: new(big.Int).SetUint64(15_000_000),
+			fromChain:  cardanofw.ChainIDVector,
+			toChain:    cardanofw.ChainIDPrime,
+			fundAmount: fundAmountPrime,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			prevAmount, err := apex.GetBalance(ctx, user, tc.toChain)
+			require.NoError(t, err)
+
+			fmt.Printf("prevAmount %v\n", prevAmount)
+
+			expectedAmount := new(big.Int).Set(tc.sendAmount)
+			expectedAmount.Add(expectedAmount, prevAmount)
+
+			txHash := apex.SubmitBridgingRequest(t, ctx,
+				tc.fromChain, tc.toChain,
+				user, tc.sendAmount, user,
+			)
+
+			fmt.Printf("Tx sent. hash: %s. %v - expectedAmount\n", txHash, expectedAmount)
+
+			err = apex.WaitForExactAmount(ctx, user, tc.toChain, expectedAmount, 20, time.Second*10)
+			require.Error(t, err)
+
+			require.NoError(t, apex.FundChainHotWallet(ctx, tc.toChain, big.NewInt(tc.fundAmount)))
+
+			txHash = apex.SubmitBridgingRequest(t, ctx,
+				tc.fromChain, tc.toChain,
+				user, tc.sendAmount, user,
+			)
+
+			fmt.Printf("Tx sent. hash: %s. %v - expectedAmount\n", txHash, expectedAmount)
+
+			err = apex.WaitForExactAmount(ctx, user, tc.toChain, expectedAmount, 20, time.Second*10)
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
@@ -355,9 +403,7 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 			apex.PrimeInfo.MultisigAddr, new(big.Int).SetUint64(sendAmount+feeAmount), bridgingRequestMetadata)
 		require.NoError(t, err)
 
-		apiURL, err := apex.GetBridgingAPI()
-		require.NoError(t, err)
-		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, cardanofw.ChainIDPrime, txHash)
+		cardanofw.WaitForInvalidState(t, ctx, apex, cardanofw.ChainIDPrime, txHash, apiKey)
 	})
 
 	t.Run("Multiple submitters don't have enough funds", func(t *testing.T) {
@@ -379,9 +425,7 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 				apex.Config.PrimeConfig.NetworkType, bridgingRequestMetadata)
 			require.NoError(t, err)
 
-			apiURL, err := apex.GetBridgingAPI()
-			require.NoError(t, err)
-			cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, cardanofw.ChainIDPrime, txHash)
+			cardanofw.WaitForInvalidState(t, ctx, apex, cardanofw.ChainIDPrime, txHash, apiKey)
 		}
 	})
 
@@ -423,9 +467,7 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 		wg.Wait()
 
 		for i := 0; i < instances; i++ {
-			apiURL, err := apex.GetBridgingAPI()
-			require.NoError(t, err)
-			cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, cardanofw.ChainIDPrime, txHashes[i])
+			cardanofw.WaitForInvalidState(t, ctx, apex, cardanofw.ChainIDPrime, txHashes[i], apiKey)
 		}
 	})
 
@@ -485,15 +527,9 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 			apex.Config.PrimeConfig.NetworkType, bridgingRequestMetadata)
 		require.NoError(t, err)
 
-		apiURL, err := apex.GetBridgingAPI()
-		require.NoError(t, err)
-
-		requestURL := fmt.Sprintf(
-			"%s/api/BridgingRequestState/Get?chainId=%s&txHash=%s", apiURL, cardanofw.ChainIDPrime, txHash)
-
-		_, err = cardanofw.WaitForRequestStates(nil, ctx, requestURL, apiKey, 60)
+		_, err = cardanofw.WaitForRequestStates(ctx, apex, cardanofw.ChainIDPrime, txHash, apiKey, nil, 60)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "Timeout")
+		require.ErrorContains(t, err, "timeout")
 	})
 
 	t.Run("Submitted invalid metadata - invalid destination", func(t *testing.T) {
@@ -530,9 +566,7 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 			apex.Config.PrimeConfig.NetworkType, bridgingRequestMetadata)
 		require.NoError(t, err)
 
-		apiURL, err := apex.GetBridgingAPI()
-		require.NoError(t, err)
-		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, cardanofw.ChainIDPrime, txHash)
+		cardanofw.WaitForInvalidState(t, ctx, apex, cardanofw.ChainIDPrime, txHash, apiKey)
 	})
 
 	t.Run("Submitted invalid metadata - invalid sender", func(t *testing.T) {
@@ -569,9 +603,7 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 			apex.Config.PrimeConfig.NetworkType, bridgingRequestMetadata)
 		require.NoError(t, err)
 
-		apiURL, err := apex.GetBridgingAPI()
-		require.NoError(t, err)
-		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, cardanofw.ChainIDPrime, txHash)
+		cardanofw.WaitForInvalidState(t, ctx, apex, cardanofw.ChainIDPrime, txHash, apiKey)
 	})
 
 	t.Run("Submitted invalid metadata - empty tx", func(t *testing.T) {
@@ -597,9 +629,7 @@ func TestE2E_ApexBridge_InvalidScenarios(t *testing.T) {
 			apex.Config.PrimeConfig.NetworkType, bridgingRequestMetadata)
 		require.NoError(t, err)
 
-		apiURL, err := apex.GetBridgingAPI()
-		require.NoError(t, err)
-		cardanofw.WaitForInvalidState(t, ctx, apiURL, apiKey, cardanofw.ChainIDPrime, txHash)
+		cardanofw.WaitForInvalidState(t, ctx, apex, cardanofw.ChainIDPrime, txHash, apiKey)
 	})
 }
 
@@ -626,8 +656,10 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 	fmt.Println("vector user addr: ", user.VectorAddress)
 	fmt.Println("prime multisig addr: ", apex.PrimeInfo.MultisigAddr)
 	fmt.Println("prime fee addr: ", apex.PrimeInfo.FeeAddr)
+	fmt.Printf("prime socket path: %s\n", apex.PrimeInfo.SocketPath)
 	fmt.Println("vector multisig addr: ", apex.VectorInfo.MultisigAddr)
 	fmt.Println("vector fee addr: ", apex.VectorInfo.FeeAddr)
+	fmt.Printf("vector socket path: %s\n", apex.VectorInfo.SocketPath)
 
 	t.Run("From prime to vector wait for each submit", func(t *testing.T) {
 		if cardanofw.ShouldSkipE2RRedundantTests() {

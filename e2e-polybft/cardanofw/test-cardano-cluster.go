@@ -294,7 +294,7 @@ func (c *TestCardanoCluster) Stats() ([]*wallet.QueryTipData, bool, error) {
 }
 
 func (c *TestCardanoCluster) WaitUntil(timeout, frequency time.Duration, handler func() (bool, error)) error {
-	ticker := time.NewTicker(frequency)
+	ticker := time.NewTimer(frequency)
 	defer ticker.Stop()
 
 	timer := time.NewTimer(timeout)
@@ -307,6 +307,7 @@ func (c *TestCardanoCluster) WaitUntil(timeout, frequency time.Duration, handler
 		case <-c.failCh:
 			return c.executionErr
 		case <-ticker.C:
+			ticker.Reset(frequency)
 		}
 
 		finish, err := handler()

@@ -58,7 +58,7 @@ func NewNexusChainConfig(isEnabled bool) *TestEVMChainConfig {
 			Address:     types.ZeroAddress,
 		},
 		ApexConfig:             genesis.ApexConfigNexus,
-		InitialHotWalletAmount: ethgo.Ether(defaultFundEthTokenAmount), // big.NewInt(0),
+		InitialHotWalletAmount: big.NewInt(0),
 		PremineAmount:          ethgo.Ether(defaultPremineEthTokenAmount),
 		FundAmount:             ethgo.Ether(defaultFundEthTokenAmount),
 		FundRelayerAmount:      ethgo.Ether(defaultFundRelayerEthTokenAmount),
@@ -157,23 +157,26 @@ func (ec *TestEVMChain) CreateAddresses(
 }
 
 func (ec *TestEVMChain) FundWallets(ctx context.Context) error {
-	key, err := ec.admin.MarshallPrivateKey()
+	privateKey, err := ec.GetAdminPrivateKey()
 	if err != nil {
 		return err
 	}
 
-	_, err = ec.sendTx(
-		ctx, hex.EncodeToString(key), ec.relayerWallet.Address().String(), ec.config.FundRelayerAmount, nil)
-	if err != nil {
-		return err
+	if ec.config.FundRelayerAmount != nil && ec.config.FundRelayerAmount.BitLen() > 0 {
+		_, err = ec.sendTx(privateKey, ec.relayerWallet.Address().String(), ec.config.FundRelayerAmount, nil)
+		if err != nil {
+			return err
+		}
 	}
 
-	receipt, err := ec.sendTx(ctx, hex.EncodeToString(key), ec.gatewayAddr.String(), ec.config.FundAmount, nil)
-	if err != nil {
-		return err
-	}
+	if ec.config.FundAmount != nil && ec.config.FundAmount.BitLen() > 0 {
+		receipt, err := ec.sendTx(privateKey, ec.gatewayAddr.String(), ec.config.FundAmount, nil)
+		if err != nil {
+			return err
+		}
 
-	ec.fundBlockNum = receipt.BlockNumber
+		ec.fundBlockNum = receipt.BlockNumber
+	}
 
 	return nil
 }
@@ -313,7 +316,7 @@ func (ec *TestEVMChain) BridgingRequest(
 func (ec *TestEVMChain) SendTx(
 	ctx context.Context, privateKey string, receiver string, amount *big.Int, data []byte,
 ) (string, error) {
-	rec, err := ec.sendTx(ctx, privateKey, receiver, amount, data)
+	rec, err := ec.sendTx(privateKey, receiver, amount, data)
 	if err != nil {
 		return "", err
 	}
@@ -321,8 +324,21 @@ func (ec *TestEVMChain) SendTx(
 	return rec.TransactionHash.String(), nil
 }
 
+func (ec *TestEVMChain) GetHotWalletAddress() string {
+	return ec.gatewayAddr.String()
+}
+
+func (ec *TestEVMChain) GetAdminPrivateKey() (string, error) {
+	key, err := ec.admin.MarshallPrivateKey()
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(key), nil
+}
+
 func (ec *TestEVMChain) sendTx(
-	ctx context.Context, privateKey string, receiver string, amount *big.Int, data []byte,
+	privateKey string, receiver string, amount *big.Int, data []byte,
 ) (*ethgo.Receipt, error) {
 	privateKeyECDSA, err := crypto.HexToECDSA(privateKey)
 	if err != nil {

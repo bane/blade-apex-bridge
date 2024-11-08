@@ -26,6 +26,8 @@ type ITestApexChain interface {
 	SendTx(
 		ctx context.Context, privateKey string, receiver string, amount *big.Int, data []byte,
 	) (string, error)
+	GetHotWalletAddress() string
+	GetAdminPrivateKey() (string, error)
 }
 
 type TestApexChainDummy struct {
@@ -93,6 +95,14 @@ func (t *TestApexChainDummy) SendTx(
 
 func (t *TestApexChainDummy) Stop() error {
 	return nil
+}
+
+func (t *TestApexChainDummy) GetHotWalletAddress() string {
+	return ""
+}
+
+func (t *TestApexChainDummy) GetAdminPrivateKey() (string, error) {
+	return "", nil
 }
 
 var _ ITestApexChain = (*TestApexChainDummy)(nil)
