@@ -46,6 +46,7 @@ type Executor struct {
 
 	PostHook        func(txn *Transition)
 	GenesisPostHook func(*Transition) error
+	GetPoolTxHook   func(types.Hash) (*types.Transaction, bool)
 
 	IsL1OriginatedToken bool
 }
@@ -174,6 +175,12 @@ func (e *Executor) ProcessBlock(
 	for i, t := range block.Transactions {
 		if t.Gas() > block.Header.GasLimit {
 			return nil, runtime.ErrOutOfGas
+		}
+
+		if t.From() == emptyFrom && t.Type() != types.StateTxType {
+			if poolTx, ok := e.GetPoolTxHook(t.Hash()); ok {
+				t.SetFrom(poolTx.From())
+			}
 		}
 
 		if err = txn.Write(t); err != nil {

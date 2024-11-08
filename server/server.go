@@ -394,6 +394,7 @@ func NewServer(config *Config) (*Server, error) {
 		}
 
 		m.txpool.SetSigner(signer)
+		m.executor.GetPoolTxHook = m.txpool.GetPendingTx
 	}
 
 	{
