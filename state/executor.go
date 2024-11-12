@@ -172,7 +172,7 @@ func (e *Executor) ProcessBlock(
 		logLvl = e.logger.GetLevel()
 	)
 
-	for i, t := range block.Transactions {
+	for _, t := range block.Transactions {
 		if t.Gas() > block.Header.GasLimit {
 			return nil, runtime.ErrOutOfGas
 		}
@@ -189,26 +189,21 @@ func (e *Executor) ProcessBlock(
 			return nil, err
 		}
 
-		if logLvl <= hclog.Debug {
-			if e.logger.IsTrace() {
-				_, _ = buf.WriteString(t.String())
-			}
-
-			if e.logger.IsDebug() {
-				_, _ = buf.WriteString(t.Hash().String())
-			}
-
-			if i != len(block.Transactions)-1 {
-				_, _ = buf.WriteString("\n")
-			}
+		if logLvl < hclog.Debug {
+			buf.WriteString(t.String())
+			buf.WriteString("\n")
 		}
 	}
 
 	if logLvl <= hclog.Debug {
 		var (
 			logMsg  = "[Executor.ProcessBlock] finished."
-			logArgs = []interface{}{"txs count", len(block.Transactions), "txs", buf.String()}
+			logArgs = []interface{}{"txs count", len(block.Transactions)}
 		)
+
+		if buf.Len() > 0 {
+			logArgs = append(logArgs, "txs", buf.String())
+		}
 
 		e.logger.Log(logLvl, logMsg, logArgs...)
 	}
