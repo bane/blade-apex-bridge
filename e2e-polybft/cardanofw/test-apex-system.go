@@ -400,9 +400,18 @@ func (a *ApexSystem) WaitForGreaterAmount(
 	expectedAmount *big.Int, numRetries int, waitTime time.Duration,
 	isRecoverableError ...cardanowallet.IsRecoverableErrorFn,
 ) error {
-	return a.WaitForAmount(ctx, user, chain, func(val *big.Int) bool {
+	var lastAmount *big.Int
+
+	err := a.WaitForAmount(ctx, user, chain, func(val *big.Int) bool {
+		lastAmount = val
+
 		return val.Cmp(expectedAmount) == 1
 	}, numRetries, waitTime)
+	if err != nil {
+		return fmt.Errorf("amount mismatch: expected %s, but received %s: %w", expectedAmount, lastAmount, err)
+	}
+
+	return nil
 }
 
 func (a *ApexSystem) WaitForExactAmount(
@@ -410,9 +419,20 @@ func (a *ApexSystem) WaitForExactAmount(
 	expectedAmount *big.Int, numRetries int, waitTime time.Duration,
 	isRecoverableError ...cardanowallet.IsRecoverableErrorFn,
 ) error {
-	return a.WaitForAmount(ctx, user, chain, func(val *big.Int) bool {
-		return val.Cmp(expectedAmount) == 0
+	var lastAmount *big.Int
+
+	err := a.WaitForAmount(ctx, user, chain, func(val *big.Int) bool {
+		lastAmount = val
+
+		return val.Cmp(expectedAmount) >= 0
 	}, numRetries, waitTime)
+	if err != nil {
+		return fmt.Errorf("amount mismatch: expected %s, but received %s: %w", expectedAmount, lastAmount, err)
+	} else if lastAmount.Cmp(expectedAmount) > 0 {
+		return fmt.Errorf("amount mismatch: received amount %s is greater than expected %s", lastAmount, expectedAmount)
+	}
+
+	return nil
 }
 
 func (a *ApexSystem) WaitForAmount(

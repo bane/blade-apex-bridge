@@ -1093,7 +1093,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 				return
 			}
 
-			fmt.Printf("TXs on vector expected amount received")
+			fmt.Println("TXs on vector expected amount received")
 
 			// nothing else should be bridged for 2 minutes
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDVector, expectedAmountOnVector, 12, time.Second*10)
@@ -1119,7 +1119,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 				return
 			}
 
-			fmt.Printf("TXs on prime expected amount received")
+			fmt.Println("TXs on prime expected amount received")
 
 			// nothing else should be bridged for 2 minutes
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDPrime, expectedAmountOnPrime, 12, time.Second*10)
@@ -1212,11 +1212,11 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 			err = apex.WaitForExactAmount(ctx, user, cardanofw.ChainIDVector, expectedAmountOnVector, 100, time.Second*10)
 			assert.NoError(t, err)
 
-			fmt.Printf("TXs on vector expected amount received")
-
 			if err != nil {
 				return
 			}
+
+			fmt.Println("TXs on vector expected amount received")
 
 			// nothing else should be bridged for 2 minutes
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDVector, expectedAmountOnVector, 12, time.Second*10)
@@ -1238,11 +1238,11 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 			err = apex.WaitForExactAmount(ctx, user, cardanofw.ChainIDPrime, expectedAmountOnPrime, 100, time.Second*10)
 			assert.NoError(t, err)
 
-			fmt.Printf("TXs on prime expected amount received")
-
 			if err != nil {
 				return
 			}
+
+			fmt.Println("TXs on prime expected amount received")
 
 			// nothing else should be bridged for 2 minutes
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDPrime, expectedAmountOnPrime, 12, time.Second*10)

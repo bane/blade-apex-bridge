@@ -786,7 +786,11 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 		fmt.Printf("Expected ETH Amount after Txs %d\n", ethExpectedBalance)
 
 		err = apex.WaitForExactAmount(ctx, user, cardanofw.ChainIDNexus, ethExpectedBalance, 100, time.Second*10)
-		require.NoError(t, err)
+		assert.NoError(t, err)
+
+		if err != nil {
+			return
+		}
 
 		fmt.Printf("TXs on Nexus expected amount received, err: %v\n", err)
 
@@ -991,7 +995,11 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 			fmt.Printf("ETH ethExpectedBalance after Tx %d\n", ethExpectedBalance)
 
 			err = apex.WaitForExactAmount(ctx, user, cardanofw.ChainIDNexus, ethExpectedBalance, 100, time.Second*10)
-			require.NoError(t, err)
+			assert.NoError(t, err)
+
+			if err != nil {
+				return
+			}
 
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDNexus, ethExpectedBalance, 12, time.Second*10)
 			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on nexus")
@@ -1008,7 +1016,11 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 			fmt.Printf("prime expectedAmountOnPrime after Tx %d\n", dfmExpectedBalance)
 
 			err = apex.WaitForExactAmount(ctx, user, cardanofw.ChainIDPrime, dfmExpectedBalance, 100, time.Second*10)
-			require.NoError(t, err)
+			assert.NoError(t, err)
+
+			if err != nil {
+				return
+			}
 
 			// nothing else should be bridged for 2 minutes
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDPrime, dfmExpectedBalance, 12, time.Second*10)
@@ -1102,7 +1114,11 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 			fmt.Printf("ETH ethExpectedBalance after Tx %d\n", ethExpectedBalance)
 
 			err = apex.WaitForExactAmount(ctx, user, cardanofw.ChainIDNexus, ethExpectedBalance, 100, time.Second*10)
-			require.NoError(t, err)
+			assert.NoError(t, err)
+
+			if err != nil {
+				return
+			}
 
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDNexus, ethExpectedBalance, 12, time.Second*10)
 			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on nexus")
@@ -1119,7 +1135,11 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 			fmt.Printf("prime expectedAmountOnPrime after Tx %d\n", dfmExpectedBalance)
 
 			err = apex.WaitForExactAmount(ctx, user, cardanofw.ChainIDPrime, dfmExpectedBalance, 100, time.Second*10)
-			require.NoError(t, err)
+			assert.NoError(t, err)
+
+			if err != nil {
+				return
+			}
 
 			// nothing else should be bridged for 2 minutes
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDPrime, dfmExpectedBalance, 12, time.Second*10)
