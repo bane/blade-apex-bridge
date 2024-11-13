@@ -69,7 +69,7 @@ type TxPool struct {
 	PriceLimit         uint64 `json:"price_limit" yaml:"price_limit"`
 	MaxSlots           uint64 `json:"max_slots" yaml:"max_slots"`
 	MaxAccountEnqueued uint64 `json:"max_account_enqueued" yaml:"max_account_enqueued"`
-	GossipBatchSize    uint64 `json:"gossip_batch_size" yaml:"gossip_batch_size"`
+	TxGossipBatchSize  uint64 `json:"tx_gossip_batch_size" yaml:"tx_gossip_batch_size"`
 }
 
 // Headers defines the HTTP response headers required to enable CORS.
@@ -144,7 +144,7 @@ func DefaultConfig() *Config {
 			PriceLimit:         0,
 			MaxSlots:           4096,
 			MaxAccountEnqueued: 128,
-			GossipBatchSize:    1,
+			TxGossipBatchSize:  1,
 		},
 		LogLevel:    "INFO",
 		RestoreFile: "",

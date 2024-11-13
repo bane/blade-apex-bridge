@@ -384,7 +384,7 @@ func NewServer(config *Config) (*Server, error) {
 				MaxSlots:           m.config.MaxSlots,
 				PriceLimit:         m.config.PriceLimit,
 				MaxAccountEnqueued: m.config.MaxAccountEnqueued,
-				GossipBatchSize:    m.config.GossipBatchSize,
+				TxGossipBatchSize:  m.config.TxGossipBatchSize,
 				ChainID:            big.NewInt(m.config.Chain.Params.ChainID),
 				PeerID:             m.network.AddrInfo().ID,
 			},
@@ -394,7 +394,7 @@ func NewServer(config *Config) (*Server, error) {
 		}
 
 		m.txpool.SetSigner(signer)
-		m.executor.GetPoolTxHook = m.txpool.GetPendingTx
+		m.executor.GetPendingTxHook = m.txpool.GetPendingTx
 	}
 
 	{

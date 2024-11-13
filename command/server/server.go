@@ -194,9 +194,9 @@ func setFlags(cmd *cobra.Command) {
 	)
 
 	cmd.Flags().Uint64Var(
-		&params.rawConfig.TxPool.GossipBatchSize,
-		gossipBatchSizeFlag,
-		defaultConfig.TxPool.GossipBatchSize,
+		&params.rawConfig.TxPool.TxGossipBatchSize,
+		txGossipBatchSizeFlag,
+		defaultConfig.TxPool.TxGossipBatchSize,
 		"maximum number of transactions in gossip message",
 	)
 

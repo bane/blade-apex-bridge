@@ -25,7 +25,7 @@ type Config struct {
 	PriceLimit         uint64
 	MaxAccountEnqueued uint64
 	MaxSlots           uint64
-	GossipBatchSize    uint64
+	TxGossipBatchSize  uint64
 
 	Telemetry *Telemetry
 	Network   *network.Config

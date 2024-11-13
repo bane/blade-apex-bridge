@@ -44,9 +44,9 @@ type Executor struct {
 	state   State
 	GetHash GetHashByNumberHelper
 
-	PostHook        func(txn *Transition)
-	GenesisPostHook func(*Transition) error
-	GetPoolTxHook   func(types.Hash) (*types.Transaction, bool)
+	PostHook         func(txn *Transition)
+	GenesisPostHook  func(*Transition) error
+	GetPendingTxHook func(types.Hash) (*types.Transaction, bool)
 
 	IsL1OriginatedToken bool
 }
@@ -178,7 +178,7 @@ func (e *Executor) ProcessBlock(
 		}
 
 		if t.From() == emptyFrom && t.Type() != types.StateTxType {
-			if poolTx, ok := e.GetPoolTxHook(t.Hash()); ok {
+			if poolTx, ok := e.GetPendingTxHook(t.Hash()); ok {
 				t.SetFrom(poolTx.From())
 			}
 		}

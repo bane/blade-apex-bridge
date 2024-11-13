@@ -101,7 +101,7 @@ type Config struct {
 	PriceLimit         uint64
 	MaxSlots           uint64
 	MaxAccountEnqueued uint64
-	GossipBatchSize    uint64
+	TxGossipBatchSize  uint64
 	ChainID            *big.Int
 	PeerID             peer.ID
 }
@@ -193,7 +193,7 @@ type TxPool struct {
 	localPeerID peer.ID
 
 	// maximum number of transactions in gossip message
-	gossipBatchSize int
+	txGossipBatchSize int
 
 	// channel for gossip batching
 	gossipCh chan *types.Transaction
@@ -214,23 +214,23 @@ func NewTxPool(
 	config *Config,
 ) (*TxPool, error) {
 	pool := &TxPool{
-		logger:          logger.Named("txpool"),
-		forks:           forks,
-		store:           store,
-		executables:     newPricesQueue(0, nil),
-		accounts:        accountsMap{maxEnqueuedLimit: config.MaxAccountEnqueued},
-		index:           lookupMap{all: make(map[types.Hash]*types.Transaction)},
-		gauge:           slotGauge{height: 0, max: config.MaxSlots},
-		priceLimit:      config.PriceLimit,
-		chainID:         config.ChainID,
-		localPeerID:     config.PeerID,
-		gossipBatchSize: int(config.GossipBatchSize),
+		logger:            logger.Named("txpool"),
+		forks:             forks,
+		store:             store,
+		executables:       newPricesQueue(0, nil),
+		accounts:          accountsMap{maxEnqueuedLimit: config.MaxAccountEnqueued},
+		index:             lookupMap{all: make(map[types.Hash]*types.Transaction)},
+		gauge:             slotGauge{height: 0, max: config.MaxSlots},
+		priceLimit:        config.PriceLimit,
+		chainID:           config.ChainID,
+		localPeerID:       config.PeerID,
+		txGossipBatchSize: int(config.TxGossipBatchSize),
 
 		//	main loop channels
 		promoteReqCh: make(chan promoteRequest),
 		pruneCh:      make(chan struct{}),
 		shutdownCh:   make(chan struct{}),
-		gossipCh:     make(chan *types.Transaction, 4*batchersNum*config.GossipBatchSize),
+		gossipCh:     make(chan *types.Transaction, 4*batchersNum*config.TxGossipBatchSize),
 	}
 
 	// Attach the event manager
@@ -278,10 +278,10 @@ func (p *TxPool) stopGossipBatchers() {
 func (p *TxPool) gossipBatcher() {
 	defer p.gossipWG.Done()
 
-	batch := make([]*types.Transaction, 0, p.gossipBatchSize)
+	batch := make([]*types.Transaction, 0, p.txGossipBatchSize)
 
 	tickerPeriod := time.Hour * 24 // reduce empty looping when no batching
-	if p.gossipBatchSize > 1 {
+	if p.txGossipBatchSize > 1 {
 		tickerPeriod = time.Millisecond * 500
 	}
 
@@ -298,7 +298,7 @@ func (p *TxPool) gossipBatcher() {
 		case tx, chOpen := <-p.gossipCh:
 			if chOpen {
 				batch = append(batch, tx)
-				if len(batch) >= p.gossipBatchSize {
+				if len(batch) >= p.txGossipBatchSize {
 					p.publish(&batch)
 					batch = batch[:0]
 				}
