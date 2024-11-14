@@ -713,7 +713,7 @@ func (d *Debug) TraceChain(start, end BlockNumber, config *TraceConfig) (interfa
 			}
 
 			if startNum > endNum {
-				return nil, fmt.Errorf("end block (#%d) needs to come after start block (#%d)", endNum, startNum)
+				return nil, fmt.Errorf("end block number (#%d) must be greater than or equal to start block number (#%d)", endNum, startNum)
 			}
 
 			blocks := int(endNum-startNum) + 1

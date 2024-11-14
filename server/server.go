@@ -741,10 +741,11 @@ func (j *jsonRPCHub) GetCode(root types.Hash, addr types.Address) ([]byte, error
 	return code, nil
 }
 
+// GetCodeByCodeHash retrieves the bytecode based on the provided code hash.
 func (j *jsonRPCHub) GetCodeByCodeHash(codeHash types.Hash) ([]byte, error) {
 	code, ok := j.state.GetCode(codeHash)
 	if !ok {
-		return nil, fmt.Errorf("unable to fetch code")
+		return nil, fmt.Errorf("unable to fetch code for code hash %s", codeHash)
 	}
 
 	return code, nil
