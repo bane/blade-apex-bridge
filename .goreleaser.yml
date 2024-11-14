@@ -89,7 +89,7 @@ archives:
       - README.md
 
 snapshot:
-  name_template: "{{ .Tag }}.next"
+  version_template: "{{ .Tag }}.next"
 
 dockers:
   - image_templates:
