@@ -5,206 +5,239 @@ import (
 	"github.com/0xPolygon/polygon-edge/types"
 )
 
-type InitializeBridgeFn struct {
+type InitializeApexBridgeContractsBridgeFn struct {
 	Owner types.Address `abi:"_owner"`
 }
 
-func (i *InitializeBridgeFn) Sig() []byte {
-	return Bridge.Abi.Methods["initialize"].ID()
+func (i *InitializeApexBridgeContractsBridgeFn) Sig() []byte {
+	return ApexBridgeContracts.Bridge.Abi.Methods["initialize"].ID()
 }
 
-func (i *InitializeBridgeFn) EncodeAbi() ([]byte, error) {
-	return Bridge.Abi.Methods["initialize"].Encode(i)
+func (i *InitializeApexBridgeContractsBridgeFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.Bridge.Abi.Methods["initialize"].Encode(i)
 }
 
-func (i *InitializeBridgeFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(Bridge.Abi.Methods["initialize"], buf, i)
+func (i *InitializeApexBridgeContractsBridgeFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.Bridge.Abi.Methods["initialize"], buf, i)
 }
 
-type SetDependenciesBridgeFn struct {
+type SetDependenciesApexBridgeContractsBridgeFn struct {
 	ClaimsAddress        types.Address `abi:"_claimsAddress"`
 	SignedBatchesAddress types.Address `abi:"_signedBatchesAddress"`
 	SlotsAddress         types.Address `abi:"_slotsAddress"`
 	ValidatorsAddress    types.Address `abi:"_validatorsAddress"`
 }
 
-func (s *SetDependenciesBridgeFn) Sig() []byte {
-	return Bridge.Abi.Methods["setDependencies"].ID()
+func (s *SetDependenciesApexBridgeContractsBridgeFn) Sig() []byte {
+	return ApexBridgeContracts.Bridge.Abi.Methods["setDependencies"].ID()
 }
 
-func (s *SetDependenciesBridgeFn) EncodeAbi() ([]byte, error) {
-	return Bridge.Abi.Methods["setDependencies"].Encode(s)
+func (s *SetDependenciesApexBridgeContractsBridgeFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.Bridge.Abi.Methods["setDependencies"].Encode(s)
 }
 
-func (s *SetDependenciesBridgeFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(Bridge.Abi.Methods["setDependencies"], buf, s)
+func (s *SetDependenciesApexBridgeContractsBridgeFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.Bridge.Abi.Methods["setDependencies"], buf, s)
 }
 
-type InitializeClaimsHelperFn struct {
+type InitializeApexBridgeContractsClaimsHelperFn struct {
 	Owner types.Address `abi:"_owner"`
 }
 
-func (i *InitializeClaimsHelperFn) Sig() []byte {
-	return ClaimsHelper.Abi.Methods["initialize"].ID()
+func (i *InitializeApexBridgeContractsClaimsHelperFn) Sig() []byte {
+	return ApexBridgeContracts.ClaimsHelper.Abi.Methods["initialize"].ID()
 }
 
-func (i *InitializeClaimsHelperFn) EncodeAbi() ([]byte, error) {
-	return ClaimsHelper.Abi.Methods["initialize"].Encode(i)
+func (i *InitializeApexBridgeContractsClaimsHelperFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.ClaimsHelper.Abi.Methods["initialize"].Encode(i)
 }
 
-func (i *InitializeClaimsHelperFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(ClaimsHelper.Abi.Methods["initialize"], buf, i)
+func (i *InitializeApexBridgeContractsClaimsHelperFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.ClaimsHelper.Abi.Methods["initialize"], buf, i)
 }
 
-type SetDependenciesClaimsHelperFn struct {
+type SetDependenciesApexBridgeContractsClaimsHelperFn struct {
 	ClaimsAddress        types.Address `abi:"_claimsAddress"`
 	SignedBatchesAddress types.Address `abi:"_signedBatchesAddress"`
 }
 
-func (s *SetDependenciesClaimsHelperFn) Sig() []byte {
-	return ClaimsHelper.Abi.Methods["setDependencies"].ID()
+func (s *SetDependenciesApexBridgeContractsClaimsHelperFn) Sig() []byte {
+	return ApexBridgeContracts.ClaimsHelper.Abi.Methods["setDependencies"].ID()
 }
 
-func (s *SetDependenciesClaimsHelperFn) EncodeAbi() ([]byte, error) {
-	return ClaimsHelper.Abi.Methods["setDependencies"].Encode(s)
+func (s *SetDependenciesApexBridgeContractsClaimsHelperFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.ClaimsHelper.Abi.Methods["setDependencies"].Encode(s)
 }
 
-func (s *SetDependenciesClaimsHelperFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(ClaimsHelper.Abi.Methods["setDependencies"], buf, s)
+func (s *SetDependenciesApexBridgeContractsClaimsHelperFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.ClaimsHelper.Abi.Methods["setDependencies"], buf, s)
 }
 
-type InitializeClaimsFn struct {
+type InitializeApexBridgeContractsClaimsFn struct {
 	Owner                   types.Address `abi:"_owner"`
 	MaxNumberOfTransactions uint16        `abi:"_maxNumberOfTransactions"`
 	TimeoutBlocksNumber     uint8         `abi:"_timeoutBlocksNumber"`
 }
 
-func (i *InitializeClaimsFn) Sig() []byte {
-	return Claims.Abi.Methods["initialize"].ID()
+func (i *InitializeApexBridgeContractsClaimsFn) Sig() []byte {
+	return ApexBridgeContracts.Claims.Abi.Methods["initialize"].ID()
 }
 
-func (i *InitializeClaimsFn) EncodeAbi() ([]byte, error) {
-	return Claims.Abi.Methods["initialize"].Encode(i)
+func (i *InitializeApexBridgeContractsClaimsFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.Claims.Abi.Methods["initialize"].Encode(i)
 }
 
-func (i *InitializeClaimsFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(Claims.Abi.Methods["initialize"], buf, i)
+func (i *InitializeApexBridgeContractsClaimsFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.Claims.Abi.Methods["initialize"], buf, i)
 }
 
-type SetDependenciesClaimsFn struct {
+type SetDependenciesApexBridgeContractsClaimsFn struct {
+	BridgeAddress        types.Address `abi:"_bridgeAddress"`
+	ClaimsHelperAddress  types.Address `abi:"_claimsHelperAddress"`
+	ValidatorsAddress    types.Address `abi:"_validatorsAddress"`
+	AdminContractAddress types.Address `abi:"_adminContractAddress"`
+}
+
+func (s *SetDependenciesApexBridgeContractsClaimsFn) Sig() []byte {
+	return ApexBridgeContracts.Claims.Abi.Methods["setDependencies"].ID()
+}
+
+func (s *SetDependenciesApexBridgeContractsClaimsFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.Claims.Abi.Methods["setDependencies"].Encode(s)
+}
+
+func (s *SetDependenciesApexBridgeContractsClaimsFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.Claims.Abi.Methods["setDependencies"], buf, s)
+}
+
+type InitializeApexBridgeContractsSignedBatchesFn struct {
+	Owner types.Address `abi:"_owner"`
+}
+
+func (i *InitializeApexBridgeContractsSignedBatchesFn) Sig() []byte {
+	return ApexBridgeContracts.SignedBatches.Abi.Methods["initialize"].ID()
+}
+
+func (i *InitializeApexBridgeContractsSignedBatchesFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.SignedBatches.Abi.Methods["initialize"].Encode(i)
+}
+
+func (i *InitializeApexBridgeContractsSignedBatchesFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.SignedBatches.Abi.Methods["initialize"], buf, i)
+}
+
+type SetDependenciesApexBridgeContractsSignedBatchesFn struct {
 	BridgeAddress       types.Address `abi:"_bridgeAddress"`
 	ClaimsHelperAddress types.Address `abi:"_claimsHelperAddress"`
 	ValidatorsAddress   types.Address `abi:"_validatorsAddress"`
 }
 
-func (s *SetDependenciesClaimsFn) Sig() []byte {
-	return Claims.Abi.Methods["setDependencies"].ID()
+func (s *SetDependenciesApexBridgeContractsSignedBatchesFn) Sig() []byte {
+	return ApexBridgeContracts.SignedBatches.Abi.Methods["setDependencies"].ID()
 }
 
-func (s *SetDependenciesClaimsFn) EncodeAbi() ([]byte, error) {
-	return Claims.Abi.Methods["setDependencies"].Encode(s)
+func (s *SetDependenciesApexBridgeContractsSignedBatchesFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.SignedBatches.Abi.Methods["setDependencies"].Encode(s)
 }
 
-func (s *SetDependenciesClaimsFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(Claims.Abi.Methods["setDependencies"], buf, s)
+func (s *SetDependenciesApexBridgeContractsSignedBatchesFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.SignedBatches.Abi.Methods["setDependencies"], buf, s)
 }
 
-type InitializeSignedBatchesFn struct {
+type InitializeApexBridgeContractsSlotsFn struct {
 	Owner types.Address `abi:"_owner"`
 }
 
-func (i *InitializeSignedBatchesFn) Sig() []byte {
-	return SignedBatches.Abi.Methods["initialize"].ID()
+func (i *InitializeApexBridgeContractsSlotsFn) Sig() []byte {
+	return ApexBridgeContracts.Slots.Abi.Methods["initialize"].ID()
 }
 
-func (i *InitializeSignedBatchesFn) EncodeAbi() ([]byte, error) {
-	return SignedBatches.Abi.Methods["initialize"].Encode(i)
+func (i *InitializeApexBridgeContractsSlotsFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.Slots.Abi.Methods["initialize"].Encode(i)
 }
 
-func (i *InitializeSignedBatchesFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(SignedBatches.Abi.Methods["initialize"], buf, i)
+func (i *InitializeApexBridgeContractsSlotsFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.Slots.Abi.Methods["initialize"], buf, i)
 }
 
-type SetDependenciesSignedBatchesFn struct {
-	BridgeAddress       types.Address `abi:"_bridgeAddress"`
-	ClaimsHelperAddress types.Address `abi:"_claimsHelperAddress"`
-	ValidatorsAddress   types.Address `abi:"_validatorsAddress"`
-}
-
-func (s *SetDependenciesSignedBatchesFn) Sig() []byte {
-	return SignedBatches.Abi.Methods["setDependencies"].ID()
-}
-
-func (s *SetDependenciesSignedBatchesFn) EncodeAbi() ([]byte, error) {
-	return SignedBatches.Abi.Methods["setDependencies"].Encode(s)
-}
-
-func (s *SetDependenciesSignedBatchesFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(SignedBatches.Abi.Methods["setDependencies"], buf, s)
-}
-
-type InitializeSlotsFn struct {
-	Owner types.Address `abi:"_owner"`
-}
-
-func (i *InitializeSlotsFn) Sig() []byte {
-	return Slots.Abi.Methods["initialize"].ID()
-}
-
-func (i *InitializeSlotsFn) EncodeAbi() ([]byte, error) {
-	return Slots.Abi.Methods["initialize"].Encode(i)
-}
-
-func (i *InitializeSlotsFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(Slots.Abi.Methods["initialize"], buf, i)
-}
-
-type SetDependenciesSlotsFn struct {
+type SetDependenciesApexBridgeContractsSlotsFn struct {
 	BridgeAddress     types.Address `abi:"_bridgeAddress"`
 	ValidatorsAddress types.Address `abi:"_validatorsAddress"`
 }
 
-func (s *SetDependenciesSlotsFn) Sig() []byte {
-	return Slots.Abi.Methods["setDependencies"].ID()
+func (s *SetDependenciesApexBridgeContractsSlotsFn) Sig() []byte {
+	return ApexBridgeContracts.Slots.Abi.Methods["setDependencies"].ID()
 }
 
-func (s *SetDependenciesSlotsFn) EncodeAbi() ([]byte, error) {
-	return Slots.Abi.Methods["setDependencies"].Encode(s)
+func (s *SetDependenciesApexBridgeContractsSlotsFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.Slots.Abi.Methods["setDependencies"].Encode(s)
 }
 
-func (s *SetDependenciesSlotsFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(Slots.Abi.Methods["setDependencies"], buf, s)
+func (s *SetDependenciesApexBridgeContractsSlotsFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.Slots.Abi.Methods["setDependencies"], buf, s)
 }
 
-type InitializeValidatorsFn struct {
+type InitializeApexBridgeContractsValidatorsFn struct {
 	Owner      types.Address   `abi:"_owner"`
 	Validators []types.Address `abi:"_validators"`
 }
 
-func (i *InitializeValidatorsFn) Sig() []byte {
-	return Validators.Abi.Methods["initialize"].ID()
+func (i *InitializeApexBridgeContractsValidatorsFn) Sig() []byte {
+	return ApexBridgeContracts.Validators.Abi.Methods["initialize"].ID()
 }
 
-func (i *InitializeValidatorsFn) EncodeAbi() ([]byte, error) {
-	return Validators.Abi.Methods["initialize"].Encode(i)
+func (i *InitializeApexBridgeContractsValidatorsFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.Validators.Abi.Methods["initialize"].Encode(i)
 }
 
-func (i *InitializeValidatorsFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(Validators.Abi.Methods["initialize"], buf, i)
+func (i *InitializeApexBridgeContractsValidatorsFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.Validators.Abi.Methods["initialize"], buf, i)
 }
 
-type SetDependenciesValidatorsFn struct {
+type SetDependenciesApexBridgeContractsValidatorsFn struct {
 	BridgeAddress types.Address `abi:"_bridgeAddress"`
 }
 
-func (s *SetDependenciesValidatorsFn) Sig() []byte {
-	return Validators.Abi.Methods["setDependencies"].ID()
+func (s *SetDependenciesApexBridgeContractsValidatorsFn) Sig() []byte {
+	return ApexBridgeContracts.Validators.Abi.Methods["setDependencies"].ID()
 }
 
-func (s *SetDependenciesValidatorsFn) EncodeAbi() ([]byte, error) {
-	return Validators.Abi.Methods["setDependencies"].Encode(s)
+func (s *SetDependenciesApexBridgeContractsValidatorsFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.Validators.Abi.Methods["setDependencies"].Encode(s)
 }
 
-func (s *SetDependenciesValidatorsFn) DecodeAbi(buf []byte) error {
-	return decodeMethod(Validators.Abi.Methods["setDependencies"], buf, s)
+func (s *SetDependenciesApexBridgeContractsValidatorsFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.Validators.Abi.Methods["setDependencies"], buf, s)
+}
+
+type InitializeApexBridgeContractsAdminFn struct {
+	Owner types.Address `abi:"_owner"`
+}
+
+func (i *InitializeApexBridgeContractsAdminFn) Sig() []byte {
+	return ApexBridgeContracts.Admin.Abi.Methods["initialize"].ID()
+}
+
+func (i *InitializeApexBridgeContractsAdminFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.Admin.Abi.Methods["initialize"].Encode(i)
+}
+
+func (i *InitializeApexBridgeContractsAdminFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.Admin.Abi.Methods["initialize"], buf, i)
+}
+
+type SetDependenciesApexBridgeContractsAdminFn struct {
+	ClaimsAddress types.Address `abi:"_claimsAddress"`
+}
+
+func (s *SetDependenciesApexBridgeContractsAdminFn) Sig() []byte {
+	return ApexBridgeContracts.Admin.Abi.Methods["setDependencies"].ID()
+}
+
+func (s *SetDependenciesApexBridgeContractsAdminFn) EncodeAbi() ([]byte, error) {
+	return ApexBridgeContracts.Admin.Abi.Methods["setDependencies"].Encode(s)
+}
+
+func (s *SetDependenciesApexBridgeContractsAdminFn) DecodeAbi(buf []byte) error {
+	return decodeMethod(ApexBridgeContracts.Admin.Abi.Methods["setDependencies"], buf, s)
 }

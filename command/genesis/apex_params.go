@@ -20,28 +20,32 @@ func getApexContracts() []*contractInfo {
 	return []*contractInfo{
 		// Apex contracts
 		{
-			artifact: contractsapi.Bridge,
+			artifact: contractsapi.ApexBridgeContracts.Bridge,
 			address:  contracts.BridgeAddr,
 		},
 		{
-			artifact: contractsapi.ClaimsHelper,
+			artifact: contractsapi.ApexBridgeContracts.ClaimsHelper,
 			address:  contracts.ClaimsHelperAddr,
 		},
 		{
-			artifact: contractsapi.Claims,
+			artifact: contractsapi.ApexBridgeContracts.Claims,
 			address:  contracts.ClaimsAddr,
 		},
 		{
-			artifact: contractsapi.SignedBatches,
+			artifact: contractsapi.ApexBridgeContracts.SignedBatches,
 			address:  contracts.SignedBatchesAddr,
 		},
 		{
-			artifact: contractsapi.Slots,
+			artifact: contractsapi.ApexBridgeContracts.Slots,
 			address:  contracts.SlotsAddr,
 		},
 		{
-			artifact: contractsapi.Validators,
+			artifact: contractsapi.ApexBridgeContracts.Validators,
 			address:  contracts.ValidatorsAddr,
+		},
+		{
+			artifact: contractsapi.ApexBridgeContracts.Admin,
+			address:  contracts.ApexBridgeAdminAddr,
 		},
 	}
 }

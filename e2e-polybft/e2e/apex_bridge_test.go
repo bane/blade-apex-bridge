@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -86,7 +87,12 @@ func Test_OnlyRunApexBridge_WithNexusAndVector(t *testing.T) {
 	fmt.Printf("nexus gateway sc addr: %s\n", apex.NexusInfo.GatewayAddress)
 	fmt.Printf("nexus chainID: %v\n", chainID)
 
+	privateKeyRaw, err := apex.GetBridgeAdmin().MarshallPrivateKey()
+	require.NoError(t, err)
+
 	fmt.Printf("bridge url: %s\n", apex.GetBridgeDefaultJSONRPCAddr())
+	fmt.Printf("bridge admin key: %s\n", hex.EncodeToString(privateKeyRaw))
+	fmt.Printf("bridge admin address: %s\n", apex.GetBridgeAdmin().Address())
 
 	signalChannel := make(chan os.Signal, 1)
 	// Notify the signalChannel when the interrupt signal is received (Ctrl+C)

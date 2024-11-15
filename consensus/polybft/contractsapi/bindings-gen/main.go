@@ -568,8 +568,8 @@ import (
 		events              []string
 	}{
 		{
-			"Bridge",
-			gensc.Bridge,
+			"ApexBridgeContracts.Bridge",
+			gensc.ApexBridgeContracts.Bridge,
 			false,
 			[]string{
 				"initialize",
@@ -578,8 +578,8 @@ import (
 			[]string{},
 		},
 		{
-			"ClaimsHelper",
-			gensc.ClaimsHelper,
+			"ApexBridgeContracts.ClaimsHelper",
+			gensc.ApexBridgeContracts.ClaimsHelper,
 			false,
 			[]string{
 				"initialize",
@@ -588,8 +588,8 @@ import (
 			[]string{},
 		},
 		{
-			"Claims",
-			gensc.Claims,
+			"ApexBridgeContracts.Claims",
+			gensc.ApexBridgeContracts.Claims,
 			false,
 			[]string{
 				"initialize",
@@ -598,8 +598,8 @@ import (
 			[]string{},
 		},
 		{
-			"SignedBatches",
-			gensc.SignedBatches,
+			"ApexBridgeContracts.SignedBatches",
+			gensc.ApexBridgeContracts.SignedBatches,
 			false,
 			[]string{
 				"initialize",
@@ -608,8 +608,8 @@ import (
 			[]string{},
 		},
 		{
-			"Slots",
-			gensc.Slots,
+			"ApexBridgeContracts.Slots",
+			gensc.ApexBridgeContracts.Slots,
 			false,
 			[]string{
 				"initialize",
@@ -618,8 +618,18 @@ import (
 			[]string{},
 		},
 		{
-			"Validators",
-			gensc.Validators,
+			"ApexBridgeContracts.Validators",
+			gensc.ApexBridgeContracts.Validators,
+			false,
+			[]string{
+				"initialize",
+				"setDependencies",
+			},
+			[]string{},
+		},
+		{
+			"ApexBridgeContracts.Admin",
+			gensc.ApexBridgeContracts.Admin,
 			false,
 			[]string{
 				"initialize",
@@ -873,7 +883,8 @@ func ({{.Sig}} *{{.TName}}) Decode(input []byte) error {
 // generateConstruct generates stubs for a smart contract constructor
 func generateConstructor(generatedData *generatedData,
 	contractName string, constructor *abi.Method) error {
-	methodName := fmt.Sprintf(functionNameFormat, strings.Title(contractName+"Constructor"))
+	methodName := fmt.Sprintf(functionNameFormat,
+		strings.Title(strings.ReplaceAll(contractName, ".", "")+"Constructor"))
 	res := []string{}
 
 	_, err := generateType(generatedData, methodName, constructor.Inputs, &res)
@@ -919,7 +930,8 @@ func ({{.Sig}} *{{.TName}}) DecodeAbi(buf []byte) error {
 // generateFunction generates code for smart contract function and its parameters
 func generateFunction(generatedData *generatedData, contractName string,
 	method *abi.Method, fnSigResolution bool) error {
-	methodName := fmt.Sprintf(functionNameFormat, strings.Title(method.Name+contractName))
+	methodName := fmt.Sprintf(functionNameFormat,
+		strings.Title(method.Name+strings.ReplaceAll(contractName, ".", "")))
 	res := []string{}
 
 	_, err := generateType(generatedData, methodName, method.Inputs, &res)

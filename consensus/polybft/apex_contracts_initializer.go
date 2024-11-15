@@ -46,7 +46,7 @@ func initApex(transition *state.Transition, polyBFTConfig PolyBFTConfig) (err er
 		return err
 	}
 
-	return nil
+	return initApexBridgeAdmin(transition, polyBFTConfig.BladeAdmin)
 }
 
 // initProxies initializes proxy contracts, that allow upgradeability of contracts implementation
@@ -94,28 +94,32 @@ func initApexProxies(transition *state.Transition, polyBFTConfig PolyBFTConfig) 
 func getDataForApexContract(contract types.Address, polyBFTConfig PolyBFTConfig) ([]byte, error) {
 	switch contract {
 	case contracts.Bridge:
-		return (&contractsapi.InitializeBridgeFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
+		return (&contractsapi.InitializeApexBridgeContractsBridgeFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
 	case contracts.SignedBatches:
-		return (&contractsapi.InitializeSignedBatchesFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
+		return (&contractsapi.InitializeApexBridgeContractsSignedBatchesFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
 	case contracts.ClaimsHelper:
-		return (&contractsapi.InitializeClaimsHelperFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
+		return (&contractsapi.InitializeApexBridgeContractsClaimsHelperFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
 	case contracts.Validators:
 		var validatorAddresses = make([]types.Address, len(polyBFTConfig.InitialValidatorSet))
 		for i, validator := range polyBFTConfig.InitialValidatorSet {
 			validatorAddresses[i] = validator.Address
 		}
 
-		return (&contractsapi.InitializeValidatorsFn{
+		return (&contractsapi.InitializeApexBridgeContractsValidatorsFn{
 			Owner:      polyBFTConfig.BladeAdmin,
 			Validators: validatorAddresses,
 		}).EncodeAbi()
 	case contracts.Slots:
-		return (&contractsapi.InitializeSlotsFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
+		return (&contractsapi.InitializeApexBridgeContractsSlotsFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
 	case contracts.Claims:
-		return (&contractsapi.InitializeClaimsFn{
+		return (&contractsapi.InitializeApexBridgeContractsClaimsFn{
 			Owner:                   polyBFTConfig.BladeAdmin,
 			MaxNumberOfTransactions: maxNumberOfTransactions,
 			TimeoutBlocksNumber:     timeoutBlocksNumber,
+		}).EncodeAbi()
+	case contracts.ApexBridgeAdmin:
+		return (&contractsapi.InitializeApexBridgeContractsAdminFn{
+			Owner: polyBFTConfig.BladeAdmin,
 		}).EncodeAbi()
 	default:
 		return nil, fmt.Errorf("no contract defined at address %v", contract)
@@ -126,7 +130,7 @@ func getDataForApexContract(contract types.Address, polyBFTConfig PolyBFTConfig)
 
 // initBridge initializes Bridge and it's proxy SC
 func initBridge(transition *state.Transition, from types.Address) error {
-	setDependenciesFn := &contractsapi.SetDependenciesBridgeFn{
+	setDependenciesFn := &contractsapi.SetDependenciesApexBridgeContractsBridgeFn{
 		ClaimsAddress:        contracts.Claims,
 		SignedBatchesAddress: contracts.SignedBatches,
 		SlotsAddress:         contracts.Slots,
@@ -143,7 +147,7 @@ func initBridge(transition *state.Transition, from types.Address) error {
 
 // initSignedBatches initializes SignedBatches SC
 func initSignedBatches(transition *state.Transition, from types.Address) error {
-	setDependenciesFn := &contractsapi.SetDependenciesSignedBatchesFn{
+	setDependenciesFn := &contractsapi.SetDependenciesApexBridgeContractsSignedBatchesFn{
 		BridgeAddress:       contracts.Bridge,
 		ClaimsHelperAddress: contracts.ClaimsHelper,
 		ValidatorsAddress:   contracts.Validators,
@@ -160,7 +164,7 @@ func initSignedBatches(transition *state.Transition, from types.Address) error {
 
 // initClaimsHelper initializes ClaimsHelper SC
 func initClaimsHelper(transition *state.Transition, from types.Address) error {
-	setDependenciesFn := &contractsapi.SetDependenciesClaimsHelperFn{
+	setDependenciesFn := &contractsapi.SetDependenciesApexBridgeContractsClaimsHelperFn{
 		ClaimsAddress:        contracts.Claims,
 		SignedBatchesAddress: contracts.SignedBatches,
 	}
@@ -176,7 +180,7 @@ func initClaimsHelper(transition *state.Transition, from types.Address) error {
 
 // initValidators initializes Validators SC
 func initValidators(transition *state.Transition, from types.Address) error {
-	setDependenciesFn := &contractsapi.SetDependenciesValidatorsFn{
+	setDependenciesFn := &contractsapi.SetDependenciesApexBridgeContractsValidatorsFn{
 		BridgeAddress: contracts.Bridge,
 	}
 
@@ -191,7 +195,7 @@ func initValidators(transition *state.Transition, from types.Address) error {
 
 // initSlots initializes Slots SC
 func initSlots(transition *state.Transition, from types.Address) error {
-	setDependenciesFn := &contractsapi.SetDependenciesSlotsFn{
+	setDependenciesFn := &contractsapi.SetDependenciesApexBridgeContractsSlotsFn{
 		BridgeAddress:     contracts.Bridge,
 		ValidatorsAddress: contracts.Validators,
 	}
@@ -207,10 +211,11 @@ func initSlots(transition *state.Transition, from types.Address) error {
 
 // initClaims initializes Claims SC
 func initClaims(transition *state.Transition, from types.Address) error {
-	setDependenciesFn := &contractsapi.SetDependenciesClaimsFn{
-		BridgeAddress:       contracts.Bridge,
-		ClaimsHelperAddress: contracts.ClaimsHelper,
-		ValidatorsAddress:   contracts.Validators,
+	setDependenciesFn := &contractsapi.SetDependenciesApexBridgeContractsClaimsFn{
+		BridgeAddress:        contracts.Bridge,
+		ClaimsHelperAddress:  contracts.ClaimsHelper,
+		ValidatorsAddress:    contracts.Validators,
+		AdminContractAddress: contracts.ApexBridgeAdmin,
 	}
 
 	input, err := setDependenciesFn.EncodeAbi()
@@ -220,4 +225,19 @@ func initClaims(transition *state.Transition, from types.Address) error {
 
 	return callContract(from,
 		contracts.Claims, input, "Claims.setDependencies", transition)
+}
+
+// initApexBridgeAdmin initialized Apex Bridge Admin sc
+func initApexBridgeAdmin(transition *state.Transition, from types.Address) error {
+	setDependenciesFn := &contractsapi.SetDependenciesApexBridgeContractsAdminFn{
+		ClaimsAddress: contracts.Claims,
+	}
+
+	input, err := setDependenciesFn.EncodeAbi()
+	if err != nil {
+		return fmt.Errorf("ApexBridgeAdmin.setDependencies params encoding failed: %w", err)
+	}
+
+	return callContract(from,
+		contracts.ApexBridgeAdmin, input, "ApexBridgeAdmin.setDependencies", transition)
 }

@@ -349,8 +349,7 @@ func init() {
 	}
 
 	// Apex contracts
-	Bridge, ClaimsHelper, Claims, SignedBatches, Slots, Validators, err = initApexContracts()
-	if err != nil {
+	if err = initApexContracts(); err != nil {
 		log.Fatal(err)
 	}
 
@@ -407,12 +406,13 @@ func init() {
 		"TestRewardToken":                 TestRewardToken,
 		"ZexCoinERC20":                    ZexCoinERC20,
 		"ZexNFT":                          ZexNFT,
-		"Bridge":                          Bridge,
-		"ClaimsHelper":                    ClaimsHelper,
-		"Claims":                          Claims,
-		"SignedBatches":                   SignedBatches,
-		"Slots":                           Slots,
-		"Validators":                      Validators,
+		"Bridge":                          ApexBridgeContracts.Bridge,
+		"ClaimsHelper":                    ApexBridgeContracts.ClaimsHelper,
+		"Claims":                          ApexBridgeContracts.Claims,
+		"SignedBatches":                   ApexBridgeContracts.SignedBatches,
+		"Slots":                           ApexBridgeContracts.Slots,
+		"Validators":                      ApexBridgeContracts.Validators,
+		"ApexBridgeAdmin":                 ApexBridgeContracts.Admin,
 		"TestCardanoVerifySignature":      TestCardanoVerifySign,
 	}
 }

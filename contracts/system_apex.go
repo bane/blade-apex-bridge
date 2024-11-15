@@ -28,15 +28,25 @@ var (
 	// Address of Validators proxy
 	Validators     = types.StringToAddress("0xABEF000000000000000000000000000000000005")
 	ValidatorsAddr = types.StringToAddress("0xABEF000000000000000000000000000000000015")
+
+	// Address of Apex Bridge Admin proxy
+	ApexBridgeAdmin     = types.StringToAddress("0xABEF000000000000000000000000000000000006")
+	ApexBridgeAdminAddr = types.StringToAddress("0xABEF000000000000000000000000000000000016")
+
+	// CardanoVerifySignaturePrecompile is an address of precompile that allows verifying cardano signatures
+	CardanoVerifySignaturePrecompile = types.StringToAddress("0x2050")
+	// CardanoVerifySignaturePrecompile is an address of precompile that allows verifying BLS signatures for Apex
+	ApexBLSSignaturesVerificationPrecompile = types.StringToAddress("0x2060")
 )
 
 func GetApexProxyImplementationMapping() map[types.Address]types.Address {
 	return map[types.Address]types.Address{
-		Bridge:        BridgeAddr,
-		ClaimsHelper:  ClaimsHelperAddr,
-		Claims:        ClaimsAddr,
-		SignedBatches: SignedBatchesAddr,
-		Slots:         SlotsAddr,
-		Validators:    ValidatorsAddr,
+		Bridge:          BridgeAddr,
+		ClaimsHelper:    ClaimsHelperAddr,
+		Claims:          ClaimsAddr,
+		SignedBatches:   SignedBatchesAddr,
+		Slots:           SlotsAddr,
+		Validators:      ValidatorsAddr,
+		ApexBridgeAdmin: ApexBridgeAdminAddr,
 	}
 }

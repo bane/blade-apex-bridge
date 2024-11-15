@@ -57,6 +57,10 @@ package contractsapi
 			"Validators.sol",
 			"Validators",
 		},
+		{
+			"Admin.sol",
+			"ApexBridgeAdmin",
+		},
 	}
 
 	for _, v := range apexContracts {
