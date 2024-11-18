@@ -13,6 +13,7 @@ import (
 	"github.com/0xPolygon/polygon-edge/crypto"
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
 	"github.com/0xPolygon/polygon-edge/types"
+	infracommon "github.com/Ethernal-Tech/cardano-infrastructure/common"
 	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 )
@@ -398,13 +399,8 @@ func (a *ApexSystem) GetBalance(
 func (a *ApexSystem) WaitForGreaterAmount(
 	ctx context.Context, user *TestApexUser, chain ChainID,
 	expectedAmount *big.Int, numRetries int, waitTime time.Duration,
-	isRecoverableError ...cardanowallet.IsRecoverableErrorFn,
 ) error {
-	var lastAmount *big.Int
-
-	err := a.WaitForAmount(ctx, user, chain, func(val *big.Int) bool {
-		lastAmount = val
-
+	lastAmount, err := a.WaitForAmount(ctx, user, chain, func(val *big.Int) bool {
 		return val.Cmp(expectedAmount) == 1
 	}, numRetries, waitTime)
 	if err != nil {
@@ -417,13 +413,8 @@ func (a *ApexSystem) WaitForGreaterAmount(
 func (a *ApexSystem) WaitForExactAmount(
 	ctx context.Context, user *TestApexUser, chain ChainID,
 	expectedAmount *big.Int, numRetries int, waitTime time.Duration,
-	isRecoverableError ...cardanowallet.IsRecoverableErrorFn,
 ) error {
-	var lastAmount *big.Int
-
-	err := a.WaitForAmount(ctx, user, chain, func(val *big.Int) bool {
-		lastAmount = val
-
+	lastAmount, err := a.WaitForAmount(ctx, user, chain, func(val *big.Int) bool {
 		return val.Cmp(expectedAmount) >= 0
 	}, numRetries, waitTime)
 	if err != nil {
@@ -438,17 +429,19 @@ func (a *ApexSystem) WaitForExactAmount(
 func (a *ApexSystem) WaitForAmount(
 	ctx context.Context, user *TestApexUser, chain ChainID,
 	cmpHandler func(*big.Int) bool, numRetries int, waitTime time.Duration,
-	isRecoverableError ...cardanowallet.IsRecoverableErrorFn,
-) error {
-	if chain == ChainIDPrime || chain == ChainIDVector {
-		isRecoverableError = append(isRecoverableError, IsRecoverableError)
-	}
-
-	return cardanowallet.ExecuteWithRetry(ctx, numRetries, waitTime, func() (bool, error) {
+) (*big.Int, error) {
+	return infracommon.ExecuteWithRetry(ctx, func(ctx context.Context) (*big.Int, error) {
 		newBalance, err := a.GetBalance(ctx, user, chain)
+		if err != nil {
+			return nil, err
+		}
 
-		return err == nil && cmpHandler(newBalance), err
-	}, isRecoverableError...)
+		if !cmpHandler(newBalance) {
+			return nil, infracommon.ErrRetryTryAgain
+		}
+
+		return newBalance, nil
+	}, infracommon.WithRetryCount(numRetries), infracommon.WithRetryWaitTime(waitTime))
 }
 
 func (a *ApexSystem) SubmitTx(

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/cardanofw"
-	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
+	infracommon "github.com/Ethernal-Tech/cardano-infrastructure/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1103,7 +1103,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 			// nothing else should be bridged for 2 minutes
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDVector, expectedAmountOnVector, 12, time.Second*10)
-			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on vector")
+			assert.ErrorIs(t, err, infracommon.ErrRetryTimeout, "more tokens than expected are on vector")
 
 			fmt.Printf("TXs on vector finished with success: %v\n", err != nil)
 		}()
@@ -1129,7 +1129,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 			// nothing else should be bridged for 2 minutes
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDPrime, expectedAmountOnPrime, 12, time.Second*10)
-			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on prime")
+			assert.ErrorIs(t, err, infracommon.ErrRetryTimeout, "more tokens than expected are on prime")
 
 			fmt.Printf("TXs on prime finished with success: %v\n", err != nil)
 		}()
@@ -1226,7 +1226,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 			// nothing else should be bridged for 2 minutes
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDVector, expectedAmountOnVector, 12, time.Second*10)
-			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on vector")
+			assert.ErrorIs(t, err, infracommon.ErrRetryTimeout, "more tokens than expected are on vector")
 
 			fmt.Printf("TXs on vector finished with success: %v\n", err != nil)
 		}()
@@ -1252,7 +1252,7 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 
 			// nothing else should be bridged for 2 minutes
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDPrime, expectedAmountOnPrime, 12, time.Second*10)
-			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on prime")
+			assert.ErrorIs(t, err, infracommon.ErrRetryTimeout, "more tokens than expected are on prime")
 
 			fmt.Printf("TXs on prime finished with success: %v\n", err != nil)
 		}()

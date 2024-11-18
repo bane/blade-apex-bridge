@@ -16,7 +16,8 @@ import (
 
 	"github.com/0xPolygon/polygon-edge/contracts"
 	"github.com/0xPolygon/polygon-edge/crypto"
-	cardWallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
+	infracommon "github.com/Ethernal-Tech/cardano-infrastructure/common"
+	infrawallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
 
 const (
@@ -27,7 +28,7 @@ const (
 type TestCardanoChainConfig struct {
 	IsEnabled              bool
 	ID                     int
-	NetworkType            cardWallet.CardanoNetworkType
+	NetworkType            infrawallet.CardanoNetworkType
 	NodesCount             int
 	InitialHotWalletAmount *big.Int
 	FundAmount             uint64
@@ -42,7 +43,7 @@ func NewPrimeChainConfig() *TestCardanoChainConfig {
 	return &TestCardanoChainConfig{
 		IsEnabled:              true,
 		ID:                     0,
-		NetworkType:            cardWallet.TestNetNetwork,
+		NetworkType:            infrawallet.TestNetNetwork,
 		NodesCount:             4,
 		InitialHotWalletAmount: big.NewInt(0),
 		PremineAmount:          defaultPremineAmount,
@@ -55,7 +56,7 @@ func NewVectorChainConfig(isEnabled bool) *TestCardanoChainConfig {
 	return &TestCardanoChainConfig{
 		IsEnabled:              isEnabled,
 		ID:                     1,
-		NetworkType:            cardWallet.VectorTestNetNetwork,
+		NetworkType:            infrawallet.VectorTestNetNetwork,
 		NodesCount:             4,
 		InitialHotWalletAmount: big.NewInt(0),
 		PremineAmount:          defaultPremineAmount,
@@ -214,7 +215,7 @@ func (ec *TestCardanoChain) FundWallets(ctx context.Context) error {
 	}
 
 	// retrieve latest tip
-	tip, err := cardWallet.NewTxProviderOgmios(ec.cluster.OgmiosURL()).GetTip(ctx)
+	tip, err := infrawallet.NewTxProviderOgmios(ec.cluster.OgmiosURL()).GetTip(ctx)
 	if err != nil {
 		return err
 	}
@@ -281,12 +282,12 @@ func (ec *TestCardanoChain) ChainID() string {
 }
 
 func (ec *TestCardanoChain) GetAddressBalance(ctx context.Context, addr string) (*big.Int, error) {
-	utxos, err := cardWallet.NewTxProviderOgmios(ec.cluster.OgmiosURL()).GetUtxos(ctx, addr)
+	utxos, err := infrawallet.NewTxProviderOgmios(ec.cluster.OgmiosURL()).GetUtxos(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
 
-	return new(big.Int).SetUint64(cardWallet.GetUtxosSum(utxos)), nil
+	return new(big.Int).SetUint64(infrawallet.GetUtxosSum(utxos)), nil
 }
 
 func (ec *TestCardanoChain) BridgingRequest(
@@ -303,7 +304,7 @@ func (ec *TestCardanoChain) BridgingRequest(
 		return "", err
 	}
 
-	verificationKeys := cardWallet.GetVerificationKeyFromSigningKey(privateKeyBytes)
+	verificationKeys := infrawallet.GetVerificationKeyFromSigningKey(privateKeyBytes)
 	totalAmount := new(big.Int).SetUint64(feeAmount)
 	receiversMap := make(map[string]uint64, len(receivers))
 
@@ -312,7 +313,7 @@ func (ec *TestCardanoChain) BridgingRequest(
 		receiversMap[addr] = amount.Uint64()
 	}
 
-	senderAddr, err := cardWallet.NewEnterpriseAddress(ec.config.NetworkType, verificationKeys)
+	senderAddr, err := infrawallet.NewEnterpriseAddress(ec.config.NetworkType, verificationKeys)
 	if err != nil {
 		return "", err
 	}
@@ -330,8 +331,8 @@ func (ec *TestCardanoChain) SendTx(
 	ctx context.Context, privateKey string, receiverAddr string, amount *big.Int, data []byte,
 ) (string, error) {
 	const (
-		waitForTxNumRetries    = 75
-		waitForTxRetryWaitTime = time.Second * 2
+		retryCount    = 75
+		retryWaitTime = time.Second * 2
 	)
 
 	privateKeyBytes, err := hex.DecodeString(privateKey)
@@ -339,8 +340,8 @@ func (ec *TestCardanoChain) SendTx(
 		return "", err
 	}
 
-	wallet := cardWallet.NewWallet(cardWallet.GetVerificationKeyFromSigningKey(privateKeyBytes), privateKeyBytes)
-	txProvider := cardWallet.NewTxProviderOgmios(ec.cluster.OgmiosURL())
+	wallet := infrawallet.NewWallet(infrawallet.GetVerificationKeyFromSigningKey(privateKeyBytes), privateKeyBytes)
+	txProvider := infrawallet.NewTxProviderOgmios(ec.cluster.OgmiosURL())
 
 	txHash, err := SendTx(ctx, txProvider, wallet,
 		amount.Uint64(), receiverAddr, ec.config.NetworkType, data)
@@ -348,13 +349,16 @@ func (ec *TestCardanoChain) SendTx(
 		return "", err
 	}
 
-	err = cardWallet.WaitForTxHashInUtxos(
-		ctx, txProvider, receiverAddr, txHash, waitForTxNumRetries, waitForTxRetryWaitTime, IsRecoverableError)
-	if err != nil {
-		return "", err
-	}
+	return infracommon.ExecuteWithRetry(ctx, func(ctx context.Context) (string, error) {
+		contains, err := infrawallet.IsTxInUtxos(ctx, txProvider, receiverAddr, txHash)
+		if err != nil {
+			return "", err
+		} else if !contains {
+			return "", infracommon.ErrRetryTryAgain
+		}
 
-	return txHash, nil
+		return txHash, nil
+	}, infracommon.WithRetryCount(retryCount), infracommon.WithRetryWaitTime(retryWaitTime))
 }
 
 func (ec *TestCardanoChain) GetHotWalletAddress() string {

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/cardanofw"
-	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
+	infracommon "github.com/Ethernal-Tech/cardano-infrastructure/common"
 	"github.com/Ethernal-Tech/ethgo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -796,7 +796,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 
 		// nothing else should be bridged for 2 minutes
 		err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDNexus, ethExpectedBalance, 12, time.Second*10)
-		assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on prime")
+		assert.ErrorIs(t, err, infracommon.ErrRetryTimeout, "more tokens than expected are on prime")
 
 		fmt.Printf("TXs on prime finished with success: %v\n", err != nil)
 	})
@@ -1002,7 +1002,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 			}
 
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDNexus, ethExpectedBalance, 12, time.Second*10)
-			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on nexus")
+			assert.ErrorIs(t, err, infracommon.ErrRetryTimeout, "more tokens than expected are on nexus")
 
 			fmt.Printf("TXs on nexus finished with success: %v\n", err != nil)
 		}()
@@ -1024,7 +1024,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 
 			// nothing else should be bridged for 2 minutes
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDPrime, dfmExpectedBalance, 12, time.Second*10)
-			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on prime")
+			assert.ErrorIs(t, err, infracommon.ErrRetryTimeout, "more tokens than expected are on prime")
 
 			fmt.Printf("TXs on prime finished with success: %v\n", err != nil)
 		}()
@@ -1121,7 +1121,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 			}
 
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDNexus, ethExpectedBalance, 12, time.Second*10)
-			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on nexus")
+			assert.ErrorIs(t, err, infracommon.ErrRetryTimeout, "more tokens than expected are on nexus")
 
 			fmt.Printf("TXs on nexus finished with success: %v\n", err != nil)
 		}()
@@ -1143,7 +1143,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 
 			// nothing else should be bridged for 2 minutes
 			err = apex.WaitForGreaterAmount(ctx, user, cardanofw.ChainIDPrime, dfmExpectedBalance, 12, time.Second*10)
-			assert.ErrorIs(t, err, wallet.ErrWaitForTransactionTimeout, "more tokens than expected are on prime")
+			assert.ErrorIs(t, err, infracommon.ErrRetryTimeout, "more tokens than expected are on prime")
 
 			fmt.Printf("TXs on prime finished with success: %v\n", err != nil)
 		}()

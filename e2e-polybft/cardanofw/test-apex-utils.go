@@ -216,10 +216,6 @@ type OracleStateResponse struct {
 	BlockHash string                   `json:"hash"`
 }
 
-func IsRecoverableError(err error) bool {
-	return strings.Contains(err.Error(), "status code 500")
-}
-
 func GetNetworkMagic(networkType wallet.CardanoNetworkType) uint {
 	switch networkType {
 	case wallet.VectorTestNetNetwork:

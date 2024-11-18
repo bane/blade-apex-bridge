@@ -5,17 +5,14 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
+	infracommon "github.com/Ethernal-Tech/cardano-infrastructure/common"
 	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
 
 const (
 	potentialFee     = 250_000
 	ttlSlotNumberInc = 500
-
-	retryWait       = time.Millisecond * 2000
-	retriesMaxCount = 10
 )
 
 func SendTx(ctx context.Context,
@@ -26,13 +23,9 @@ func SendTx(ctx context.Context,
 	networkType wallet.CardanoNetworkType,
 	metadata []byte,
 ) (txHash string, err error) {
-	err = wallet.ExecuteWithRetry(ctx, retriesMaxCount, retryWait, func() (bool, error) {
-		txHash, err = sendTx(ctx, txProvider, cardanoWallet, amount, receiver, networkType, metadata)
-
-		return err == nil, err
-	}, IsRecoverableError)
-
-	return txHash, err
+	return infracommon.ExecuteWithRetry(ctx, func(ctx context.Context) (string, error) {
+		return sendTx(ctx, txProvider, cardanoWallet, amount, receiver, networkType, metadata)
+	})
 }
 
 func sendTx(ctx context.Context,
