@@ -337,7 +337,7 @@ func ShouldSkipE2RRedundantTests() bool {
 	return IsEnvVarTrue("SKIP_E2E_REDUNDANT_TESTS")
 }
 
-func WaitForBatchStateGeneric(
+func WaitForRequestStateGeneric(
 	ctx context.Context, apex *ApexSystem, chainID string, txHash string,
 	apiKey string, timeout time.Duration, handler func(status string) bool,
 ) error {
@@ -387,7 +387,7 @@ func WaitForBatchState(
 	apiKey string, breakIfFailed bool, failAtLeastOnce bool, batchState string,
 ) (int, bool) {
 	failedToExecuteCount := 0
-	err := WaitForBatchStateGeneric(ctx, apex, chainID, txHash, apiKey, time.Second*300, func(status string) bool {
+	err := WaitForRequestStateGeneric(ctx, apex, chainID, txHash, apiKey, time.Second*300, func(status string) bool {
 		if status == BatchStateFailedToExecute {
 			failedToExecuteCount++
 
@@ -408,7 +408,7 @@ func WaitForRequestStates(
 ) (string, error) {
 	selectedState := ""
 	timeoutTime := time.Duration(timeoutSec) * time.Second
-	err := WaitForBatchStateGeneric(ctx, apex, chainID, txHash, apiKey, timeoutTime, func(status string) bool {
+	err := WaitForRequestStateGeneric(ctx, apex, chainID, txHash, apiKey, timeoutTime, func(status string) bool {
 		if len(expectedStates) == 0 {
 			selectedState = status
 

@@ -261,17 +261,79 @@ func TestE2E_ApexBridge_BatchRecreated(t *testing.T) {
 		user, new(big.Int).SetUint64(sendAmount), user,
 	)
 
-	timeoutTimer := time.NewTimer(time.Second * 300)
-	defer timeoutTimer.Stop()
-
-	var (
-		timeout bool
-	)
-
-	_, timeout = cardanofw.WaitForBatchState(
+	_, timeout := cardanofw.WaitForBatchState(
 		ctx, apex, cardanofw.ChainIDPrime, txHash, apiKey, false, true, cardanofw.BatchStateIncludedInBatch)
 
 	require.False(t, timeout)
+}
+
+func TestE2E_ApexBridge_Over_Max_Allowed_To_Bridge(t *testing.T) {
+	if cardanofw.ShouldSkipE2RRedundantTests() {
+		t.Skip()
+	}
+
+	const (
+		apiKey = "test_api_key"
+	)
+
+	ctx, cncl := context.WithCancel(context.Background())
+	defer cncl()
+
+	apex := cardanofw.SetupAndRunApexBridge(
+		t, ctx,
+		cardanofw.WithAPIKey(apiKey),
+		cardanofw.WithUserCnt(1),
+		cardanofw.WithNexusEnabled(true),
+		cardanofw.WithCustomConfigHandlers(func(mp map[string]interface{}) {
+			setting := cardanofw.GetMapFromInterfaceKey(mp, "bridgingSettings")
+			setting["maxAmountAllowedToBridge"] = new(big.Int).SetUint64(5_000_000)
+		}, nil),
+	)
+
+	defer require.True(t, apex.ApexBridgeProcessesRunning())
+
+	var (
+		user             = apex.Users[0]
+		apexSendAmount   = big.NewInt(10)
+		bridgingRequests = []struct {
+			src    string
+			dest   string
+			sender *cardanofw.TestApexUser
+		}{
+			{src: cardanofw.ChainIDPrime, dest: cardanofw.ChainIDVector, sender: apex.Users[0]},
+			{src: cardanofw.ChainIDVector, dest: cardanofw.ChainIDPrime, sender: apex.Users[0]},
+			{src: cardanofw.ChainIDNexus, dest: cardanofw.ChainIDPrime, sender: apex.Users[0]},
+		}
+		txHashes = make([]string, len(bridgingRequests))
+	)
+
+	var wg sync.WaitGroup
+
+	for idx, br := range bridgingRequests {
+		wg.Add(1)
+
+		go func(i int, src string, dest string, sender *cardanofw.TestApexUser) {
+			defer wg.Done()
+
+			txHashes[i] = apex.SubmitBridgingRequest(t, ctx, src, dest, sender,
+				cardanofw.ToChainNativeTokenAmount(src, apexSendAmount), user)
+			fmt.Printf("Bridging request: %v to %v sent. hash: %s\n", src, dest, txHashes[i])
+		}(idx, br.src, br.dest, br.sender)
+	}
+
+	wg.Wait()
+
+	for idx, br := range bridgingRequests {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			cardanofw.WaitForInvalidState(t, ctx, apex, br.src, txHashes[idx], apiKey)
+		}()
+	}
+
+	wg.Wait()
 }
 
 func TestE2E_FundAmount(t *testing.T) {
