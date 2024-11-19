@@ -38,6 +38,7 @@ var (
 
 	// Bridge events signatures
 	bridgeMessageEventSig         = new(contractsapi.BridgeMsgEvent).Sig()
+	bridgeBatchResultEventSig     = ethgo.ZeroHash
 	bridgeMessageResultEventSig   = new(contractsapi.BridgeMessageResultEvent).Sig()
 	newBatchEventSig              = new(contractsapi.NewBatchEvent).Sig()
 	newValidatorSetStoredEventSig = new(contractsapi.NewValidatorSetStoredEvent).Sig()
@@ -107,6 +108,7 @@ type bridgeEventManager struct {
 	lock                         sync.RWMutex
 	pendingBridgeBatchesExternal []*PendingBridgeBatch
 	pendingBridgeBatchesInternal []*PendingBridgeBatch
+	unexecutedBatches            []*PendingBridgeBatch
 	validatorSet                 validator.ValidatorSet
 	epoch                        uint64
 	nextEventIDExternal          uint64
@@ -175,7 +177,7 @@ func (b *bridgeEventManager) initTracker(runtimeCfg *config.Runtime) (*tracker.E
 			NumOfBlocksToReconcile: runtimeCfg.EventTracker.NumOfBlocksToReconcile,
 			PollInterval:           runtimeCfg.GenesisConfig.BlockTrackerPollInterval.Duration,
 			LogFilter: map[ethgo.Address][]ethgo.Hash{
-				ethgo.Address(b.config.bridgeCfg.ExternalGatewayAddr): {bridgeMessageEventSig},
+				ethgo.Address(b.config.bridgeCfg.ExternalGatewayAddr): {bridgeMessageEventSig, bridgeBatchResultEventSig},
 			},
 		},
 		store, b.config.bridgeCfg.EventTrackerStartBlocks[b.config.bridgeCfg.ExternalGatewayAddr],
@@ -295,34 +297,41 @@ func (b *bridgeEventManager) verifyVoteSignature(valSet validator.ValidatorSet, 
 
 // AddLog saves the received log from event tracker if it matches a bridge message event ABI
 func (b *bridgeEventManager) AddLog(chainID *big.Int, eventLog *ethgo.Log) error {
-	if b.externalChainID != chainID.Uint64() {
+	switch eventLog.Topics[0] {
+	case bridgeMessageEventSig:
+		if b.externalChainID != chainID.Uint64() {
+			return nil
+		}
+
+		event := &contractsapi.BridgeMsgEvent{}
+
+		doesMatch, err := event.ParseLog(eventLog)
+		if !doesMatch {
+			return nil
+		}
+
+		b.logger.Info(
+			"Add Bridge message event",
+			"block", eventLog.BlockNumber,
+			"hash", eventLog.TransactionHash,
+			"index", eventLog.LogIndex,
+		)
+
+		if err != nil {
+			b.logger.Error("could not decode bridge message event", "err", err)
+
+			return err
+		}
+
+		if err := b.state.insertBridgeMessageEvent(event, nil); err != nil {
+			b.logger.Error("could not save bridge message event to boltDb", "err", err)
+
+			return err
+		}
+
 		return nil
-	}
+	case bridgeBatchResultEventSig:
 
-	event := &contractsapi.BridgeMsgEvent{}
-
-	doesMatch, err := event.ParseLog(eventLog)
-	if !doesMatch {
-		return nil
-	}
-
-	b.logger.Info(
-		"Add Bridge message event",
-		"block", eventLog.BlockNumber,
-		"hash", eventLog.TransactionHash,
-		"index", eventLog.LogIndex,
-	)
-
-	if err != nil {
-		b.logger.Error("could not decode bridge message event", "err", err)
-
-		return err
-	}
-
-	if err := b.state.insertBridgeMessageEvent(event, nil); err != nil {
-		b.logger.Error("could not save bridge message event to boltDb", "err", err)
-
-		return err
 	}
 
 	return nil
