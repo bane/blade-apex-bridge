@@ -37,7 +37,7 @@ type TestEVMChainConfig struct {
 	IsEnabled bool
 
 	ValidatorCount         int
-	InitialHotWalletAmount *big.Int
+	InitialHotWalletAmount *big.Int // in wei
 	FundAmount             *big.Int
 	FundRelayerAmount      *big.Int
 	PreminesAddresses      []types.Address
@@ -230,7 +230,8 @@ func (ec *TestEVMChain) InitContracts(bridgeAdmin *crypto.ECDSAKey, bridgeURL st
 }
 
 func (ec *TestEVMChain) RegisterChain(validator *TestApexValidator) error {
-	return validator.RegisterChain(ec.config.ChainID, ec.config.InitialHotWalletAmount, ChainTypeEVM)
+	return validator.RegisterChain(
+		ec.config.ChainID, WeiToDfm(ec.config.InitialHotWalletAmount), ChainTypeEVM)
 }
 
 func (ec *TestEVMChain) GetGenerateConfigsParams(indx int) (result []string) {
