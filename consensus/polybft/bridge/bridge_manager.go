@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/Ethernal-Tech/blockchain-event-tracker/store"
 	"github.com/Ethernal-Tech/blockchain-event-tracker/tracker"
@@ -29,6 +30,7 @@ import (
 	polytypes "github.com/0xPolygon/polygon-edge/consensus/polybft/types"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/validator"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/wallet"
+	"github.com/0xPolygon/polygon-edge/jsonrpc"
 	"github.com/0xPolygon/polygon-edge/types"
 )
 
@@ -38,7 +40,7 @@ var (
 
 	// Bridge events signatures
 	bridgeMessageEventSig         = new(contractsapi.BridgeMsgEvent).Sig()
-	bridgeBatchResultEventSig     = ethgo.ZeroHash
+	bridgeBatchResultEventSig     = new(contractsapi.BridgeBatchResultEvent).Sig()
 	bridgeMessageResultEventSig   = new(contractsapi.BridgeMessageResultEvent).Sig()
 	newBatchEventSig              = new(contractsapi.NewBatchEvent).Sig()
 	newValidatorSetStoredEventSig = new(contractsapi.NewValidatorSetStoredEvent).Sig()
@@ -109,6 +111,7 @@ type bridgeEventManager struct {
 	pendingBridgeBatchesExternal []*PendingBridgeBatch
 	pendingBridgeBatchesInternal []*PendingBridgeBatch
 	unexecutedBatches            []*PendingBridgeBatch
+	externalClient               jsonrpc.EthClient
 	validatorSet                 validator.ValidatorSet
 	epoch                        uint64
 	nextEventIDExternal          uint64
@@ -151,6 +154,97 @@ func (b *bridgeEventManager) Start(runtimeConfig *config.Runtime) error {
 	}
 
 	b.tracker = tracker
+
+	relayer, err := createBridgeTxRelayer(b.config.bridgeCfg.JSONRPCEndpoint, b.logger)
+	if err != nil {
+		return fmt.Errorf("failed to initialize bridge external client. Error: %w", err)
+	}
+
+	b.externalClient = *relayer.Client()
+
+	if err := b.initRollbackHandlers(); err != nil {
+		return fmt.Errorf("failed to initialize bridge rollback handlers. Error: %w", err)
+	}
+
+	return nil
+}
+
+func (b *bridgeEventManager) initRollbackHandlers() error {
+	if err := b.internalChainRollbackHandler(); err != nil {
+		return fmt.Errorf("internal chain rollback handler failed, %w", err)
+	}
+
+	if err := b.externalChainRollbackHandler(); err != nil {
+		return fmt.Errorf("external chain rollback handler failed, %w", err)
+	}
+
+	return nil
+}
+
+func (b *bridgeEventManager) internalChainRollbackHandler() error {
+	go func() {
+		sub := b.blockchain.SubscribeEvents()
+		eventCh := sub.GetEventCh()
+		defer b.blockchain.UnubscribeEvents(sub)
+
+		for {
+			select {
+			case event := <-eventCh:
+
+				blockNumber := big.NewInt(int64(event.NewChain[0].Number))
+				b.createRollbackBatches(blockNumber, b.internalChainID)
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (b *bridgeEventManager) externalChainRollbackHandler() error {
+	latestBlock, err := b.externalClient.GetBlockByNumber(jsonrpc.BlockNumber(ethgo.Latest), false)
+	if err != nil {
+		return err
+	}
+
+	secondToLatest, err := b.externalClient.GetBlockByNumber(jsonrpc.BlockNumber(ethgo.Latest-1), false)
+	if err != nil {
+		return err
+	}
+
+	pollInterval := time.Duration(latestBlock.Header.Timestamp-secondToLatest.Header.Timestamp) * time.Second
+
+	go func() {
+		ticker := time.NewTicker(pollInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				block, err := b.externalClient.GetBlockByNumber(jsonrpc.BlockNumber(ethgo.Latest), false)
+				if err != nil {
+					// log the error, but won't return because it might be just a temporary problem
+					b.logger.Error("could not poll the block from the external chain", "err", err)
+				}
+
+				blockNumber := big.NewInt(int64(block.Header.Number))
+				b.createRollbackBatches(blockNumber, b.externalChainID)
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (b *bridgeEventManager) createRollbackBatches(blockNumber *big.Int, chainID uint64) error {
+	b.lock.Lock()
+	for i, batch := range b.unexecutedBatches {
+		if batch.SourceChainID.Uint64() == chainID && blockNumber.Cmp(batch.Threshold) <= 0 {
+			b.unexecutedBatches = append(b.unexecutedBatches[:i], b.unexecutedBatches[i+1:]...)
+			// 1. remove everything related to the current batch from the bolt db
+			// 2. create new (rollback) batch, add to the bolt db and multicast
+		}
+	}
+	b.lock.Unlock()
 
 	return nil
 }
