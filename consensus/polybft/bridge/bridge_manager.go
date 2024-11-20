@@ -424,11 +424,54 @@ func (b *bridgeEventManager) AddLog(chainID *big.Int, eventLog *ethgo.Log) error
 		}
 
 		return nil
+
 	case bridgeBatchResultEventSig:
+		event := &contractsapi.BridgeBatchResultEvent{}
 
+		doesMatch, err := event.ParseLog(eventLog)
+		if !doesMatch {
+			return nil
+		}
+
+		b.logger.Info(
+			"Add Bridge batch result event",
+			"block", eventLog.BlockNumber,
+			"hash", eventLog.TransactionHash,
+			"index", eventLog.LogIndex,
+		)
+
+		if err != nil {
+			b.logger.Error("could not decode bridge batch result event", "err", err)
+
+			return err
+		}
+
+		b.lock.Lock()
+
+		for i, batch := range b.unexecutedBatches {
+			if batch.StartID == event.StartID && batch.EndID == event.EndID {
+				b.unexecutedBatches = append(b.unexecutedBatches[:i], b.unexecutedBatches[i+1:]...)
+
+				// remove batch related data from the bolt db
+
+				break
+			}
+		}
+
+		b.lock.Unlock()
+
+		return nil
+
+	case newBatchEventSig:
+		// update b.unexecutedBatches
+
+		return nil
+
+	default:
+		b.logger.Error("unknown bridge event")
+
+		return errUnknownBridgeEvent
 	}
-
-	return nil
 }
 
 // BridgeBatch returns a batch to be submitted if there is a pending batch with quorum
@@ -781,6 +824,7 @@ func (b *bridgeEventManager) GetLogFilters() map[types.Address][]types.Hash {
 		b.config.bridgeCfg.InternalGatewayAddr: {
 			types.Hash(bridgeMessageEventSig),
 			types.Hash(bridgeMessageResultEventSig),
+			types.Hash(bridgeBatchResultEventSig),
 		},
 	}
 }
@@ -827,6 +871,49 @@ func (b *bridgeEventManager) ProcessLog(header *types.Header, log *ethgo.Log, db
 		}
 
 		return nil
+
+	case bridgeBatchResultEventSig:
+		event := &contractsapi.BridgeBatchResultEvent{}
+
+		doesMatch, err := event.ParseLog(log)
+		if !doesMatch || event.SourceChainID.Uint64() != b.externalChainID {
+			return nil
+		}
+
+		b.logger.Info(
+			"Add Bridge batch result event",
+			"block", log.BlockNumber,
+			"hash", log.TransactionHash,
+			"index", log.LogIndex,
+		)
+
+		if err != nil {
+			b.logger.Error("could not decode bridge batch result event", "err", err)
+
+			return err
+		}
+
+		b.lock.Lock()
+
+		for i, batch := range b.unexecutedBatches {
+			if batch.StartID == event.StartID && batch.EndID == event.EndID {
+				b.unexecutedBatches = append(b.unexecutedBatches[:i], b.unexecutedBatches[i+1:]...)
+
+				// remove batch related data from the bolt db
+
+				break
+			}
+		}
+
+		b.lock.Unlock()
+
+		return nil
+
+	case newBatchEventSig:
+		// update b.unexecutedBatches
+
+		return nil
+
 	default:
 		b.logger.Error("unknown bridge event")
 
