@@ -169,6 +169,7 @@ func (b *bridgeEventManager) Start(runtimeConfig *config.Runtime) error {
 	return nil
 }
 
+// initRollbackHandlers initiates the handlers for the internal and external chain
 func (b *bridgeEventManager) initRollbackHandlers() error {
 	if err := b.internalChainRollbackHandler(); err != nil {
 		return fmt.Errorf("internal chain rollback handler failed, %w", err)
@@ -181,6 +182,8 @@ func (b *bridgeEventManager) initRollbackHandlers() error {
 	return nil
 }
 
+// internalChainRollbackHandler manages rollback logic for batches that have not been
+// successfully executed in the internal chain
 func (b *bridgeEventManager) internalChainRollbackHandler() error {
 	go func() {
 		sub := b.blockchain.SubscribeEvents()
@@ -200,6 +203,8 @@ func (b *bridgeEventManager) internalChainRollbackHandler() error {
 	return nil
 }
 
+// externalChainRollbackHandler manages rollback logic for batches that have not been
+// successfully executed in the internal chain
 func (b *bridgeEventManager) externalChainRollbackHandler() error {
 	latestBlock, err := b.externalClient.GetBlockByNumber(jsonrpc.BlockNumber(ethgo.Latest), false)
 	if err != nil {
@@ -235,6 +240,8 @@ func (b *bridgeEventManager) externalChainRollbackHandler() error {
 	return nil
 }
 
+// createRollbackBatches goes through unexecuted batches, checks if any are ready to rollback,
+// and if so, initiates the rollback process
 func (b *bridgeEventManager) createRollbackBatches(blockNumber *big.Int, chainID uint64) error {
 	b.lock.Lock()
 	for i, batch := range b.unexecutedBatches {
