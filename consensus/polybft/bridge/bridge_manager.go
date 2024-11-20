@@ -271,7 +271,7 @@ func (b *bridgeEventManager) initTracker(runtimeCfg *config.Runtime) (*tracker.E
 			NumOfBlocksToReconcile: runtimeCfg.EventTracker.NumOfBlocksToReconcile,
 			PollInterval:           runtimeCfg.GenesisConfig.BlockTrackerPollInterval.Duration,
 			LogFilter: map[ethgo.Address][]ethgo.Hash{
-				ethgo.Address(b.config.bridgeCfg.ExternalGatewayAddr): {bridgeMessageEventSig, bridgeBatchResultEventSig},
+				ethgo.Address(b.config.bridgeCfg.ExternalGatewayAddr): {bridgeMessageEventSig, bridgeBatchResultEventSig, newBatchEventSig},
 			},
 		},
 		store, b.config.bridgeCfg.EventTrackerStartBlocks[b.config.bridgeCfg.ExternalGatewayAddr],
@@ -825,6 +825,7 @@ func (b *bridgeEventManager) GetLogFilters() map[types.Address][]types.Hash {
 			types.Hash(bridgeMessageEventSig),
 			types.Hash(bridgeMessageResultEventSig),
 			types.Hash(bridgeBatchResultEventSig),
+			types.Hash(newBatchEventSig),
 		},
 	}
 }
