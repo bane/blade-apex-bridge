@@ -2,6 +2,7 @@ package cardanofw
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -442,6 +443,26 @@ func (a *ApexSystem) WaitForAmount(
 
 		return newBalance, nil
 	}, infracommon.WithRetryCount(numRetries), infracommon.WithRetryWaitTime(waitTime))
+}
+
+func (a *ApexSystem) DefundHotWallet(
+	chain ChainID, defundReceiverAddress string, apexDefundAmount *big.Int,
+) error {
+	pkBytes, err := a.GetBridgeAdmin().MarshallPrivateKey()
+	if err != nil {
+		return err
+	}
+
+	pk := hex.EncodeToString(pkBytes)
+
+	return RunCommand(ResolveApexBridgeBinary(), []string{
+		"bridge-admin", "defund",
+		"--bridge-url", a.GetBridgeDefaultJSONRPCAddr(),
+		"--chain", chain,
+		"--amount", fmt.Sprint(ApexToDfm(apexDefundAmount)),
+		"--key", pk,
+		"--addr", defundReceiverAddress,
+	}, os.Stdout)
 }
 
 func (a *ApexSystem) SubmitTx(
