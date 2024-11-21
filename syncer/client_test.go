@@ -239,7 +239,6 @@ func TestPeerConnectionUpdateEventCh(t *testing.T) {
 		clientSrv = newTestNetwork(t)
 		peerSrv1  = newTestNetwork(t)
 		peerSrv2  = newTestNetwork(t)
-		peerSrv3  = newTestNetwork(t) // to wait for gossipped message
 
 		// latest block height
 		peerLatest1 = uint64(10)
@@ -267,9 +266,8 @@ func TestPeerConnectionUpdateEventCh(t *testing.T) {
 		clientSrv.Close()
 		peerSrv1.Close()
 		peerSrv2.Close()
-		peerSrv3.Close()
 
-		// no need to call Close of Client because test closes it manually
+		client.Close()
 		peerClient1.Close()
 		peerClient2.Close()
 	})
@@ -282,8 +280,6 @@ func TestPeerConnectionUpdateEventCh(t *testing.T) {
 		peerSrv1,
 		peerSrv1,
 		peerSrv2,
-		peerSrv2,
-		peerSrv3,
 	)
 
 	assert.NoError(t, err)
@@ -311,12 +307,11 @@ func TestPeerConnectionUpdateEventCh(t *testing.T) {
 	)
 
 	go func() {
-		for status := range client.GetPeerStatusUpdateCh() {
-			newStatuses = append(newStatuses, status)
-			doneCh <- struct{}{}
+		status := <-client.GetPeerStatusUpdateCh()
+		newStatuses = append(newStatuses, status)
+		doneCh <- struct{}{}
 
-			return
-		}
+		return
 	}()
 
 	// push latest block number to blockchain subscription
