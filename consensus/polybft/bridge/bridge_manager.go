@@ -30,6 +30,7 @@ import (
 	polytypes "github.com/0xPolygon/polygon-edge/consensus/polybft/types"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/validator"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/wallet"
+	"github.com/0xPolygon/polygon-edge/contracts"
 	"github.com/0xPolygon/polygon-edge/jsonrpc"
 	"github.com/0xPolygon/polygon-edge/types"
 )
@@ -459,18 +460,11 @@ func (b *bridgeEventManager) AddLog(chainID *big.Int, eventLog *ethgo.Log) error
 			if batch.StartID == event.StartID && batch.EndID == event.EndID {
 				b.unexecutedBatches = append(b.unexecutedBatches[:i], b.unexecutedBatches[i+1:]...)
 
-				// remove batch related data from the bolt db
-
 				break
 			}
 		}
 
 		b.lock.Unlock()
-
-		return nil
-
-	case newBatchEventSig:
-		// update b.unexecutedBatches
 
 		return nil
 
@@ -907,8 +901,6 @@ func (b *bridgeEventManager) ProcessLog(header *types.Header, log *ethgo.Log, db
 			if batch.StartID == event.StartID && batch.EndID == event.EndID {
 				b.unexecutedBatches = append(b.unexecutedBatches[:i], b.unexecutedBatches[i+1:]...)
 
-				// remove batch related data from the bolt db
-
 				break
 			}
 		}
@@ -918,7 +910,45 @@ func (b *bridgeEventManager) ProcessLog(header *types.Header, log *ethgo.Log, db
 		return nil
 
 	case newBatchEventSig:
-		// update b.unexecutedBatches
+		var newBatchEvent contractsapi.NewBatchEvent
+
+		doesMatch, err := newBatchEvent.ParseLog(log)
+		if err != nil {
+			return err
+		}
+
+		if !doesMatch {
+			return nil
+		}
+
+		provider, err := b.blockchain.GetStateProviderForBlock(header)
+		if err != nil {
+			return err
+		}
+
+		ss := systemstate.NewSystemState(contracts.EpochManagerContract, contracts.BridgeStorageContract, provider)
+
+		bridgeBatch, err := ss.GetBridgeBatchByNumber(newBatchEvent.ID)
+		if err != nil {
+			return err
+		}
+
+		b.lock.Lock()
+
+		b.unexecutedBatches = append(b.unexecutedBatches, &PendingBridgeBatch{
+			BridgeBatch: &contractsapi.BridgeBatch{
+				RootHash:           bridgeBatch.RootHash,
+				StartID:            bridgeBatch.StartID,
+				EndID:              bridgeBatch.EndID,
+				SourceChainID:      bridgeBatch.SourceChainID,
+				DestinationChainID: bridgeBatch.DestinationChainID,
+				Threshold:          bridgeBatch.Threshold,
+				IsRollback:         false,
+			},
+			Epoch: b.epoch,
+		})
+
+		b.lock.Unlock()
 
 		return nil
 
