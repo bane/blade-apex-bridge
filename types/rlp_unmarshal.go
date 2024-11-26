@@ -128,23 +128,29 @@ func (b *Block) unmarshalRLPFrom(p *fastrlp.Parser, v *fastrlp.Value) error {
 	return nil
 }
 
-func (b *Block) UnmarshalRLPHdrOnly(input []byte) error {
-	return UnmarshalRlp(b.unmarshalRLPFromHdrOnly, input)
-}
+// UnmarshalRLPHeader unmarshals only the Header for the input RLP encoded block
+func (b *Block) UnmarshalRLPHeader(input []byte) error {
+	pr := fastrlp.DefaultParserPool.Get()
+	defer fastrlp.DefaultParserPool.Put(pr)
 
-func (b *Block) unmarshalRLPFromHdrOnly(p *fastrlp.Parser, v *fastrlp.Value) error {
+	v, err := pr.Parse(input)
+	if err != nil {
+		return err
+	}
+
 	elems, err := v.GetElems()
 	if err != nil {
 		return err
 	}
 
-	if len(elems) < 3 {
+	if len(elems) != 3 {
 		return fmt.Errorf("incorrect number of elements to decode block, expected 3 but found %d", len(elems))
 	}
 
-	// header
+	// unmarshal only header
 	b.Header = &Header{}
-	return b.Header.unmarshalRLPFrom(p, elems[0])
+
+	return b.Header.unmarshalRLPFrom(pr, elems[0])
 }
 
 func (h *Header) UnmarshalRLP(input []byte) error {
@@ -225,7 +231,7 @@ func (h *Header) unmarshalRLPFrom(_ *fastrlp.Parser, v *fastrlp.Value) error {
 
 	h.SetNonce(nonce)
 
-	// basefee
+	// baseFee
 	// In order to be backward compatible, the len should be checked before accessing the element
 	if len(elems) > 15 {
 		if h.BaseFee, err = elems[15].GetUint64(); err != nil {
@@ -282,7 +288,7 @@ func (r *Receipt) unmarshalRLPFrom(p *fastrlp.Parser, v *fastrlp.Value) error {
 		return err
 	}
 
-	if len(elems) < 4 {
+	if len(elems) != 4 {
 		return fmt.Errorf("incorrect number of elements to decode receipt, expected 4 but found %d", len(elems))
 	}
 
@@ -337,7 +343,7 @@ func (l *Log) unmarshalRLPFrom(_ *fastrlp.Parser, v *fastrlp.Value) error {
 		return err
 	}
 
-	if len(elems) < 3 {
+	if len(elems) != 3 {
 		return fmt.Errorf("incorrect number of elements to decode log, expected 3 but found %d", len(elems))
 	}
 
@@ -399,7 +405,6 @@ func (t *Transaction) UnmarshalRLP(input []byte) error {
 		}
 
 		txType = tType
-
 		offset = 1
 	}
 
