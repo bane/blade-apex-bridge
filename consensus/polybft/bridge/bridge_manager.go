@@ -582,6 +582,22 @@ func (b *bridgeEventManager) BridgeBatch(blockNumber uint64) ([]*BridgeBatchSign
 		signedBridgeBatches = append(signedBridgeBatches, largestInternalBatch)
 	}
 
+	for _, batch := range b.rollbackBatches {
+		aggregatedSignature, err := b.getAggSignatureForBridgeBatchMessage(blockNumber, batch)
+		if err != nil {
+			if errors.Is(err, errQuorumNotReached) {
+				continue
+			}
+
+			return nil, err
+		}
+
+		signedBridgeBatches = append(signedBridgeBatches, &BridgeBatchSigned{
+			BridgeBatch:  batch.BridgeBatch,
+			AggSignature: aggregatedSignature,
+		})
+	}
+
 	return signedBridgeBatches, nil
 }
 
