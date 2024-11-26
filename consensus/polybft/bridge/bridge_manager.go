@@ -113,6 +113,7 @@ type bridgeEventManager struct {
 	pendingBridgeBatchesExternal []*PendingBridgeBatch
 	pendingBridgeBatchesInternal []*PendingBridgeBatch
 	unexecutedBatches            []*PendingBridgeBatch
+	rollbackBatches              []*PendingBridgeBatch
 	externalClient               jsonrpc.EthClient
 	validatorSet                 validator.ValidatorSet
 	epoch                        uint64
@@ -197,7 +198,7 @@ func (b *bridgeEventManager) internalChainRollbackHandler() error {
 			case event := <-eventCh:
 
 				blockNumber := big.NewInt(int64(event.NewChain[0].Number))
-				b.createRollbackBatches(blockNumber, b.internalChainID)
+				b.createRollbackBatches(blockNumber, b.externalChainID, b.internalChainID)
 			}
 		}
 	}()
@@ -234,7 +235,7 @@ func (b *bridgeEventManager) externalChainRollbackHandler() error {
 				}
 
 				blockNumber := big.NewInt(int64(block.Header.Number))
-				b.createRollbackBatches(blockNumber, b.externalChainID)
+				b.createRollbackBatches(blockNumber, b.internalChainID, b.externalChainID)
 			}
 		}
 	}()
@@ -244,13 +245,56 @@ func (b *bridgeEventManager) externalChainRollbackHandler() error {
 
 // createRollbackBatches goes through unexecuted batches, checks if any are ready to rollback,
 // and if so, initiates the rollback process
-func (b *bridgeEventManager) createRollbackBatches(blockNumber *big.Int, chainID uint64) error {
+func (b *bridgeEventManager) createRollbackBatches(blockNumber *big.Int, sourceChainID uint64, destinationChainID uint64) error {
 	b.lock.Lock()
 	for i, batch := range b.unexecutedBatches {
-		if batch.SourceChainID.Uint64() == chainID && blockNumber.Cmp(batch.Threshold) <= 0 {
+		if batch.SourceChainID.Uint64() == sourceChainID && batch.DestinationChainID.Uint64() == destinationChainID && blockNumber.Cmp(batch.Threshold) <= 0 {
+
+			batch.IsRollback = true
+
+			hash, err := batch.Hash()
+			if err != nil {
+				return fmt.Errorf("failed to generate hash for (rollback) BridgeBatch. Error: %w", err)
+			}
+
+			hashBytes := hash.Bytes()
+
+			signature, err := b.config.key.SignWithDomain(hashBytes, signer.DomainBridge)
+			if err != nil {
+				return fmt.Errorf("failed to sign (rollback) batch message. Error: %w", err)
+			}
+
+			sig := &BridgeBatchVoteConsensusData{
+				Sender:    b.config.key.String(),
+				Signature: signature,
+			}
+
+			if _, err = b.state.insertConsensusData(
+				b.epoch,
+				hashBytes,
+				sig,
+				nil,
+				sourceChainID); err != nil {
+				return fmt.Errorf(
+					"failed to insert signature for message (rollback) batch to the state. Error: %w",
+					err,
+				)
+			}
+
+			// gossip message
+			b.multicast(&BridgeBatchVote{
+				Hash: hashBytes,
+				BridgeBatchVoteConsensusData: &BridgeBatchVoteConsensusData{
+					Signature: signature,
+					Sender:    b.config.key.String(),
+				},
+				EpochNumber:        b.epoch,
+				SourceChainID:      sourceChainID,
+				DestinationChainID: destinationChainID,
+			})
+
+			b.rollbackBatches = append(b.rollbackBatches, batch)
 			b.unexecutedBatches = append(b.unexecutedBatches[:i], b.unexecutedBatches[i+1:]...)
-			// 1. remove everything related to the current batch from the bolt db
-			// 2. create new (rollback) batch, add to the bolt db and multicast
 		}
 	}
 	b.lock.Unlock()
