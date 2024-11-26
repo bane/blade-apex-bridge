@@ -14,25 +14,16 @@ type unmarshalRLPFunc func(p *fastrlp.Parser, v *fastrlp.Value) error
 
 type unmarshalRLPFromFunc func(TxType, *fastrlp.Parser, *fastrlp.Value) error
 
-func UnmarshalRlp(obj unmarshalRLPFunc, input []byte) error {
+func UnmarshalRlp(unmarshalHandler unmarshalRLPFunc, input []byte) error {
 	pr := fastrlp.DefaultParserPool.Get()
+	defer fastrlp.DefaultParserPool.Put(pr)
 
 	v, err := pr.Parse(input)
 	if err != nil {
-		fastrlp.DefaultParserPool.Put(pr)
-
 		return err
 	}
 
-	if err = obj(pr, v); err != nil {
-		fastrlp.DefaultParserPool.Put(pr)
-
-		return err
-	}
-
-	fastrlp.DefaultParserPool.Put(pr)
-
-	return nil
+	return unmarshalHandler(pr, v)
 }
 
 func unmarshalRLPFrom(p *fastrlp.Parser, v *fastrlp.Value, cb unmarshalRLPFromFunc) error {
@@ -153,11 +144,7 @@ func (b *Block) unmarshalRLPFromHdrOnly(p *fastrlp.Parser, v *fastrlp.Value) err
 
 	// header
 	b.Header = &Header{}
-	if err = b.Header.unmarshalRLPFrom(p, elems[0]); err != nil {
-		return err
-	}
-
-	return nil
+	return b.Header.unmarshalRLPFrom(p, elems[0])
 }
 
 func (h *Header) UnmarshalRLP(input []byte) error {
