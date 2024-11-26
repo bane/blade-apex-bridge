@@ -42,9 +42,10 @@ type EVMChainInfo struct {
 }
 
 type ApexSystem struct {
-	BridgeCluster *framework.TestCluster
-	Config        *ApexSystemConfig
-	bladeAdmin    *crypto.ECDSAKey
+	BridgeCluster   *framework.TestCluster
+	Config          *ApexSystemConfig
+	bladeAdmin      *crypto.ECDSAKey
+	bladeProxyAdmin *crypto.ECDSAKey
 
 	validators  []*TestApexValidator
 	relayerNode *framework.Node
@@ -153,9 +154,14 @@ func (a *ApexSystem) StartBridgeChain(t *testing.T) {
 	bladeAdmin, err := crypto.GenerateECDSAKey()
 	require.NoError(t, err)
 
+	bladeProxyAdmin, err := crypto.GenerateECDSAKey()
+	require.NoError(t, err)
+
 	a.bladeAdmin = bladeAdmin
+	a.bladeProxyAdmin = bladeProxyAdmin
 	a.BridgeCluster = framework.NewTestCluster(t, a.Config.BladeValidatorCount,
 		framework.WithBladeAdmin(bladeAdmin.Address().String()),
+		framework.WithProxyContractsAdmin(bladeProxyAdmin.Address().String()),
 	)
 
 	// create validators
@@ -291,6 +297,10 @@ func (a *ApexSystem) GetBridgeDefaultJSONRPCAddr() string {
 
 func (a *ApexSystem) GetBridgeAdmin() *crypto.ECDSAKey {
 	return a.bladeAdmin
+}
+
+func (a *ApexSystem) GetBridgeProxyAdmin() *crypto.ECDSAKey {
+	return a.bladeProxyAdmin
 }
 
 func (a *ApexSystem) GetValidatorsCount() int {

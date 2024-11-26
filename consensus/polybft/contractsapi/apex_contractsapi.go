@@ -6,7 +6,8 @@ import (
 )
 
 type InitializeApexBridgeContractsBridgeFn struct {
-	Owner types.Address `abi:"_owner"`
+	Owner        types.Address `abi:"_owner"`
+	UpgradeAdmin types.Address `abi:"_upgradeAdmin"`
 }
 
 func (i *InitializeApexBridgeContractsBridgeFn) Sig() []byte {
@@ -41,7 +42,8 @@ func (s *SetDependenciesApexBridgeContractsBridgeFn) DecodeAbi(buf []byte) error
 }
 
 type InitializeApexBridgeContractsClaimsHelperFn struct {
-	Owner types.Address `abi:"_owner"`
+	Owner        types.Address `abi:"_owner"`
+	UpgradeAdmin types.Address `abi:"_upgradeAdmin"`
 }
 
 func (i *InitializeApexBridgeContractsClaimsHelperFn) Sig() []byte {
@@ -75,6 +77,7 @@ func (s *SetDependenciesApexBridgeContractsClaimsHelperFn) DecodeAbi(buf []byte)
 
 type InitializeApexBridgeContractsClaimsFn struct {
 	Owner                   types.Address `abi:"_owner"`
+	UpgradeAdmin            types.Address `abi:"_upgradeAdmin"`
 	MaxNumberOfTransactions uint16        `abi:"_maxNumberOfTransactions"`
 	TimeoutBlocksNumber     uint8         `abi:"_timeoutBlocksNumber"`
 }
@@ -111,7 +114,8 @@ func (s *SetDependenciesApexBridgeContractsClaimsFn) DecodeAbi(buf []byte) error
 }
 
 type InitializeApexBridgeContractsSignedBatchesFn struct {
-	Owner types.Address `abi:"_owner"`
+	Owner        types.Address `abi:"_owner"`
+	UpgradeAdmin types.Address `abi:"_upgradeAdmin"`
 }
 
 func (i *InitializeApexBridgeContractsSignedBatchesFn) Sig() []byte {
@@ -145,7 +149,8 @@ func (s *SetDependenciesApexBridgeContractsSignedBatchesFn) DecodeAbi(buf []byte
 }
 
 type InitializeApexBridgeContractsSlotsFn struct {
-	Owner types.Address `abi:"_owner"`
+	Owner        types.Address `abi:"_owner"`
+	UpgradeAdmin types.Address `abi:"_upgradeAdmin"`
 }
 
 func (i *InitializeApexBridgeContractsSlotsFn) Sig() []byte {
@@ -178,8 +183,9 @@ func (s *SetDependenciesApexBridgeContractsSlotsFn) DecodeAbi(buf []byte) error 
 }
 
 type InitializeApexBridgeContractsValidatorsFn struct {
-	Owner      types.Address   `abi:"_owner"`
-	Validators []types.Address `abi:"_validators"`
+	Owner        types.Address   `abi:"_owner"`
+	UpgradeAdmin types.Address   `abi:"_upgradeAdmin"`
+	Validators   []types.Address `abi:"_validators"`
 }
 
 func (i *InitializeApexBridgeContractsValidatorsFn) Sig() []byte {
@@ -211,7 +217,8 @@ func (s *SetDependenciesApexBridgeContractsValidatorsFn) DecodeAbi(buf []byte) e
 }
 
 type InitializeApexBridgeContractsAdminFn struct {
-	Owner types.Address `abi:"_owner"`
+	Owner        types.Address `abi:"_owner"`
+	UpgradeAdmin types.Address `abi:"_upgradeAdmin"`
 }
 
 func (i *InitializeApexBridgeContractsAdminFn) Sig() []byte {

@@ -51,8 +51,6 @@ func initApex(transition *state.Transition, polyBFTConfig PolyBFTConfig) (err er
 
 // initProxies initializes proxy contracts, that allow upgradeability of contracts implementation
 func initApexProxies(transition *state.Transition, polyBFTConfig PolyBFTConfig) error {
-	proxyGenesisAdmin := polyBFTConfig.ProxyContractsAdmin
-
 	for proxyAddress, implAddress := range contracts.GetApexProxyImplementationMapping() {
 		protectSetupProxyFn := &contractsapi.ProtectSetUpProxyGenesisProxyFn{Initiator: contracts.SystemCaller}
 
@@ -73,7 +71,7 @@ func initApexProxies(transition *state.Transition, polyBFTConfig PolyBFTConfig) 
 
 		setUpproxyFn := &contractsapi.SetUpProxyGenesisProxyFn{
 			Logic: implAddress,
-			Admin: proxyGenesisAdmin,
+			Admin: polyBFTConfig.ProxyContractsAdmin,
 			Data:  data,
 		}
 
@@ -94,11 +92,20 @@ func initApexProxies(transition *state.Transition, polyBFTConfig PolyBFTConfig) 
 func getDataForApexContract(contract types.Address, polyBFTConfig PolyBFTConfig) ([]byte, error) {
 	switch contract {
 	case contracts.Bridge:
-		return (&contractsapi.InitializeApexBridgeContractsBridgeFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
+		return (&contractsapi.InitializeApexBridgeContractsBridgeFn{
+			Owner:        polyBFTConfig.BladeAdmin,
+			UpgradeAdmin: polyBFTConfig.ProxyContractsAdmin,
+		}).EncodeAbi()
 	case contracts.SignedBatches:
-		return (&contractsapi.InitializeApexBridgeContractsSignedBatchesFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
+		return (&contractsapi.InitializeApexBridgeContractsSignedBatchesFn{
+			Owner:        polyBFTConfig.BladeAdmin,
+			UpgradeAdmin: polyBFTConfig.ProxyContractsAdmin,
+		}).EncodeAbi()
 	case contracts.ClaimsHelper:
-		return (&contractsapi.InitializeApexBridgeContractsClaimsHelperFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
+		return (&contractsapi.InitializeApexBridgeContractsClaimsHelperFn{
+			Owner:        polyBFTConfig.BladeAdmin,
+			UpgradeAdmin: polyBFTConfig.ProxyContractsAdmin,
+		}).EncodeAbi()
 	case contracts.Validators:
 		var validatorAddresses = make([]types.Address, len(polyBFTConfig.InitialValidatorSet))
 		for i, validator := range polyBFTConfig.InitialValidatorSet {
@@ -106,20 +113,26 @@ func getDataForApexContract(contract types.Address, polyBFTConfig PolyBFTConfig)
 		}
 
 		return (&contractsapi.InitializeApexBridgeContractsValidatorsFn{
-			Owner:      polyBFTConfig.BladeAdmin,
-			Validators: validatorAddresses,
+			Owner:        polyBFTConfig.BladeAdmin,
+			UpgradeAdmin: polyBFTConfig.ProxyContractsAdmin,
+			Validators:   validatorAddresses,
 		}).EncodeAbi()
 	case contracts.Slots:
-		return (&contractsapi.InitializeApexBridgeContractsSlotsFn{Owner: polyBFTConfig.BladeAdmin}).EncodeAbi()
+		return (&contractsapi.InitializeApexBridgeContractsSlotsFn{
+			Owner:        polyBFTConfig.BladeAdmin,
+			UpgradeAdmin: polyBFTConfig.ProxyContractsAdmin,
+		}).EncodeAbi()
 	case contracts.Claims:
 		return (&contractsapi.InitializeApexBridgeContractsClaimsFn{
 			Owner:                   polyBFTConfig.BladeAdmin,
+			UpgradeAdmin:            polyBFTConfig.ProxyContractsAdmin,
 			MaxNumberOfTransactions: maxNumberOfTransactions,
 			TimeoutBlocksNumber:     timeoutBlocksNumber,
 		}).EncodeAbi()
 	case contracts.ApexBridgeAdmin:
 		return (&contractsapi.InitializeApexBridgeContractsAdminFn{
-			Owner: polyBFTConfig.BladeAdmin,
+			Owner:        polyBFTConfig.BladeAdmin,
+			UpgradeAdmin: polyBFTConfig.ProxyContractsAdmin,
 		}).EncodeAbi()
 	default:
 		return nil, fmt.Errorf("no contract defined at address %v", contract)

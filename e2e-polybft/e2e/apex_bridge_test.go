@@ -73,6 +73,9 @@ func Test_OnlyRunApexBridge_WithNexusAndVector(t *testing.T) {
 	userNexusPK, err := user.GetPrivateKey(cardanofw.ChainIDNexus)
 	require.NoError(t, err)
 
+	nexusAdminKeyRaw, err := apex.NexusInfo.AdminKey.MarshallPrivateKey()
+	require.NoError(t, err)
+
 	fmt.Printf("user prime addr: %s\n", user.GetAddress(cardanofw.ChainIDPrime))
 	fmt.Printf("user prime signing key hex: %s\n", userPrimeSK)
 	fmt.Printf("user vector addr: %s\n", user.GetAddress(cardanofw.ChainIDVector))
@@ -86,6 +89,10 @@ func Test_OnlyRunApexBridge_WithNexusAndVector(t *testing.T) {
 	fmt.Printf("nexus url: %s\n", apex.NexusInfo.Node.JSONRPCAddr())
 	fmt.Printf("nexus gateway sc addr: %s\n", apex.NexusInfo.GatewayAddress)
 	fmt.Printf("nexus chainID: %v\n", chainID)
+	fmt.Printf("nexus admin key: %v\n", hex.EncodeToString(nexusAdminKeyRaw))
+
+	proxyAdminPrivateKeyRaw, err := apex.GetBridgeProxyAdmin().MarshallPrivateKey()
+	require.NoError(t, err)
 
 	privateKeyRaw, err := apex.GetBridgeAdmin().MarshallPrivateKey()
 	require.NoError(t, err)
@@ -93,6 +100,8 @@ func Test_OnlyRunApexBridge_WithNexusAndVector(t *testing.T) {
 	fmt.Printf("bridge url: %s\n", apex.GetBridgeDefaultJSONRPCAddr())
 	fmt.Printf("bridge admin key: %s\n", hex.EncodeToString(privateKeyRaw))
 	fmt.Printf("bridge admin address: %s\n", apex.GetBridgeAdmin().Address())
+	fmt.Printf("bridge proxy admin key: %s\n", hex.EncodeToString(proxyAdminPrivateKeyRaw))
+	fmt.Printf("bridge proxy admin address: %s\n", apex.GetBridgeProxyAdmin().Address())
 
 	signalChannel := make(chan os.Signal, 1)
 	// Notify the signalChannel when the interrupt signal is received (Ctrl+C)
