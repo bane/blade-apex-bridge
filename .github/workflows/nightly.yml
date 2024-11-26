@@ -73,7 +73,7 @@ jobs:
       vus: "100"
       txs_per_user: "10000"
       txpool_timeout: "15m0s"
-      wait_txpool: false
+      wait_txpool: true
       receipts_timeout: "2m0s"
       batch_size: "10000"
       notification: false
@@ -97,7 +97,7 @@ jobs:
       vus: "100"
       txs_per_user: "10000"
       txpool_timeout: "20m0s"
-      wait_txpool: false
+      wait_txpool: true
       receipts_timeout: "2m0s"
       batch_size: "10000"
       notification: false
@@ -121,7 +121,7 @@ jobs:
       vus: "100"
       txs_per_user: "10000"
       txpool_timeout: "55m0s"
-      wait_txpool: false
+      wait_txpool: true
       receipts_timeout: "2m0s"
       batch_size: "10000"
       notification: false
@@ -145,7 +145,7 @@ jobs:
       vus: "100"
       txs_per_user: "10000"
       txpool_timeout: "30m0s"
-      wait_txpool: false
+      wait_txpool: true
       receipts_timeout: "2m0s"
       batch_size: "10000"
       notification: false
@@ -233,7 +233,7 @@ jobs:
       vus: "100"
       txs_per_user: "10000"
       txpool_timeout: "15m0s"
-      wait_txpool: false
+      wait_txpool: true
       receipts_timeout: "2m0s"
       batch_size: "10000"
       total_time: ${{ needs.load_test_eoa.outputs.total_time }}
@@ -262,7 +262,7 @@ jobs:
       vus: "100"
       txs_per_user: "10000"
       txpool_timeout: "20m0s"
-      wait_txpool: false
+      wait_txpool: true
       receipts_timeout: "2m0s"
       batch_size: "10000"
       total_time: ${{ needs.load_test_erc20.outputs.total_time }}
@@ -291,7 +291,7 @@ jobs:
       vus: "100"
       txs_per_user: "10000"
       txpool_timeout: "55m0s"
-      wait_txpool: false
+      wait_txpool: true
       receipts_timeout: "2m0s"
       batch_size: "10000"
       total_time: ${{ needs.load_test_erc721.outputs.total_time }}
@@ -320,7 +320,7 @@ jobs:
       vus: "100"
       txs_per_user: "10000"
       txpool_timeout: "30m0s"
-      wait_txpool: false
+      wait_txpool: true
       receipts_timeout: "2m0s"
       batch_size: "10000"
       total_time: ${{ needs.load_test_mixed.outputs.total_time }}

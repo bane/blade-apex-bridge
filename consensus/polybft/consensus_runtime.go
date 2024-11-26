@@ -801,7 +801,7 @@ func (c *consensusRuntime) IsValidProposalHash(proposal *proto.Proposal, hash []
 	}
 
 	block := types.Block{}
-	if err := block.UnmarshalRLP(proposal.RawProposal); err != nil {
+	if err := block.UnmarshalRLPHdrOnly(proposal.RawProposal); err != nil {
 		c.logger.Error("unable to unmarshal proposal", "error", err)
 
 		return false
@@ -907,7 +907,7 @@ func (c *consensusRuntime) BuildPrePrepareMessage(
 	}
 
 	block := types.Block{}
-	if err := block.UnmarshalRLP(rawProposal); err != nil {
+	if err := block.UnmarshalRLPHdrOnly(rawProposal); err != nil {
 		c.logger.Error(fmt.Sprintf("cannot unmarshal RLP: %s", err))
 
 		return nil

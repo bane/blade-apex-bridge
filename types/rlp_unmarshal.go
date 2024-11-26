@@ -137,6 +137,29 @@ func (b *Block) unmarshalRLPFrom(p *fastrlp.Parser, v *fastrlp.Value) error {
 	return nil
 }
 
+func (b *Block) UnmarshalRLPHdrOnly(input []byte) error {
+	return UnmarshalRlp(b.unmarshalRLPFromHdrOnly, input)
+}
+
+func (b *Block) unmarshalRLPFromHdrOnly(p *fastrlp.Parser, v *fastrlp.Value) error {
+	elems, err := v.GetElems()
+	if err != nil {
+		return err
+	}
+
+	if len(elems) < 3 {
+		return fmt.Errorf("incorrect number of elements to decode block, expected 3 but found %d", len(elems))
+	}
+
+	// header
+	b.Header = &Header{}
+	if err = b.Header.unmarshalRLPFrom(p, elems[0]); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (h *Header) UnmarshalRLP(input []byte) error {
 	return UnmarshalRlp(h.unmarshalRLPFrom, input)
 }
