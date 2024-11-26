@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"path"
 	"sync"
@@ -692,9 +693,12 @@ func (b *bridgeEventManager) buildBridgeBatch(
 
 	b.lock.RLock()
 
+	externalThreshold := false
+
 	if sourceChainID == b.externalChainID {
 		pendingBridgeBatches = b.pendingBridgeBatchesExternal
 	} else if sourceChainID == b.internalChainID {
+		externalThreshold = true
 		pendingBridgeBatches = b.pendingBridgeBatchesInternal
 	}
 
@@ -731,10 +735,27 @@ func (b *bridgeEventManager) buildBridgeBatch(
 
 	b.lock.RUnlock()
 
+	var blockNumber uint64
+
+	if externalThreshold {
+		block, err := b.externalClient.GetBlockByNumber(jsonrpc.BlockNumber(ethgo.Latest), false)
+		if err != nil {
+			return err
+		}
+
+		blockNumber = block.Number()
+
+	} else {
+
+		blockNumber = b.blockchain.CurrentHeader().Number
+	}
+
 	pendingBridgeBatch, err := NewPendingBridgeBatch(epoch, bridgeMessageEvents)
 	if err != nil {
 		return err
 	}
+
+	pendingBridgeBatch.Threshold = big.NewInt(int64(math.Ceil(float64(blockNumber)/10)*10) + 100)
 
 	hash, err := pendingBridgeBatch.Hash()
 	if err != nil {
