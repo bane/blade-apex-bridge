@@ -196,9 +196,12 @@ func (b *bridgeEventManager) internalChainRollbackHandler() error {
 		for {
 			select {
 			case event := <-eventCh:
-
 				blockNumber := big.NewInt(int64(event.NewChain[0].Number))
-				b.createRollbackBatches(blockNumber, b.externalChainID, b.internalChainID)
+				if err := b.createRollbackBatches(blockNumber, b.externalChainID, b.internalChainID); err != nil {
+					b.logger.Error("could not create a rollback batches", "err", err)
+
+					return
+				}
 			}
 		}
 	}()
@@ -235,7 +238,11 @@ func (b *bridgeEventManager) externalChainRollbackHandler() error {
 				}
 
 				blockNumber := big.NewInt(int64(block.Header.Number))
-				b.createRollbackBatches(blockNumber, b.internalChainID, b.externalChainID)
+				if err := b.createRollbackBatches(blockNumber, b.internalChainID, b.externalChainID); err != nil {
+					b.logger.Error("could not create a rollback batches", "err", err)
+
+					return
+				}
 			}
 		}
 	}()
@@ -245,11 +252,13 @@ func (b *bridgeEventManager) externalChainRollbackHandler() error {
 
 // createRollbackBatches goes through unexecuted batches, checks if any are ready to rollback,
 // and if so, initiates the rollback process
-func (b *bridgeEventManager) createRollbackBatches(blockNumber *big.Int, sourceChainID uint64, destinationChainID uint64) error {
+func (b *bridgeEventManager) createRollbackBatches(blockNumber *big.Int,
+	sourceChainID uint64, destinationChainID uint64) error {
 	b.lock.Lock()
 	for i, batch := range b.unexecutedBatches {
-		if batch.SourceChainID.Uint64() == sourceChainID && batch.DestinationChainID.Uint64() == destinationChainID && blockNumber.Cmp(batch.Threshold) <= 0 {
-
+		if batch.SourceChainID.Uint64() == sourceChainID &&
+			batch.DestinationChainID.Uint64() == destinationChainID &&
+			blockNumber.Cmp(batch.Threshold) <= 0 {
 			batch.IsRollback = true
 
 			hash, err := batch.Hash()
@@ -324,7 +333,8 @@ func (b *bridgeEventManager) initTracker(runtimeCfg *config.Runtime) (*tracker.E
 			NumOfBlocksToReconcile: runtimeCfg.EventTracker.NumOfBlocksToReconcile,
 			PollInterval:           runtimeCfg.GenesisConfig.BlockTrackerPollInterval.Duration,
 			LogFilter: map[ethgo.Address][]ethgo.Hash{
-				ethgo.Address(b.config.bridgeCfg.ExternalGatewayAddr): {bridgeMessageEventSig, bridgeBatchResultEventSig, newBatchEventSig},
+				ethgo.Address(b.config.bridgeCfg.ExternalGatewayAddr): {bridgeMessageEventSig,
+					bridgeBatchResultEventSig, newBatchEventSig},
 			},
 		},
 		store, b.config.bridgeCfg.EventTrackerStartBlocks[b.config.bridgeCfg.ExternalGatewayAddr],
@@ -573,7 +583,7 @@ func (b *bridgeEventManager) BridgeBatch(blockNumber uint64) ([]*BridgeBatchSign
 		return nil, fmt.Errorf("failed to get largest pending internal batch: %w", err)
 	}
 
-	var signedBridgeBatches []*BridgeBatchSigned
+	signedBridgeBatches := make([]*BridgeBatchSigned, 0)
 	if largestExternalBatch != nil {
 		signedBridgeBatches = append(signedBridgeBatches, largestExternalBatch)
 	}
@@ -804,9 +814,7 @@ func (b *bridgeEventManager) buildBridgeBatch(
 		}
 
 		blockNumber = block.Number()
-
 	} else {
-
 		blockNumber = b.blockchain.CurrentHeader().Number
 	}
 
