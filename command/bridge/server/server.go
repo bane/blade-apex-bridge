@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -106,8 +107,8 @@ func runCommand(cmd *cobra.Command, _ []string) {
 			outputter.SetError(fmt.Errorf("external chain already running: %s", cid))
 		}
 
-	// 	return
-	// }
+		return
+	}
 
 	// Start the client
 	if err := runExternalChain(ctx, outputter, closeCh); err != nil {
