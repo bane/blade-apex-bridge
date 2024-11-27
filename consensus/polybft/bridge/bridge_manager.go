@@ -214,7 +214,7 @@ func (b *bridgeEventManager) externalChainRollbackHandler() error {
 		return err
 	}
 
-	secondToLatest, err := b.externalClient.GetBlockByNumber(jsonrpc.BlockNumber(ethgo.Latest-1), false)
+	secondToLatest, err := b.externalClient.GetBlockByNumber(jsonrpc.BlockNumber(latestBlock.Number()-1), false)
 	if err != nil {
 		return err
 	}
