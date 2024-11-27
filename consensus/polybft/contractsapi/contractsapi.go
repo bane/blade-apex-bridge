@@ -2104,7 +2104,6 @@ type BridgeMessageResultEvent struct {
 	SourceChainID      *big.Int `abi:"sourceChainID"`
 	DestinationChainID *big.Int `abi:"destinationChainID"`
 	Message            []byte   `abi:"message"`
-	IsRollback         bool     `abi:"isRollback"`
 }
 
 func (*BridgeMessageResultEvent) Sig() ethgo.Hash {
