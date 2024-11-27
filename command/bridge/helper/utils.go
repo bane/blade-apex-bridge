@@ -39,6 +39,9 @@ const (
 	AmountsFlag             = "amounts"
 	Erc20TokenFlag          = "erc20-token" //nolint:gosec
 	BladeManagerFlagDesc    = "address of blade manager contract on a external chain"
+
+	ExternalChainLabelID     = "external-chain"
+	ExternalChainImagePrefix = "geth-chain"
 )
 
 var (
@@ -82,8 +85,8 @@ func DecodePrivateKey(rawKey string) (crypto.Key, error) {
 	return externalChainAccountKey, nil
 }
 
-// GetBridgeChainID returns chainID of bridge
-func GetBridgeChainID() (string, error) {
+// GetBridgeContainerID returns container id for the external chain
+func GetBridgeContainerID(chainID uint64) (string, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return "", fmt.Errorf("external chain id error: %w", err)
@@ -94,8 +97,9 @@ func GetBridgeChainID() (string, error) {
 		return "", fmt.Errorf("external chain id error: %w", err)
 	}
 
+	label := fmt.Sprintf("%s-%d", ExternalChainImagePrefix, chainID)
 	for _, c := range containers {
-		if c.Labels["edge-type"] == "external-chain" {
+		if c.Labels[ExternalChainLabelID] == label {
 			return c.ID, nil
 		}
 	}
@@ -104,13 +108,13 @@ func GetBridgeChainID() (string, error) {
 }
 
 // ReadBridgeChainIP returns ip address of bridge
-func ReadBridgeChainIP(port uint64) (string, error) {
+func ReadBridgeChainIP(port, chainID uint64) (string, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return "", fmt.Errorf("external chain id error: %w", err)
 	}
 
-	contID, err := GetBridgeChainID()
+	contID, err := GetBridgeContainerID(chainID)
 	if err != nil {
 		return "", err
 	}

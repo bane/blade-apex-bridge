@@ -1,6 +1,8 @@
 package server
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -15,8 +17,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
-	dockerImg "github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
@@ -28,7 +30,7 @@ import (
 )
 
 const (
-	gethConsoleImage = "ghcr.io/0xpolygon/go-ethereum-console:latest"
+	gethConsoleImage = "0xethernal/go-ethereum-console:v0.0.1"
 	gethImage        = "ethereum/client-go:v1.9.25"
 
 	defaultHostIP = "127.0.0.1"
@@ -98,7 +100,7 @@ func runCommand(cmd *cobra.Command, _ []string) {
 	closeCh := make(chan struct{})
 
 	// Check if the client is already running
-	if cid, err := helper.GetBridgeChainID(); !errors.Is(err, helper.ErrExternalChainNotFound) {
+	if cid, err := helper.GetBridgeContainerID(params.chainID); !errors.Is(err, helper.ErrExternalChainNotFound) {
 		if err != nil {
 			outputter.SetError(err)
 		} else if cid != "" {
@@ -116,10 +118,10 @@ func runCommand(cmd *cobra.Command, _ []string) {
 	}
 
 	// Ping geth server to make sure everything is up and running
-	if err := PingServer(closeCh, params.port); err != nil {
+	if err := PingServer(ctx, params.port); err != nil {
 		close(closeCh)
 
-		if ip, err := helper.ReadBridgeChainIP(params.port); err != nil {
+		if ip, err := helper.ReadBridgeChainIP(params.port, params.chainID); err != nil {
 			outputter.SetError(fmt.Errorf("failed to ping external chain server: %w", err))
 		} else {
 			outputter.SetError(fmt.Errorf("failed to ping external chain server at address %s: %w", ip, err))
@@ -137,7 +139,7 @@ func runCommand(cmd *cobra.Command, _ []string) {
 		}
 	}()
 
-	if err := handleSignals(ctx, closeCh); err != nil {
+	if err := handleSignals(ctx); err != nil {
 		outputter.SetError(fmt.Errorf("failed to handle signals: %w", err))
 	}
 }
@@ -164,14 +166,25 @@ func runExternalChain(ctx context.Context, outputter command.OutputFormatter, cl
 		image = gethImage
 	}
 
-	// try to pull the image
-	reader, err := dockerClient.ImagePull(ctx, image, dockerImg.PullOptions{})
+	imageName := fmt.Sprintf("%s-%d", helper.ExternalChainImagePrefix, params.chainID)
+	dockerfile := fmt.Sprintf("FROM %s\nEXPOSE %d\n", image, params.port)
+
+	buildContext, err := createBuildContext(dockerfile)
 	if err != nil {
 		return err
 	}
-	defer reader.Close()
 
-	if _, err = io.Copy(outputter, reader); err != nil {
+	build, err := dockerClient.ImageBuild(ctx, buildContext,
+		types.ImageBuildOptions{
+			Tags: []string{imageName},
+		})
+	if err != nil {
+		return err
+	}
+
+	defer build.Body.Close()
+
+	if _, err = io.Copy(outputter, build.Body); err != nil {
 		return fmt.Errorf("cannot copy: %w", err)
 	}
 
@@ -208,10 +221,10 @@ func runExternalChain(ctx context.Context, outputter command.OutputFormatter, cl
 	args = append(args, "--authrpc.port", strconv.FormatUint(authPort, 10))
 
 	config := &container.Config{
-		Image: image,
+		Image: imageName,
 		Cmd:   args,
 		Labels: map[string]string{
-			"edge-type": "external-chain",
+			helper.ExternalChainLabelID: imageName,
 		},
 	}
 
@@ -271,6 +284,35 @@ func runExternalChain(ctx context.Context, outputter command.OutputFormatter, cl
 	return nil
 }
 
+// createBuildContext creates a tar archive with the Dockerfile content, which is used as the build context,
+// for the image, after that it removes temporary directory
+func createBuildContext(dockerfileContent string) (io.Reader, error) {
+	// Create the tar archive in memory
+	var buf bytes.Buffer
+	tarWriter := tar.NewWriter(&buf)
+
+	// Add the Dockerfile to the tar archive
+	fileInfo := &tar.Header{
+		Name: "Dockerfile",
+		Mode: 0600,
+		Size: int64(len(dockerfileContent)),
+	}
+
+	if err := tarWriter.WriteHeader(fileInfo); err != nil {
+		return nil, fmt.Errorf("failed to write tar header: %w", err)
+	}
+
+	if _, err := tarWriter.Write([]byte(dockerfileContent)); err != nil {
+		return nil, fmt.Errorf("failed to write Dockerfile content: %w", err)
+	}
+
+	if err := tarWriter.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close tar writer: %w", err)
+	}
+
+	return &buf, nil
+}
+
 func gatherLogs(ctx context.Context, outputter command.OutputFormatter) error {
 	opts := container.LogsOptions{
 		ShowStderr: true,
@@ -290,11 +332,9 @@ func gatherLogs(ctx context.Context, outputter command.OutputFormatter) error {
 	return nil
 }
 
-func PingServer(closeCh <-chan struct{}, port uint64) error {
+func PingServer(ctx context.Context, port uint64) error {
 	httpTimer := time.NewTimer(30 * time.Second)
-	httpClient := http.Client{
-		Timeout: 5 * time.Second,
-	}
+	httpClient := http.Client{Timeout: 5 * time.Second}
 
 	for {
 		select {
@@ -305,21 +345,21 @@ func PingServer(closeCh <-chan struct{}, port uint64) error {
 			}
 		case <-httpTimer.C:
 			return fmt.Errorf("timeout to start http")
-		case <-closeCh:
+		case <-ctx.Done():
 			return fmt.Errorf(
-				"closed before connecting with http. Is there any other process running and using external chain dir?")
+				"closed before connecting with http. Is there any other process running and using external chain?")
 		}
 	}
 }
 
-func handleSignals(ctx context.Context, closeCh <-chan struct{}) error {
+func handleSignals(ctx context.Context) error {
 	signalCh := make(chan os.Signal, 4)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 
 	stop := true
 	select {
 	case <-signalCh:
-	case <-closeCh:
+	case <-ctx.Done():
 		stop = false
 	}
 
