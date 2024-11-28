@@ -1470,17 +1470,7 @@ func TestE2E_Bridge_NonMintableERC20Token_WithPremine(t *testing.T) {
 			logs, err := getFilteredLogs(bridgeMessageResult.Sig(), currentBlock.Number()+1, finalBlockNum+i*epochSize, childEthEndpoint)
 			require.NoError(t, err)
 
-			if len(logs) == expectedStateSyncsCount || i == numberOfAttempts-1 {
-				// assert that sent deposit has failed
-				checkBridgeMessageResultLogs(t, logs, expectedStateSyncsCount,
-					func(t *testing.T, ssre contractsapi.BridgeMessageResultEvent) {
-						t.Helper()
-
-						require.False(t, ssre.Status)
-					})
-
-				break
-			}
+			require.Equal(t, 0, len(logs))
 
 			require.NoError(t, cluster.WaitForBlock(finalBlockNum+(i+1)*epochSize, time.Minute))
 		}
