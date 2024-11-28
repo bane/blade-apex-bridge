@@ -287,10 +287,10 @@ func TestBridgeEventManager_BuildBridgeBatch(t *testing.T) {
 	s := newTestBridgeManager(t, vals.GetValidator("0"), &mockRuntime{isActiveValidator: true}, nil)
 	s.validatorSet = vals.ToValidatorSet()
 
-	// batch is empty
-	batch, err := s.BridgeBatch(1)
+	// batches is empty
+	batches, err := s.BridgeBatch(1)
 	require.NoError(t, err)
-	require.Nil(t, batch)
+	require.Len(t, batches, 0)
 
 	s.pendingBridgeBatchesExternal = []*PendingBridgeBatch{
 		{
@@ -327,9 +327,9 @@ func TestBridgeEventManager_BuildBridgeBatch(t *testing.T) {
 	require.NoError(t, s.saveVote(signedMsg1))
 	require.NoError(t, s.saveVote(signedMsg2))
 
-	batch, err = s.BridgeBatch(0)
+	batches, err = s.BridgeBatch(0)
 	require.NoError(t, err) // there is no error if quorum is not met, since its a valid case
-	require.Nil(t, batch)
+	require.Len(t, batches, 0)
 
 	// validator 2 and 3 vote for the proposal, there is enough voting power now
 
@@ -348,9 +348,9 @@ func TestBridgeEventManager_BuildBridgeBatch(t *testing.T) {
 	require.NoError(t, s.saveVote(signedMsg1))
 	require.NoError(t, s.saveVote(signedMsg2))
 
-	batch, err = s.BridgeBatch(1)
+	batches, err = s.BridgeBatch(1)
 	require.NoError(t, err)
-	require.NotNil(t, batch)
+	require.NotNil(t, batches)
 }
 
 func TestBridgeEventManager_RemoveProcessedEvents(t *testing.T) {
