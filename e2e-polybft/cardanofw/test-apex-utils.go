@@ -27,6 +27,8 @@ const (
 	BatchStateIncludedInBatch           = "IncludedInBatch"
 	BatchStateExecuted                  = "ExecutedOnDestination"
 	BridgingRequestStatusInvalidRequest = "InvalidRequest"
+
+	MinUTxODefaultValue = uint64(1_000_000)
 )
 
 func ResolveCardanoCliBinary(networkID wallet.CardanoNetworkType) string {

@@ -61,10 +61,14 @@ func sendTx(ctx context.Context,
 			Amount: amount,
 		},
 	}
-	desiredSum := amount + potentialFee + wallet.MinUTxODefaultValue
+	desiredSum := amount + potentialFee + MinUTxODefaultValue
 
 	inputs, err := wallet.GetUTXOsForAmount(
-		ctx, txProvider, cardanoWalletAddr, desiredSum, desiredSum)
+		ctx, txProvider, cardanoWalletAddr,
+		[]string{wallet.AdaTokenName},
+		map[string]uint64{wallet.AdaTokenName: desiredSum},
+		map[string]uint64{wallet.AdaTokenName: desiredSum},
+	)
 	if err != nil {
 		return "", err
 	}
@@ -73,7 +77,7 @@ func sendTx(ctx context.Context,
 		cardanoCliBinary,
 		networkTestMagic, protocolParams,
 		qtd.Slot+ttlSlotNumberInc, metadata,
-		outputs, inputs, cardanoWalletAddr)
+		outputs, inputs, cardanoWalletAddr, MinUTxODefaultValue)
 	if err != nil {
 		return "", err
 	}
@@ -130,8 +134,9 @@ func CreateTx(
 	outputs []wallet.TxOutput,
 	inputs wallet.TxInputs,
 	changeAddress string,
+	minUTxODefaultValue uint64,
 ) ([]byte, string, error) {
-	outputsSum := wallet.GetOutputsSum(outputs)
+	outputsSum := wallet.GetOutputsSum(outputs)[wallet.AdaTokenName]
 
 	builder, err := wallet.NewTxBuilder(cardanoCliBinary)
 	if err != nil {
@@ -144,28 +149,34 @@ func CreateTx(
 		builder.SetMetaData(metadataBytes)
 	}
 
+	tokens, err := wallet.GetTokensFromSumMap(inputs.Sum)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create tokens from sum map. err: %w", err)
+	}
+
+	if len(tokens) > 0 {
+		fmt.Printf("CreateTx - found tokens in inputs, rerouting to change output: %v\n", tokens)
+	}
+
 	builder.SetProtocolParameters(protocolParams).SetTimeToLive(timeToLive).
 		SetTestNetMagic(testNetMagic).
 		AddInputs(inputs.Inputs...).
-		AddOutputs(outputs...).AddOutputs(wallet.TxOutput{Addr: changeAddress})
+		AddOutputs(outputs...).AddOutputs(wallet.TxOutput{Addr: changeAddress, Tokens: tokens})
 
 	fee, err := builder.CalculateFee(0)
 	if err != nil {
 		return nil, "", err
 	}
 
-	change := inputs.Sum - outputsSum - fee
+	inputsAdaSum := inputs.Sum[wallet.AdaTokenName]
+	change := inputsAdaSum - outputsSum - fee
 	// handle overflow or insufficient amount
-	if change > inputs.Sum || (change > 0 && change < wallet.MinUTxODefaultValue) {
+	if change > inputsAdaSum || change < minUTxODefaultValue {
 		return []byte{}, "", fmt.Errorf("insufficient amount %d for %d or min utxo not satisfied",
-			inputs.Sum, outputsSum+fee)
+			inputsAdaSum, outputsSum+fee)
 	}
 
-	if change == 0 {
-		builder.RemoveOutput(-1)
-	} else {
-		builder.UpdateOutputAmount(-1, change)
-	}
+	builder.UpdateOutputAmount(-1, change)
 
 	builder.SetFee(fee)
 
