@@ -20,7 +20,7 @@ func FundUserWithToken(ctx context.Context, chain ChainID,
 ) (*cardanowallet.TokenAmount, error) {
 	minterWallet, _ := minterUser.GetCardanoWallet(chain)
 
-	keyHash, err := cardanowallet.GetKeyHash(minterWallet.GetVerificationKey())
+	keyHash, err := cardanowallet.GetKeyHash(minterWallet.VerificationKey)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func SendTxWithTokens(
 	ctx context.Context,
 	networkType cardanowallet.CardanoNetworkType,
 	txProvider cardanowallet.ITxProvider,
-	senderWallet cardanowallet.IWallet,
+	senderWallet *cardanowallet.Wallet,
 	receiverAddr string,
 	lovelaceAmount uint64,
 	tokens []cardanowallet.TokenAmount,
@@ -94,7 +94,7 @@ func MintTokens(
 	ctx context.Context,
 	networkType cardanowallet.CardanoNetworkType,
 	txProvider cardanowallet.ITxProvider,
-	wallet cardanowallet.IWallet,
+	wallet *cardanowallet.Wallet,
 	lovelaceAmount uint64,
 	tokens []cardanowallet.TokenAmount,
 	tokenPolicyScripts []cardanowallet.IPolicyScript,
@@ -103,7 +103,7 @@ func MintTokens(
 		return "", errors.New("no tokens or policy scripts")
 	}
 
-	walletAddr, err := cardanowallet.NewEnterpriseAddress(networkType, wallet.GetVerificationKey())
+	walletAddr, err := cardanowallet.NewEnterpriseAddress(networkType, wallet.VerificationKey)
 	if err != nil {
 		return "", err
 	}
@@ -128,13 +128,13 @@ func createNativeTokenTx(
 	ctx context.Context,
 	networkType cardanowallet.CardanoNetworkType,
 	txProvider cardanowallet.ITxProvider,
-	senderWallet cardanowallet.IWallet,
+	senderWallet *cardanowallet.Wallet,
 	receiverAddr string,
 	lovelaceAmount uint64,
 	tokens []cardanowallet.TokenAmount,
 	metadata []byte,
 ) ([]byte, string, error) {
-	senderWalletAddr, err := cardanowallet.NewEnterpriseAddress(networkType, senderWallet.GetVerificationKey())
+	senderWalletAddr, err := cardanowallet.NewEnterpriseAddress(networkType, senderWallet.VerificationKey)
 	if err != nil {
 		return nil, "", err
 	}
@@ -236,12 +236,12 @@ func createMintTx(
 	ctx context.Context,
 	networkType cardanowallet.CardanoNetworkType,
 	txProvider cardanowallet.ITxProvider,
-	wallet cardanowallet.IWallet,
+	wallet *cardanowallet.Wallet,
 	lovelaceAmount uint64,
 	tokens []cardanowallet.TokenAmount,
 	tokenPolicyScripts []cardanowallet.IPolicyScript,
 ) ([]byte, string, error) {
-	walletAddr, err := cardanowallet.NewEnterpriseAddress(networkType, wallet.GetVerificationKey())
+	walletAddr, err := cardanowallet.NewEnterpriseAddress(networkType, wallet.VerificationKey)
 	if err != nil {
 		return nil, "", err
 	}

@@ -373,5 +373,5 @@ func (ec *TestCardanoChain) GetAdminPrivateKey() (string, error) {
 		return "", err
 	}
 
-	return hex.EncodeToString(genesisWallet.GetSigningKey()), nil
+	return hex.EncodeToString(genesisWallet.SigningKey), nil
 }

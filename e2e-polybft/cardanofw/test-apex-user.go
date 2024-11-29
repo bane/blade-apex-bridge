@@ -10,11 +10,11 @@ import (
 )
 
 type TestApexUser struct {
-	PrimeWallet  cardanowallet.IWallet
+	PrimeWallet  *cardanowallet.Wallet
 	PrimeAddress cardanowallet.CardanoAddress
 
 	HasVectorWallet bool
-	VectorWallet    cardanowallet.IWallet
+	VectorWallet    *cardanowallet.Wallet
 	VectorAddress   cardanowallet.CardanoAddress
 
 	HasNexusWallet bool
@@ -145,7 +145,7 @@ func NewExistingTestApexUser(
 }
 
 func (u *TestApexUser) GetCardanoWallet(chain ChainID) (
-	cardanowallet.IWallet, cardanowallet.CardanoAddress,
+	*cardanowallet.Wallet, cardanowallet.CardanoAddress,
 ) {
 	if chain == ChainIDPrime {
 		return u.PrimeWallet, u.PrimeAddress
@@ -190,10 +190,10 @@ func (u *TestApexUser) GetAddress(chain ChainID) string {
 func (u *TestApexUser) GetPrivateKey(chain ChainID) (string, error) {
 	switch chain {
 	case ChainIDPrime:
-		return hex.EncodeToString(u.PrimeWallet.GetSigningKey()), nil
+		return hex.EncodeToString(u.PrimeWallet.SigningKey), nil
 	case ChainIDVector:
 		if u.HasVectorWallet {
-			return hex.EncodeToString(u.VectorWallet.GetSigningKey()), nil
+			return hex.EncodeToString(u.VectorWallet.SigningKey), nil
 		}
 
 		return "", fmt.Errorf("user doesn't have a vector wallet")

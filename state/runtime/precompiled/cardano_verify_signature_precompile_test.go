@@ -33,13 +33,13 @@ func Test_cardanoVerifySignaturePrecompile_ValidSignature(t *testing.T) {
 
 	// with witnesses
 	value, err := prec.run(
-		encodeCardanoVerifySignature(t, txRaw, witness, walletBasic.GetVerificationKey(), true),
+		encodeCardanoVerifySignature(t, txRaw, witness, walletBasic.VerificationKey, true),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolTrue, value)
 
 	value, err = prec.run(
-		encodeCardanoVerifySignature(t, txRaw, witnessFee, walletFee.GetVerificationKey(), true),
+		encodeCardanoVerifySignature(t, txRaw, witnessFee, walletFee.VerificationKey, true),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolTrue, value)
@@ -52,28 +52,28 @@ func Test_cardanoVerifySignaturePrecompile_ValidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	value, err = prec.run(
-		encodeCardanoVerifySignature(t, txRaw, signature, walletBasic.GetVerificationKey(), true),
+		encodeCardanoVerifySignature(t, txRaw, signature, walletBasic.VerificationKey, true),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolTrue, value)
 
 	value, err = prec.run(
-		encodeCardanoVerifySignature(t, txRaw, signatureFee, walletFee.GetVerificationKey(), true),
+		encodeCardanoVerifySignature(t, txRaw, signatureFee, walletFee.VerificationKey, true),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolTrue, value)
 
-	keyHash, err := cardanowallet.GetKeyHash(walletBasic.GetVerificationKey())
+	keyHash, err := cardanowallet.GetKeyHash(walletBasic.VerificationKey)
 	require.NoError(t, err)
 
 	// message
 	message := []byte(fmt.Sprintf("Hello world! My keyHash is: %s", keyHash))
 	signature, err = cardanowallet.SignMessage(
-		walletBasic.GetSigningKey(), walletBasic.GetVerificationKey(), message)
+		walletBasic.SigningKey, walletBasic.VerificationKey, message)
 	require.NoError(t, err)
 
 	value, err = prec.run(
-		encodeCardanoVerifySignature(t, message, signature, walletBasic.GetVerificationKey(), false),
+		encodeCardanoVerifySignature(t, message, signature, walletBasic.VerificationKey, false),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolTrue, value)
@@ -93,13 +93,13 @@ func Test_cardanoVerifySignaturePrecompile_InvalidSignature(t *testing.T) {
 
 	// with witnesses
 	value, err := prec.run(
-		encodeCardanoVerifySignature(t, txRaw, witness, walletFee.GetVerificationKey(), true),
+		encodeCardanoVerifySignature(t, txRaw, witness, walletFee.VerificationKey, true),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolFalse, value)
 
 	value, err = prec.run(
-		encodeCardanoVerifySignature(t, txRaw, witnessFee, walletBasic.GetVerificationKey(), true),
+		encodeCardanoVerifySignature(t, txRaw, witnessFee, walletBasic.VerificationKey, true),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolFalse, value)
@@ -112,34 +112,34 @@ func Test_cardanoVerifySignaturePrecompile_InvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	value, err = prec.run(
-		encodeCardanoVerifySignature(t, txRaw, signature, walletFee.GetVerificationKey(), true),
+		encodeCardanoVerifySignature(t, txRaw, signature, walletFee.VerificationKey, true),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolFalse, value)
 
 	value, err = prec.run(
-		encodeCardanoVerifySignature(t, txRaw, signatureFee, walletBasic.GetVerificationKey(), true),
+		encodeCardanoVerifySignature(t, txRaw, signatureFee, walletBasic.VerificationKey, true),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolFalse, value)
 
-	keyHash, err := cardanowallet.GetKeyHash(walletBasic.GetVerificationKey())
+	keyHash, err := cardanowallet.GetKeyHash(walletBasic.VerificationKey)
 	require.NoError(t, err)
 
 	// message
 	message := []byte(fmt.Sprintf("Hello world! My keyHash is: %s", keyHash))
 	signature, err = cardanowallet.SignMessage(
-		walletBasic.GetSigningKey(), walletBasic.GetVerificationKey(), message)
+		walletBasic.SigningKey, walletBasic.VerificationKey, message)
 	require.NoError(t, err)
 
 	value, err = prec.run(
-		encodeCardanoVerifySignature(t, message, signature, walletFee.GetVerificationKey(), false),
+		encodeCardanoVerifySignature(t, message, signature, walletFee.VerificationKey, false),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolFalse, value)
 
 	value, err = prec.run(
-		encodeCardanoVerifySignature(t, append([]byte{0}, message...), signature, walletBasic.GetVerificationKey(), false),
+		encodeCardanoVerifySignature(t, append([]byte{0}, message...), signature, walletBasic.VerificationKey, false),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolFalse, value)
@@ -177,7 +177,7 @@ func encodeCardanoVerifySignature(t *testing.T,
 	return encoded
 }
 
-func createWallets(t *testing.T) (cardanowallet.IWallet, cardanowallet.IWallet) {
+func createWallets(t *testing.T) (*cardanowallet.Wallet, *cardanowallet.Wallet) {
 	t.Helper()
 
 	walletBasic, err := cardanowallet.GenerateWallet(false)

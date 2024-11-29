@@ -17,7 +17,7 @@ const (
 
 func SendTx(ctx context.Context,
 	txProvider wallet.ITxProvider,
-	cardanoWallet wallet.IWallet,
+	cardanoWallet *wallet.Wallet,
 	amount uint64,
 	receiver string,
 	networkType wallet.CardanoNetworkType,
@@ -30,7 +30,7 @@ func SendTx(ctx context.Context,
 
 func sendTx(ctx context.Context,
 	txProvider wallet.ITxProvider,
-	cardanoWallet wallet.IWallet,
+	cardanoWallet *wallet.Wallet,
 	amount uint64,
 	receiver string,
 	networkType wallet.CardanoNetworkType,
@@ -82,12 +82,14 @@ func sendTx(ctx context.Context,
 		return "", err
 	}
 
-	witness, err := wallet.CreateTxWitness(txHash, cardanoWallet)
+	txBilder, err := wallet.NewTxBuilder(cardanoCliBinary)
 	if err != nil {
 		return "", err
 	}
 
-	signedTx, err := AssembleTxWitnesses(cardanoCliBinary, rawTx, [][]byte{witness})
+	defer txBilder.Dispose()
+
+	signedTx, err := txBilder.SignTx(rawTx, []wallet.ITxSigner{cardanoWallet})
 	if err != nil {
 		return "", err
 	}
@@ -98,7 +100,7 @@ func sendTx(ctx context.Context,
 func GetGenesisWalletFromCluster(
 	dirPath string,
 	keyID uint,
-) (wallet.IWallet, error) {
+) (*wallet.Wallet, error) {
 	keyFileName := strings.Join([]string{"utxo", fmt.Sprint(keyID)}, "")
 
 	sKey, err := wallet.NewKey(filepath.Join(dirPath, "utxo-keys", fmt.Sprintf("%s.skey", keyFileName)))
@@ -181,21 +183,4 @@ func CreateTx(
 	builder.SetFee(fee)
 
 	return builder.Build()
-}
-
-// CreateTxWitness creates cbor of vkey+signature pair of tx hash
-func CreateTxWitness(txHash string, key wallet.ISigner) ([]byte, error) {
-	return wallet.CreateTxWitness(txHash, key)
-}
-
-// AssembleTxWitnesses assembles all witnesses in final cbor of signed tx
-func AssembleTxWitnesses(cardanoCliBinary string, txRaw []byte, witnesses [][]byte) ([]byte, error) {
-	builder, err := wallet.NewTxBuilder(cardanoCliBinary)
-	if err != nil {
-		return nil, err
-	}
-
-	defer builder.Dispose()
-
-	return builder.AssembleTxWitnesses(txRaw, witnesses)
 }

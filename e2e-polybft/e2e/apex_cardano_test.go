@@ -78,19 +78,19 @@ func TestE2E_ApexBridge_TestCardanoVerifySignaturePrecompile(t *testing.T) {
 		}
 	}
 
-	signature, err := cardanowallet.SignMessage(cw.GetSigningKey(), cw.GetVerificationKey(), txHash)
+	signature, err := cardanowallet.SignMessage(cw.SigningKey, cw.VerificationKey, txHash)
 	require.NoError(t, err)
 
-	checkValidity(t, txRaw, signature, cw.GetVerificationKey(), true, true)
+	checkValidity(t, txRaw, signature, cw.VerificationKey, true, true)
 	checkValidity(t, txRaw, signature, invalidKey[:], true, false)
-	checkValidity(t, txRaw, append([]byte{0}, signature...), cw.GetVerificationKey(), true, false)
+	checkValidity(t, txRaw, append([]byte{0}, signature...), cw.VerificationKey, true, false)
 
 	// message with key hash example
 	signature, err = cardanowallet.SignMessage(
-		cw.GetSigningKey(), cw.GetVerificationKey(), append([]byte("hello world: "), dummyKeyHash...))
+		cw.SigningKey, cw.VerificationKey, append([]byte("hello world: "), dummyKeyHash...))
 	require.NoError(t, err)
 
-	checkValidity(t, dummyKeyHash, signature, cw.GetVerificationKey(), false, true)
+	checkValidity(t, dummyKeyHash, signature, cw.VerificationKey, false, true)
 	checkValidity(t, dummyKeyHash, signature, invalidKey[:], false, false)
-	checkValidity(t, dummyKeyHash, append([]byte{0}, signature...), cw.GetVerificationKey(), false, false)
+	checkValidity(t, dummyKeyHash, append([]byte{0}, signature...), cw.VerificationKey, false, false)
 }
