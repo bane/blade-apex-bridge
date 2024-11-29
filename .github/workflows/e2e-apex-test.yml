@@ -11,6 +11,10 @@ on: # yamllint disable-line rule:truthy
         description: E2E ApexBridge Skip Redundant Tests
         type: string
         required: true
+      apex_bridge_ref:
+        description: The branch/commit from the Apex Bridge
+        type: string
+        required: true
     outputs:
       workflow_output:
         description: E2E ApexBridge Tests output
@@ -76,7 +80,7 @@ jobs:
         uses: actions/checkout@v4.1.1
         with:
           repository: Ethernal-Tech/apex-bridge
-          ref: main
+          ref: ${{ inputs.apex_bridge_ref }}
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
       - name: Build apex-bridge
         run: |

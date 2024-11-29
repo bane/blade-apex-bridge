@@ -8,10 +8,6 @@ on: # yamllint disable-line rule:truthy
   pull_request:
   workflow_dispatch:
     inputs:
-      build_blade:
-        description: Build Blade
-        type: boolean
-        default: true
       lint:
         description: Lint
         type: boolean
@@ -36,12 +32,12 @@ on: # yamllint disable-line rule:truthy
         description: E2E ApexBridge Skip Redundant Tests
         type: boolean
         default: true
+      apex_bridge_ref:
+        description: The branch/commit from the Apex Bridge
+        type: string
+        default: main
   workflow_call:
     inputs:
-      build_blade:
-        description: Build Blade
-        type: boolean
-        required: true
       lint:
         description: Lint
         type: boolean
@@ -64,6 +60,10 @@ on: # yamllint disable-line rule:truthy
         required: true
       e2e_apex_skip_redundant_tests:
         description: E2E ApexBridge Skip Redundant Tests
+        type: string
+        required: true
+      apex_bridge_ref:
+        description: The branch/commit from the Apex Bridge
         type: string
         required: true
     outputs:
@@ -90,10 +90,6 @@ jobs:
   build_blade:
     name: Build Blade
     uses: ./.github/workflows/build.yml
-    if: |
-      inputs.build_blade || 
-      github.event_name == 'pull_request' || 
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'))
   lint:
     name: Lint
     uses: ./.github/workflows/lint.yml
@@ -110,25 +106,51 @@ jobs:
       inputs.unit_test || 
       github.event_name == 'pull_request' || 
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'))
+  inputs_check:
+    name: Inputs Check
+    runs-on: ubuntu-latest
+    outputs:
+      skip_redundant_tests: ${{ steps.redudant_test_input_check.outputs.skip_redundant_tests }}
+      apex_bridge_ref: ${{ steps.apex_bridge_ref_input_check.outputs.apex_bridge_ref }}
+    steps:
+      - name: Redundant Tests Input Check
+        id: redudant_test_input_check
+        run: |
+          if [[ "${{ inputs.e2e_apex_skip_redundant_tests }}" != "false" ]]; then
+            echo "skip_redundant_tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip_redundant_tests=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Apex Bridge Ref Input Check
+        id: apex_bridge_ref_input_check
+        run: |
+          if [[ "${{ inputs.apex_bridge_ref }}" == "" ]]; then
+            echo "apex_bridge_ref=main" >> $GITHUB_OUTPUT
+          else
+            echo "apex_bridge_ref=${{ inputs.apex_bridge_ref }}" >> $GITHUB_OUTPUT
+          fi
   e2e_polybft_test:
     name: E2E PolyBFT Tests
     uses: ./.github/workflows/e2e-polybft-test.yml
-    needs: build_blade
+    needs: [build_blade, inputs_check]
     if: |
       inputs.e2e_polybft_test || 
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'))
+    with:
+      apex_bridge_ref: ${{ needs.inputs_check.outputs.apex_bridge_ref }}
     secrets:
       PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
   e2e_apex_test:
     name: E2E ApexBridge Tests
     uses: ./.github/workflows/e2e-apex-test.yml
-    needs: build_blade
+    needs: [build_blade, inputs_check]
     if: |
       inputs.e2e_apex_test || 
       github.event_name == 'pull_request'
     with:
+      apex_bridge_ref: ${{ needs.inputs_check.outputs.apex_bridge_ref }}
       e2e_apex_big_test: ${{ inputs.e2e_apex_big_test || 'false' }}
-      e2e_apex_skip_redundant_tests: ${{ inputs.e2e_apex_skip_redundant_tests || 'true' }}
+      e2e_apex_skip_redundant_tests: ${{ needs.inputs_check.outputs.skip_redundant_tests }}
     secrets:
       PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
   e2e_apex_test_push:
@@ -137,6 +159,7 @@ jobs:
     needs: build_blade
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'))
     with:
+      apex_bridge_ref: main
       e2e_apex_big_test: false
       e2e_apex_skip_redundant_tests: false
     secrets:
