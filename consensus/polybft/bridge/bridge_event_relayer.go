@@ -145,7 +145,7 @@ func (ber *bridgeEventRelayerImpl) sendSignedBridgeMessageBatch(event *contracts
 
 		to = ber.bridgeConfig[destinationChainID].ExternalGatewayAddr
 	} else {
-		to = ber.bridgeConfig[sourceChainID].InternalGatewayAddr
+		to = ber.bridgeConfig[destinationChainID].InternalGatewayAddr
 	}
 
 	events, err := ber.state.getBridgeMessageEventsForBridgeBatch(

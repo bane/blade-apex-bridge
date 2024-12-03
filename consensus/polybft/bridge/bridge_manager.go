@@ -254,14 +254,16 @@ func (b *bridgeEventManager) externalChainRollbackHandler() error {
 // and if so, initiates the rollback process
 func (b *bridgeEventManager) createRollbackBatches(blockNumber *big.Int,
 	sourceChainID uint64, destinationChainID uint64) error {
-	b.lock.Lock()
-	for i, batch := range b.unexecutedBatches {
-		if batch.SourceChainID.Uint64() == sourceChainID &&
-			batch.DestinationChainID.Uint64() == destinationChainID &&
-			blockNumber.Cmp(batch.Threshold) <= 0 {
-			batch.IsRollback = true
 
-			hash, err := batch.Hash()
+	b.lock.Lock()
+	for i := 0; i < len(b.unexecutedBatches); {
+		if b.unexecutedBatches[i].SourceChainID.Uint64() == sourceChainID &&
+			b.unexecutedBatches[i].DestinationChainID.Uint64() == destinationChainID &&
+			blockNumber.Cmp(b.unexecutedBatches[i].Threshold) >= 0 {
+			b.unexecutedBatches[i].IsRollback = true
+			b.unexecutedBatches[i].Epoch = b.epoch
+
+			hash, err := b.unexecutedBatches[i].Hash()
 			if err != nil {
 				return fmt.Errorf("failed to generate hash for (rollback) BridgeBatch. Error: %w", err)
 			}
@@ -302,10 +304,13 @@ func (b *bridgeEventManager) createRollbackBatches(blockNumber *big.Int,
 				DestinationChainID: destinationChainID,
 			})
 
-			b.rollbackBatches = append(b.rollbackBatches, batch)
+			b.rollbackBatches = append(b.rollbackBatches, b.unexecutedBatches[i])
 			b.unexecutedBatches = append(b.unexecutedBatches[:i], b.unexecutedBatches[i+1:]...)
+		} else {
+			i++
 		}
 	}
+
 	b.lock.Unlock()
 
 	return nil
@@ -915,6 +920,8 @@ func (b *bridgeEventManager) GetLogFilters() map[types.Address][]types.Hash {
 			types.Hash(bridgeMessageEventSig),
 			types.Hash(bridgeMessageResultEventSig),
 			types.Hash(bridgeBatchResultEventSig),
+		},
+		contracts.BridgeStorageContract: {
 			types.Hash(newBatchEventSig),
 		},
 	}
