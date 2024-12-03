@@ -145,7 +145,11 @@ func (ber *bridgeEventRelayerImpl) sendSignedBridgeMessageBatch(event *contracts
 
 		to = ber.bridgeConfig[destinationChainID].ExternalGatewayAddr
 	} else {
-		to = ber.bridgeConfig[destinationChainID].InternalGatewayAddr
+		if event.IsRollback {
+			to = ber.bridgeConfig[destinationChainID].InternalGatewayAddr
+		} else {
+			to = ber.bridgeConfig[sourceChainID].InternalGatewayAddr
+		}
 	}
 
 	events, err := ber.state.getBridgeMessageEventsForBridgeBatch(
