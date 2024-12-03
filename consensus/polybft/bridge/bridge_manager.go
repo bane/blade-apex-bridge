@@ -235,6 +235,8 @@ func (b *bridgeEventManager) externalChainRollbackHandler() error {
 				if err != nil {
 					// log the error, but won't return because it might be just a temporary problem
 					b.logger.Error("could not poll the block from the external chain", "err", err)
+
+					continue
 				}
 
 				blockNumber := big.NewInt(int64(block.Header.Number))
