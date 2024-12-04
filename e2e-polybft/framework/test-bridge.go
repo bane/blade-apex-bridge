@@ -309,6 +309,7 @@ func (t *TestBridge) deployExternalChainContracts(genesisPath string) error {
 	args := []string{
 		"bridge",
 		"deploy",
+		"--external-json-rpc", t.JSONRPCAddr(),
 		"--proxy-contracts-admin", t.clusterConfig.GetProxyContractsAdmin(),
 		"--genesis", genesisPath,
 		"--test",
@@ -351,7 +352,7 @@ func (t *TestBridge) fundAddressesOnRoot(polybftConfig polycfg.PolyBFT) error {
 
 	// non-validator addresses don't need to mint stake token,
 	// they only need to be funded with root token
-	args := []string{"bridge", "fund"}
+	args := []string{"bridge", "fund", "--json-rpc", t.JSONRPCAddr()}
 
 	for _, premineRaw := range t.clusterConfig.Premine {
 		premineInfo, err := cmdHelper.ParsePremineInfo(premineRaw)
