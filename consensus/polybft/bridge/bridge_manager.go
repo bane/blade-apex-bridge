@@ -258,6 +258,8 @@ func (b *bridgeEventManager) createRollbackBatches(blockNumber *big.Int,
 	sourceChainID uint64, destinationChainID uint64) error {
 
 	b.lock.Lock()
+	defer b.lock.Unlock()
+
 	for i := 0; i < len(b.unexecutedBatches); {
 		if b.unexecutedBatches[i].SourceChainID.Uint64() == sourceChainID &&
 			b.unexecutedBatches[i].DestinationChainID.Uint64() == destinationChainID &&
@@ -312,8 +314,6 @@ func (b *bridgeEventManager) createRollbackBatches(blockNumber *big.Int,
 			i++
 		}
 	}
-
-	b.lock.Unlock()
 
 	return nil
 }
@@ -518,11 +518,14 @@ func (b *bridgeEventManager) AddLog(chainID *big.Int, eventLog *ethgo.Log) error
 
 		b.lock.Lock()
 
-		for i, batch := range b.unexecutedBatches {
-			if batch.StartID == event.StartID && batch.EndID == event.EndID {
+		for i := 0; i < len(b.unexecutedBatches); {
+			if b.unexecutedBatches[i].SourceChainID.Cmp(event.SourceChainID) == 0 &&
+				b.unexecutedBatches[i].DestinationChainID.Cmp(event.DestinationChainID) == 0 &&
+				b.unexecutedBatches[i].StartID.Cmp(event.StartID) == 0 &&
+				b.unexecutedBatches[i].EndID.Cmp(event.EndID) == 0 {
 				b.unexecutedBatches = append(b.unexecutedBatches[:i], b.unexecutedBatches[i+1:]...)
-
-				break
+			} else {
+				i++
 			}
 		}
 
@@ -830,7 +833,7 @@ func (b *bridgeEventManager) buildBridgeBatch(
 		return err
 	}
 
-	pendingBridgeBatch.Threshold = big.NewInt(int64(math.Ceil(float64(blockNumber)/10)*10) + 100)
+	pendingBridgeBatch.Threshold = big.NewInt(int64(math.Ceil(float64(blockNumber)/10)*10) + 25)
 
 	hash, err := pendingBridgeBatch.Hash()
 	if err != nil {
@@ -995,11 +998,14 @@ func (b *bridgeEventManager) ProcessLog(header *types.Header, log *ethgo.Log, db
 
 		b.lock.Lock()
 
-		for i, batch := range b.unexecutedBatches {
-			if batch.StartID == event.StartID && batch.EndID == event.EndID {
+		for i := 0; i < len(b.unexecutedBatches); {
+			if b.unexecutedBatches[i].SourceChainID.Cmp(event.SourceChainID) == 0 &&
+				b.unexecutedBatches[i].DestinationChainID.Cmp(event.DestinationChainID) == 0 &&
+				b.unexecutedBatches[i].StartID.Cmp(event.StartID) == 0 &&
+				b.unexecutedBatches[i].EndID.Cmp(event.EndID) == 0 {
 				b.unexecutedBatches = append(b.unexecutedBatches[:i], b.unexecutedBatches[i+1:]...)
-
-				break
+			} else {
+				i++
 			}
 		}
 
