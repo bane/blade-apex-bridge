@@ -9,7 +9,6 @@ import (
 	"math/big"
 	"path"
 	"sync"
-	"time"
 
 	"github.com/Ethernal-Tech/blockchain-event-tracker/store"
 	"github.com/Ethernal-Tech/blockchain-event-tracker/tracker"
@@ -165,89 +164,36 @@ func (b *bridgeEventManager) Start(runtimeConfig *config.Runtime) error {
 
 	b.externalClient = *relayer.Client()
 
-	if err := b.initRollbackHandlers(); err != nil {
-		return fmt.Errorf("failed to initialize bridge rollback handlers. Error: %w", err)
-	}
-
-	return nil
-}
-
-// initRollbackHandlers initiates the handlers for the internal and external chain
-func (b *bridgeEventManager) initRollbackHandlers() error {
-	if err := b.internalChainRollbackHandler(); err != nil {
-		return fmt.Errorf("internal chain rollback handler failed, %w", err)
-	}
-
-	if err := b.externalChainRollbackHandler(); err != nil {
-		return fmt.Errorf("external chain rollback handler failed, %w", err)
-	}
-
 	return nil
 }
 
 // internalChainRollbackHandler manages rollback logic for batches that have not been
 // successfully executed in the internal chain
-func (b *bridgeEventManager) internalChainRollbackHandler() error {
-	go func() {
-		sub := b.blockchain.SubscribeEvents()
-		eventCh := sub.GetEventCh()
-		defer b.blockchain.UnubscribeEvents(sub)
+func (b *bridgeEventManager) internalChainRollbackHandler(blockNumber *big.Int, dbTx *bolt.Tx) error {
+	if err := b.createRollbackBatches(blockNumber, b.externalChainID, b.internalChainID, dbTx); err != nil {
+		b.logger.Error("could not create a rollback batches", "err", err)
 
-		for {
-			select {
-			case event := <-eventCh:
-				blockNumber := big.NewInt(int64(event.NewChain[0].Number))
-				if err := b.createRollbackBatches(blockNumber, b.externalChainID, b.internalChainID); err != nil {
-					b.logger.Error("could not create a rollback batches", "err", err)
-
-					return
-				}
-			}
-		}
-	}()
+		return nil
+	}
 
 	return nil
 }
 
 // externalChainRollbackHandler manages rollback logic for batches that have not been
 // successfully executed in the internal chain
-func (b *bridgeEventManager) externalChainRollbackHandler() error {
-	latestBlock, err := b.externalClient.GetBlockByNumber(jsonrpc.BlockNumber(ethgo.Latest), false)
+func (b *bridgeEventManager) externalChainRollbackHandler(dbTx *bolt.Tx) error {
+	block, err := b.externalClient.GetBlockByNumber(jsonrpc.BlockNumber(ethgo.Latest), false)
 	if err != nil {
-		return err
+		// log the error, but won't return because it might be just a temporary problem
+		b.logger.Error("could not poll the block from the external chain", "err", err)
 	}
 
-	secondToLatest, err := b.externalClient.GetBlockByNumber(jsonrpc.BlockNumber(latestBlock.Number()-1), false)
-	if err != nil {
-		return err
+	blockNumber := big.NewInt(int64(block.Header.Number))
+	if err := b.createRollbackBatches(blockNumber, b.internalChainID, b.externalChainID, dbTx); err != nil {
+		b.logger.Error("could not create a rollback batches", "err", err)
+
+		return nil
 	}
-
-	pollInterval := time.Duration(latestBlock.Header.Timestamp-secondToLatest.Header.Timestamp) * time.Second
-
-	go func() {
-		ticker := time.NewTicker(pollInterval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				block, err := b.externalClient.GetBlockByNumber(jsonrpc.BlockNumber(ethgo.Latest), false)
-				if err != nil {
-					// log the error, but won't return because it might be just a temporary problem
-					b.logger.Error("could not poll the block from the external chain", "err", err)
-
-					continue
-				}
-
-				blockNumber := big.NewInt(int64(block.Header.Number))
-				if err := b.createRollbackBatches(blockNumber, b.internalChainID, b.externalChainID); err != nil {
-					b.logger.Error("could not create a rollback batches", "err", err)
-
-					return
-				}
-			}
-		}
-	}()
 
 	return nil
 }
@@ -255,12 +201,11 @@ func (b *bridgeEventManager) externalChainRollbackHandler() error {
 // createRollbackBatches goes through unexecuted batches, checks if any are ready to rollback,
 // and if so, initiates the rollback process
 func (b *bridgeEventManager) createRollbackBatches(blockNumber *big.Int,
-	sourceChainID uint64, destinationChainID uint64) error {
-
+	sourceChainID uint64, destinationChainID uint64, dbTx *bolt.Tx) error {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	for i := 0; i < len(b.unexecutedBatches); {
+	for i := 0; i < len(b.unexecutedBatches); i++ {
 		if b.unexecutedBatches[i].SourceChainID.Uint64() == sourceChainID &&
 			b.unexecutedBatches[i].DestinationChainID.Uint64() == destinationChainID &&
 			blockNumber.Cmp(b.unexecutedBatches[i].Threshold) >= 0 {
@@ -288,7 +233,7 @@ func (b *bridgeEventManager) createRollbackBatches(blockNumber *big.Int,
 				b.epoch,
 				hashBytes,
 				sig,
-				nil,
+				dbTx,
 				sourceChainID); err != nil {
 				return fmt.Errorf(
 					"failed to insert signature for message (rollback) batch to the state. Error: %w",
@@ -309,9 +254,6 @@ func (b *bridgeEventManager) createRollbackBatches(blockNumber *big.Int,
 			})
 
 			b.rollbackBatches = append(b.rollbackBatches, b.unexecutedBatches[i])
-			b.unexecutedBatches = append(b.unexecutedBatches[:i], b.unexecutedBatches[i+1:]...)
-		} else {
-			i++
 		}
 	}
 
@@ -602,23 +544,48 @@ func (b *bridgeEventManager) BridgeBatch(blockNumber uint64) ([]*BridgeBatchSign
 		signedBridgeBatches = append(signedBridgeBatches, largestInternalBatch)
 	}
 
-	for _, batch := range b.rollbackBatches {
-		aggregatedSignature, err := b.getAggSignatureForBridgeBatchMessage(blockNumber, batch)
-		if err != nil {
-			if errors.Is(err, errQuorumNotReached) {
-				continue
-			}
-
-			return nil, err
-		}
-
-		signedBridgeBatches = append(signedBridgeBatches, &BridgeBatchSigned{
-			BridgeBatch:  batch.BridgeBatch,
-			AggSignature: aggregatedSignature,
-		})
+	rollbackbatches, err := b.getRollbackBatch(blockNumber)
+	if err != nil {
+		return nil, err
 	}
+	signedBridgeBatches = append(signedBridgeBatches, rollbackbatches...)
 
 	return signedBridgeBatches, nil
+}
+
+func (b *bridgeEventManager) getRollbackBatch(blockNumber uint64) ([]*BridgeBatchSigned, error) {
+	seen := make(map[types.Hash]bool)
+	result := make([]*BridgeBatchSigned, 0)
+
+	for _, p := range b.rollbackBatches {
+		hash, err := p.Hash()
+		if err != nil {
+			return nil, err
+		}
+		if !seen[hash] {
+			seen[hash] = true
+
+			aggregatedSignature, err := b.getAggSignatureForBridgeBatchMessage(blockNumber, p)
+			if err != nil {
+				if errors.Is(err, errQuorumNotReached) {
+					// a valid case, batch has no quorum, we should not return an error
+					if p.BridgeBatch.EndID.Uint64()-p.BridgeBatch.StartID.Uint64() > 0 {
+						b.logger.Debug("can not submit a rollback batch, quorum not reached",
+							"from", p.BridgeBatch.StartID.Uint64(),
+							"to", p.BridgeBatch.EndID.Uint64())
+					}
+
+					continue
+				}
+
+				return nil, err
+			}
+
+			result = append(result, &BridgeBatchSigned{BridgeBatch: p.BridgeBatch, AggSignature: aggregatedSignature})
+		}
+	}
+
+	return result, nil
 }
 
 // getAggSignatureForBridgeBatchMessage checks if pending batch has quorum,
@@ -706,6 +673,7 @@ func (b *bridgeEventManager) PostEpoch(req *oracle.PostEpochRequest) error {
 
 	b.pendingBridgeBatchesExternal = nil
 	b.pendingBridgeBatchesInternal = nil
+	b.rollbackBatches = nil
 	b.validatorSet = req.ValidatorSet
 	b.epoch = req.NewEpochID
 
@@ -741,6 +709,20 @@ func (b *bridgeEventManager) PostBlock(req *oracle.PostBlockRequest) error {
 	}
 
 	if err := b.buildExternalBridgeBatch(req.DBTx); err != nil {
+		// we don't return an error here. If bridge message event is inserted in db,
+		// we will just try to build a batch on next block or next event arrival
+		b.logger.Error("could not build an external chain originated batch on PostBlock",
+			"err", err)
+	}
+
+	if err := b.internalChainRollbackHandler(big.NewInt(int64(req.FullBlock.Block.Number())), req.DBTx); err != nil {
+		// we don't return an error here. If bridge message event is inserted in db,
+		// we will just try to build a batch on next block or next event arrival
+		b.logger.Error("could not build an external chain originated batch on PostBlock",
+			"err", err)
+	}
+
+	if err := b.externalChainRollbackHandler(req.DBTx); err != nil {
 		// we don't return an error here. If bridge message event is inserted in db,
 		// we will just try to build a batch on next block or next event arrival
 		b.logger.Error("could not build an external chain originated batch on PostBlock",
@@ -1039,18 +1021,20 @@ func (b *bridgeEventManager) ProcessLog(header *types.Header, log *ethgo.Log, db
 
 		b.lock.Lock()
 
-		b.unexecutedBatches = append(b.unexecutedBatches, &PendingBridgeBatch{
-			BridgeBatch: &contractsapi.BridgeBatch{
-				RootHash:           bridgeBatch.RootHash,
-				StartID:            bridgeBatch.StartID,
-				EndID:              bridgeBatch.EndID,
-				SourceChainID:      bridgeBatch.SourceChainID,
-				DestinationChainID: bridgeBatch.DestinationChainID,
-				Threshold:          bridgeBatch.Threshold,
-				IsRollback:         false,
-			},
-			Epoch: b.epoch,
-		})
+		if !bridgeBatch.IsRollback {
+			b.unexecutedBatches = append(b.unexecutedBatches, &PendingBridgeBatch{
+				BridgeBatch: &contractsapi.BridgeBatch{
+					RootHash:           bridgeBatch.RootHash,
+					StartID:            bridgeBatch.StartID,
+					EndID:              bridgeBatch.EndID,
+					SourceChainID:      bridgeBatch.SourceChainID,
+					DestinationChainID: bridgeBatch.DestinationChainID,
+					Threshold:          bridgeBatch.Threshold,
+					IsRollback:         bridgeBatch.IsRollback,
+				},
+				Epoch: b.epoch,
+			})
+		}
 
 		b.lock.Unlock()
 

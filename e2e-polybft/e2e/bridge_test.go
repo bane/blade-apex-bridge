@@ -1496,29 +1496,12 @@ func TestE2E_Bridge_NonMintableERC20Token_WithPremine(t *testing.T) {
 		require.NoError(t, err)
 		t.Log("Balance of native ERC20 token on child", balance, "Address", nonValidatorKey.Address())
 
-		// the transaction is processed and there should be a success event
-		var bridgeBatchResult contractsapi.BridgeBatchResultEvent
-
-		for i := uint64(0); i < numberOfAttempts*2; i++ {
-			logs, err := getFilteredLogs(bridgeBatchResult.Sig(), currentBlock.Number(), finalBlockNum+i*epochSize, childEthEndpoint)
-			require.NoError(t, err)
-
-			if len(logs) == expectedBridgeBatchResult || i == numberOfAttempts*2-1 {
-				// assert that all deposits are executed successfully
-				ok, err := bridgeBatchResult.ParseLog(logs[0])
-				require.NoError(t, err)
-
-				require.True(t, ok)
-
-				t.Log(bridgeBatchResult)
-
-				require.True(t, bridgeBatchResult.IsRollback)
-
-				break
+		require.NoError(t, cluster.WaitUntil(time.Minute*3, time.Second*2, func() bool {
+			if !isEventProcessedRollback(t, bridgeCfg.ExternalGatewayAddr, externalChainTxRelayer, 3) {
+				return false
 			}
-
-			require.NoError(t, cluster.WaitForBlock(finalBlockNum+(i+1)*epochSize, time.Minute))
-		}
+			return true
+		}))
 
 	})
 }
