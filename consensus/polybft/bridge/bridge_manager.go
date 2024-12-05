@@ -815,7 +815,7 @@ func (b *bridgeEventManager) buildBridgeBatch(
 		return err
 	}
 
-	pendingBridgeBatch.Threshold = big.NewInt(int64(math.Ceil(float64(blockNumber)/10)*10) + 25)
+	pendingBridgeBatch.Threshold = new(big.Int).SetUint64(uint64((math.Ceil(float64(blockNumber)/10) * 10)) + b.config.bridgeCfg.Threshold)
 
 	hash, err := pendingBridgeBatch.Hash()
 	if err != nil {
