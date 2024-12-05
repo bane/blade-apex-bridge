@@ -771,17 +771,15 @@ func NewTestCluster(t *testing.T, validatorsCount int, opts ...ClusterOption) *T
 		require.NoError(t, err)
 
 		// add premine if token is non-mintable
-		if i == 0 {
-			err = bridge.mintNativeRootToken(addresses, tokenConfig, polybftConfig)
-			require.NoError(t, err)
+		err = bridge.mintNativeRootToken(addresses, tokenConfig, polybftConfig)
+		require.NoError(t, err)
 
-			err = bridge.premineNativeRootToken(genesisPath, tokenConfig, polybftConfig)
-			require.NoError(t, err)
+		err = bridge.premineNativeRootToken(genesisPath, tokenConfig, polybftConfig)
+		require.NoError(t, err)
 
-			// finalize genesis validators on the bridge chain
-			err = bridge.finalizeGenesis(genesisPath, tokenConfig)
-			require.NoError(t, err)
-		}
+		// finalize genesis validators on the bridge chain
+		err = bridge.finalizeGenesis(genesisPath, tokenConfig)
+		require.NoError(t, err)
 
 		bridgeJSONRPCs[i] = bridge.JSONRPCAddr()
 

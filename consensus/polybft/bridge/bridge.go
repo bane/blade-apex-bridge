@@ -110,6 +110,7 @@ func NewBridge(runtime Runtime,
 	}
 
 	for externalChainID, cfg := range runtimeConfig.GenesisConfig.Bridge {
+		logger := logger.With("chainID", externalChainID)
 		bridgeManager := newBridgeManager(logger, store, &bridgeEventManagerConfig{
 			bridgeCfg:         cfg,
 			topic:             bridgeTopic,
