@@ -7,7 +7,7 @@ import (
 	"github.com/0xPolygon/polygon-edge/chain"
 	"github.com/0xPolygon/polygon-edge/state/runtime"
 	"github.com/0xPolygon/polygon-edge/types"
-	"github.com/umbracle/ethgo/abi"
+	"github.com/Ethernal-Tech/ethgo/abi"
 )
 
 // list of function methods for the address list functionality
@@ -101,13 +101,15 @@ func (a *AddressList) runInputCall(caller types.Address, input []byte,
 
 	// write operation
 	var updateRole Role
-	if bytes.Equal(sig, SetAdminFunc.ID()) {
+
+	switch {
+	case bytes.Equal(sig, SetAdminFunc.ID()):
 		updateRole = AdminRole
-	} else if bytes.Equal(sig, SetEnabledFunc.ID()) {
+	case bytes.Equal(sig, SetEnabledFunc.ID()):
 		updateRole = EnabledRole
-	} else if bytes.Equal(sig, SetNoneFunc.ID()) {
+	case bytes.Equal(sig, SetNoneFunc.ID()):
 		updateRole = NoRole
-	} else {
+	default:
 		return nil, 0, errFunctionNotFound
 	}
 

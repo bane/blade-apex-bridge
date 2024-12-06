@@ -75,6 +75,7 @@ var (
 	NumberPersister        *contracts.Artifact
 	ZexCoinERC20           *contracts.Artifact
 	ZexNFT                 *contracts.Artifact
+	TestCardanoVerifySign  *contracts.Artifact
 
 	contractArtifacts map[string]*contracts.Artifact
 )
@@ -272,6 +273,11 @@ func init() {
 		log.Fatal(err)
 	}
 
+	TestCardanoVerifySign, err = contracts.DecodeArtifact(readTestContractContent("TestCardanoVerifySignature.json"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	StakeManager, err = contracts.DecodeArtifact([]byte(StakeManagerArtifact))
 	if err != nil {
 		log.Fatal(err)
@@ -342,6 +348,11 @@ func init() {
 		log.Fatal(err)
 	}
 
+	// Apex contracts
+	if err = initApexContracts(); err != nil {
+		log.Fatal(err)
+	}
+
 	contractArtifacts = map[string]*contracts.Artifact{
 		"CheckpointManager":               CheckpointManager,
 		"ExitHelper":                      ExitHelper,
@@ -395,6 +406,14 @@ func init() {
 		"TestRewardToken":                 TestRewardToken,
 		"ZexCoinERC20":                    ZexCoinERC20,
 		"ZexNFT":                          ZexNFT,
+		"Bridge":                          ApexBridgeContracts.Bridge,
+		"ClaimsHelper":                    ApexBridgeContracts.ClaimsHelper,
+		"Claims":                          ApexBridgeContracts.Claims,
+		"SignedBatches":                   ApexBridgeContracts.SignedBatches,
+		"Slots":                           ApexBridgeContracts.Slots,
+		"Validators":                      ApexBridgeContracts.Validators,
+		"ApexBridgeAdmin":                 ApexBridgeContracts.Admin,
+		"TestCardanoVerifySignature":      TestCardanoVerifySign,
 	}
 }
 

@@ -3,7 +3,7 @@ package command
 import (
 	"fmt"
 
-	"github.com/umbracle/ethgo"
+	"github.com/Ethernal-Tech/ethgo"
 
 	"github.com/0xPolygon/polygon-edge/chain"
 	"github.com/0xPolygon/polygon-edge/server"
@@ -14,8 +14,8 @@ const (
 	DefaultChainName                 = "blade"
 	DefaultChainID                   = 100
 	DefaultConsensus                 = server.PolyBFTConsensus
-	DefaultGenesisGasUsed            = 458752  // 0x70000
-	DefaultGenesisGasLimit           = 5242880 // 0x500000
+	DefaultGenesisGasUsed            = 458752      // 0x70000
+	DefaultGenesisGasLimit           = 400_000_000 // 5242880 // 0x500000
 	DefaultGenesisBaseFeeEM          = chain.GenesisBaseFeeEM
 	DefaultGenesisBaseFeeChangeDenom = chain.BaseFeeChangeDenom
 	DefaultEpochSize                 = 10

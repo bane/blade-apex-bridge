@@ -9,8 +9,8 @@ import (
 
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
-	"github.com/armon/go-metrics"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-metrics"
 
 	"github.com/0xPolygon/polygon-edge/bls"
 	"github.com/0xPolygon/polygon-edge/chain"
@@ -145,7 +145,7 @@ func (f *fsm) BuildProposal(currentRound uint64) ([]byte, error) {
 		}
 	}
 
-	if isRewardDistributionBlock(f.forks, f.isFirstBlockOfEpoch, f.isEndOfEpoch, f.Height()) {
+	if isRewardDistributionBlock(f.isFirstBlockOfEpoch, f.Height()) {
 		tx, err := f.createDistributeRewardsTx()
 		if err != nil {
 			return nil, err
@@ -429,7 +429,7 @@ func (f *fsm) Validate(proposal []byte) error {
 }
 
 // ValidateSender validates sender address and signature
-func (f *fsm) ValidateSender(msg *proto.Message) error {
+func (f *fsm) ValidateSender(msg *proto.IbftMessage) error {
 	msgNoSig, err := msg.PayloadNoSig()
 	if err != nil {
 		return err
@@ -524,7 +524,7 @@ func (f *fsm) VerifyStateTransactions(transactions []*types.Transaction) error {
 		}
 	}
 
-	if isRewardDistributionBlock(f.forks, f.isFirstBlockOfEpoch, f.isEndOfEpoch, f.Height()) {
+	if isRewardDistributionBlock(f.isFirstBlockOfEpoch, f.Height()) {
 		if !distributeRewardsTxExists {
 			// this is a check if distribute rewards transaction is not in the list of transactions at all
 			// but it should be
@@ -644,7 +644,7 @@ func (f *fsm) verifyCommitEpochTx(commitEpochTx *types.Transaction) error {
 // and compares its hash with the one extracted from the block.
 func (f *fsm) verifyDistributeRewardsTx(distributeRewardsTx *types.Transaction) error {
 	// we don't have distribute rewards tx if we just started the chain
-	if isRewardDistributionBlock(f.forks, f.isFirstBlockOfEpoch, f.isEndOfEpoch, f.Height()) {
+	if isRewardDistributionBlock(f.isFirstBlockOfEpoch, f.Height()) {
 		localDistributeRewardsTx, err := f.createDistributeRewardsTx()
 		if err != nil {
 			return err

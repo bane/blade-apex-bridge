@@ -21,9 +21,9 @@ import (
 	"github.com/0xPolygon/polygon-edge/server/proto"
 	txpoolProto "github.com/0xPolygon/polygon-edge/txpool/proto"
 	"github.com/0xPolygon/polygon-edge/types"
+	"github.com/Ethernal-Tech/ethgo"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"github.com/umbracle/ethgo"
 	"google.golang.org/grpc"
 )
 
@@ -42,6 +42,7 @@ type TestServerConfig struct {
 	UseTLS                bool
 	TLSCertFile           string
 	TLSKeyFile            string
+	PriceLimit            *uint64
 }
 
 type TestServerConfigCallback func(*TestServerConfig)
@@ -60,7 +61,7 @@ type TestServer struct {
 	address       types.Address
 	clusterConfig *TestClusterConfig
 	config        *TestServerConfig
-	node          *node
+	node          *Node
 }
 
 func (t *TestServer) GrpcAddr() string {
@@ -142,7 +143,7 @@ func NewTestServer(t *testing.T, clusterConfig *TestClusterConfig,
 	srv := &TestServer{
 		t:             t,
 		clusterConfig: clusterConfig,
-		address:       types.Address(key.Address()),
+		address:       key.Address(),
 		config:        config,
 	}
 	srv.Start()
@@ -192,10 +193,14 @@ func (t *TestServer) Start() {
 		args = append(args, "--use-tls")
 	}
 
+	if config.PriceLimit != nil {
+		args = append(args, "--price-limit", strconv.FormatUint(*config.PriceLimit, 10))
+	}
+
 	// Start the server
 	stdout := t.clusterConfig.GetStdout(t.config.Name)
 
-	node, err := newNode(t.clusterConfig.Binary, args, stdout)
+	node, err := NewNode(t.clusterConfig.Binary, args, stdout)
 	if err != nil {
 		t.t.Fatal(err)
 	}
@@ -208,7 +213,9 @@ func (t *TestServer) Start() {
 
 func (t *TestServer) Stop() {
 	if err := t.node.Stop(); err != nil {
-		t.t.Fatal(err)
+		if !errors.Is(err, os.ErrProcessDone) {
+			t.t.Fatal(err)
+		}
 	}
 
 	t.node = nil

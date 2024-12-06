@@ -38,6 +38,7 @@ const (
 	voteProposalThresholdFlag    = "vote-proposal-threshold"
 	proposalQuorumFlag           = "proposal-quorum"
 	stakeTokenFlag               = "stake-token"
+	bootnodeStartingPortFlag     = "bootnode-port"
 )
 
 var (
@@ -135,6 +136,10 @@ type genesisParams struct {
 
 	stakeToken     string
 	stakeTokenAddr types.Address
+
+	bootnodeStartingPort int64
+
+	apexConfig uint8
 }
 
 func (p *genesisParams) validateFlags() error {

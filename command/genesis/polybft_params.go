@@ -31,8 +31,8 @@ const (
 	blockTimeDriftFlag = "block-time-drift"
 
 	defaultSprintSize               = uint64(5) // in blocks
-	defaultEpochReward              = 1         // in wei
-	defaultBlockTime                = 2 * time.Second
+	defaultEpochReward              = 1         // in blocks
+	defaultBlockTime                = 3 * time.Second
 	defaultBlockTimeDrift           = uint64(10) // in seconds
 	defaultBlockTrackerPollInterval = time.Second
 	defaultCheckpointInterval       = uint64(900) // in blocks
@@ -56,7 +56,7 @@ const (
 	bridgeBlockListEnabledFlag           = "bridge-block-list-enabled"
 	bladeAdminFlag                       = "blade-admin"
 
-	bootnodePortStart = 30301
+	bootnodePortStart = 30300
 
 	ecdsaAddressLength = 40
 	blsKeyLength       = 256
@@ -82,7 +82,7 @@ type contractInfo struct {
 }
 
 // generateChainConfig creates and persists polybft chain configuration to the provided file path
-func (p *genesisParams) generateChainConfig(o command.OutputFormatter) error {
+func (p *genesisParams) generateChainConfig(o command.OutputFormatter) (*chain.Chain, error) {
 	// populate premine balance map
 	premineBalances := make(map[types.Address]*helper.PremineInfo, len(p.premine))
 
@@ -92,7 +92,7 @@ func (p *genesisParams) generateChainConfig(o command.OutputFormatter) error {
 
 	walletPremineInfo, err := helper.ParsePremineInfo(p.rewardWallet)
 	if err != nil {
-		return fmt.Errorf("invalid reward wallet configuration provided '%s' : %w", p.rewardWallet, err)
+		return nil, fmt.Errorf("invalid reward wallet configuration provided '%s' : %w", p.rewardWallet, err)
 	}
 
 	var (
@@ -110,49 +110,49 @@ func (p *genesisParams) generateChainConfig(o command.OutputFormatter) error {
 	} else {
 		bytes, err := hex.DecodeString(p.rewardTokenCode)
 		if err != nil {
-			return fmt.Errorf("could not decode reward token byte code '%s' : %w", p.rewardTokenCode, err)
+			return nil, fmt.Errorf("could not decode reward token byte code '%s' : %w", p.rewardTokenCode, err)
 		}
 
 		rewardTokenByteCode = bytes
 		rewardTokenAddr = contracts.RewardTokenContract
 	}
 
-	initialValidators, err := p.getValidatorAccounts()
+	initialValidators, err := p.getValidatorAccounts(p.bootnodeStartingPort)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve genesis validators: %w", err)
+		return nil, fmt.Errorf("failed to retrieve genesis validators: %w", err)
 	}
 
 	if len(initialValidators) == 0 {
-		return errNoGenesisValidators
+		return nil, errNoGenesisValidators
 	}
 
 	if _, err := o.Write([]byte("[GENESIS VALIDATORS]\n")); err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, v := range initialValidators {
 		if _, err := o.Write([]byte(fmt.Sprintf("%v\n", v))); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	voteDelay, err := common.ParseUint256orHex(&p.voteDelay)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	votingPeriod, err := common.ParseUint256orHex(&p.votingPeriod)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if votingPeriod.Cmp(big.NewInt(0)) == 0 {
-		return errInvalidVotingPeriod
+		return nil, errInvalidVotingPeriod
 	}
 
 	proposalThreshold, err := common.ParseUint256orHex(&p.proposalThreshold)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	proposalQuorum := p.proposalQuorum
@@ -223,7 +223,7 @@ func (p *genesisParams) generateChainConfig(o command.OutputFormatter) error {
 
 		burnContractInfo, err := parseBurnContractInfo(p.burnContract)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		if !p.nativeTokenConfig.IsMintable {
@@ -240,7 +240,7 @@ func (p *genesisParams) generateChainConfig(o command.OutputFormatter) error {
 	// deploy genesis contracts
 	allocs, err := p.deployContracts(rewardTokenByteCode, burnContractAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	validatorMetadata := make([]*validator.ValidatorMetadata, len(initialValidators))
@@ -249,7 +249,7 @@ func (p *genesisParams) generateChainConfig(o command.OutputFormatter) error {
 		// create validator metadata instance
 		metadata, err := validator.ToValidatorMetadata()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		validatorMetadata[i] = metadata
@@ -285,7 +285,7 @@ func (p *genesisParams) generateChainConfig(o command.OutputFormatter) error {
 
 	genesisExtraData, err := GenerateExtraDataPolyBft(validatorMetadata)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// populate genesis parameters
@@ -360,7 +360,7 @@ func (p *genesisParams) generateChainConfig(o command.OutputFormatter) error {
 		}
 	}
 
-	return helper.WriteGenesisConfigToDisk(chainConfig, params.genesisPath)
+	return chainConfig, err
 }
 
 func (p *genesisParams) deployContracts(rewardTokenByteCode []byte,
@@ -371,6 +371,8 @@ func (p *genesisParams) deployContracts(rewardTokenByteCode []byte,
 	for proxyAddr := range proxyToImplAddrMap {
 		proxyAddresses = append(proxyAddresses, proxyAddr)
 	}
+
+	proxyAddresses = append(proxyAddresses, getApexProxyAddresses()...)
 
 	genesisContracts := []*contractInfo{
 		{
@@ -433,6 +435,8 @@ func (p *genesisParams) deployContracts(rewardTokenByteCode []byte,
 			address:  contracts.ChildTimelockContractV1,
 		},
 	}
+
+	genesisContracts = append(genesisContracts, getApexContracts()...)
 
 	if !params.nativeTokenConfig.IsMintable {
 		genesisContracts = append(genesisContracts,
@@ -564,7 +568,7 @@ func (p *genesisParams) deployContracts(rewardTokenByteCode []byte,
 }
 
 // getValidatorAccounts gathers validator accounts info either from CLI or from provided local storage
-func (p *genesisParams) getValidatorAccounts() ([]*validator.GenesisValidator, error) {
+func (p *genesisParams) getValidatorAccounts(startingPort int64) ([]*validator.GenesisValidator, error) {
 	// populate validators premine info
 	if len(p.validators) > 0 {
 		validators := make([]*validator.GenesisValidator, len(p.validators))
@@ -619,7 +623,7 @@ func (p *genesisParams) getValidatorAccounts() ([]*validator.GenesisValidator, e
 	}
 
 	validators, err := ReadValidatorsByPrefix(validatorsPath, p.validatorsPrefixPath,
-		p.stakeInfos, p.nativeTokenConfig.IsMintable)
+		p.stakeInfos, p.nativeTokenConfig.IsMintable, startingPort)
 	if err != nil {
 		return nil, err
 	}

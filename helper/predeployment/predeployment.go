@@ -5,8 +5,8 @@ import (
 	"math"
 	"math/big"
 
+	"github.com/Ethernal-Tech/ethgo/abi"
 	"github.com/hashicorp/go-hclog"
-	"github.com/umbracle/ethgo/abi"
 
 	"github.com/0xPolygon/polygon-edge/chain"
 	"github.com/0xPolygon/polygon-edge/contracts"
@@ -48,7 +48,10 @@ func getPredeployAccount(address types.Address, input []byte,
 	st := itrie.NewState(itrie.NewMemoryStorage())
 
 	// Create a snapshot
-	snapshot := st.NewSnapshot()
+	snapshot, err := st.NewSnapshot(types.ZeroHash)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create a radix
 	radix := state.NewTxn(snapshot)
@@ -81,7 +84,7 @@ func getPredeployAccount(address types.Address, input []byte,
 	// the state needs to be walked to collect all touched all storage slots
 	storageMap := getModifiedStorageMap(radix, address)
 
-	_, _, err := transition.Commit()
+	_, _, err = transition.Commit()
 	if err != nil {
 		return nil, fmt.Errorf("failed to commit the state changes: %w", err)
 	}
@@ -117,7 +120,7 @@ func GenerateGenesisAccountFromFile(scArtifact *contracts.Artifact, constructorA
 			return nil, fmt.Errorf("unable to encode constructor arguments, %w", err)
 		}
 
-		finalBytecode = append(scArtifact.Bytecode, constructor...)
+		finalBytecode = append(finalBytecode, constructor...)
 	}
 
 	return getPredeployAccount(predeployAddress, finalBytecode, chainID, deployer)

@@ -2,10 +2,18 @@
 name: E2E PolyBFT Tests
 on: # yamllint disable-line rule:truthy
   workflow_call:
+    inputs:
+      apex_bridge_ref:
+        description: The branch/commit from the Apex Bridge
+        type: string
+        required: true
     outputs:
       workflow_output:
         description: E2E PolyBFT Tests output
-        value: ${{ jobs.e2e_polybft.outputs.e2e_polybft_output_failure }} 
+        value: ${{ jobs.e2e_polybft.outputs.e2e_polybft_output_failure }}
+    secrets:
+      PERSONAL_ACCESS_TOKEN:
+        required: true
 
 jobs:
   e2e_polybft:
@@ -23,7 +31,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v5.0.0
         with:
-          go-version: 1.21.x
+          go-version: ${{ vars.GOLANG_VERSION }}
           check-latest: true
       - name: Generate OpenSSL certificate
         run: openssl req -x509 -out localhost.crt -keyout localhost.key -newkey rsa:2048 -nodes -sha256 -subj '/CN=localhost' -extensions EXT -config <(printf "[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltName=DNS:localhost\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth")
@@ -37,6 +45,43 @@ jobs:
         run: sudo chmod -R 755 /etc/ssl/private
       - name: Update certificate key file permissions
         run: sudo chmod 644 /etc/ssl/private/localhost.key
+      - name: Install Cardano tools
+        uses: milos-ethernal/cardano-node-action@5a3bce7266cc1500d96e8fa63b3bb97135988482
+      - name: Install ogmios
+        uses: milos-ethernal/ogmios-action@13e2be0b00da80f26bb8583fa129bd7c08856a49
+      - name: Install Vector Cardano binaries
+        run: |
+          wget https://artifacts.apexfusion.org/vector-node-beta-8.9.3.0.0.0.0.5-linux.tar.gz
+          tar xvzf vector-node-beta-8.9.3.0.0.0.0.5-linux.tar.gz
+          sudo mv bin/vector-node /usr/local/bin/
+          sudo mv bin/vector-cli /usr/local/bin/
+      - name: Install Vector Ogmios binaries
+        run: |
+          wget https://artifacts.apexfusion.org/vector-ogmios-v6.2.0-x86_64-linux.tar.gz
+          tar xvzf vector-ogmios-v6.2.0-x86_64-linux.tar.gz
+          sudo mv vector-ogmios-v6.2.0-x86_64-linux/bin/vector-ogmios /usr/local/bin/
+          sudo rm -rf vector-ogmios-v6.2.0-x86_64-linux
+      - name: Display Vector Cardano version
+        run: |
+          echo "Vector Cardano Node version: $(vector-node version)"
+          echo "Vector Cardano CLI version: $(vector-cli version)"
+      - name: Display Vector Ogmios version
+        run: |
+          echo "Vector Ogmios version: $(vector-ogmios version)"
+      - name: Checkout apex-bridge repo
+        uses: actions/checkout@v4.1.1
+        with:
+          repository: Ethernal-Tech/apex-bridge
+          ref: ${{ inputs.apex_bridge_ref }}
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      - name: Build apex-bridge
+        run: |
+          go build
+          sudo mv apex-bridge /usr/local/bin/
+      - name: Verify apex-bridge executable
+        run: apex-bridge --help
+      - name: Checkout blade
+        uses: actions/checkout@v4.1.1
       - name: Check certificate key permissions
         run: ls -l /etc/ssl/private/localhost.key
       - name: Run tests

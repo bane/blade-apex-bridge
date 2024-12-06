@@ -26,9 +26,9 @@ import (
 	"github.com/0xPolygon/polygon-edge/jsonrpc"
 	"github.com/0xPolygon/polygon-edge/txrelayer"
 	"github.com/0xPolygon/polygon-edge/types"
+	"github.com/Ethernal-Tech/ethgo"
+	"github.com/Ethernal-Tech/ethgo/abi"
 	"github.com/stretchr/testify/require"
-	"github.com/umbracle/ethgo"
-	"github.com/umbracle/ethgo/abi"
 )
 
 const (
@@ -116,6 +116,7 @@ type TestClusterConfig struct {
 	BladeAdmin           string
 	RewardWallet         string
 	PredeployContract    string
+	ApexConfig           uint8
 
 	ContractDeployerAllowListAdmin   []types.Address
 	ContractDeployerAllowListEnabled []types.Address
@@ -150,6 +151,9 @@ type TestClusterConfig struct {
 	UseTLS      bool
 	TLSCertFile string
 	TLSKeyFile  string
+
+	InitialPort   int64
+	LogsDirSuffix string
 }
 
 func (c *TestClusterConfig) Dir(name string) string {
@@ -195,7 +199,7 @@ func (c *TestClusterConfig) GetStdout(name string, custom ...io.Writer) io.Write
 }
 
 func (c *TestClusterConfig) initLogsDir() {
-	logsDir := path.Join("../..", fmt.Sprintf("e2e-logs-%d", startTime), c.t.Name())
+	logsDir := path.Join("../..", fmt.Sprintf("e2e-logs-%d%s", startTime, c.LogsDirSuffix), c.t.Name())
 	if c.IsPropertyTest {
 		// property tests run cluster multiple times, so each cluster run will be in the main folder
 		// e2e-logs-{someNumber}/NameOfPropertyTest/NameOfPropertyTest-{someNumber}
@@ -233,7 +237,7 @@ type TestCluster struct {
 	Config      *TestClusterConfig
 	Servers     []*TestServer
 	Bridge      *TestBridge
-	initialPort int64
+	currentPort int64
 
 	once         sync.Once
 	failCh       chan struct{}
@@ -241,6 +245,12 @@ type TestCluster struct {
 }
 
 type ClusterOption func(*TestClusterConfig)
+
+func WithApexConfig(apexConfig uint8) ClusterOption {
+	return func(h *TestClusterConfig) {
+		h.ApexConfig = apexConfig
+	}
+}
 
 func WithPremine(addresses ...types.Address) ClusterOption {
 	return func(h *TestClusterConfig) {
@@ -271,6 +281,18 @@ func WithValidatorSnapshot(validatorsLen uint64) ClusterOption {
 func WithBridge() ClusterOption {
 	return func(h *TestClusterConfig) {
 		h.HasBridge = true
+	}
+}
+
+func WithInitialPort(initialPort int64) ClusterOption {
+	return func(h *TestClusterConfig) {
+		h.InitialPort = initialPort
+	}
+}
+
+func WithLogsDirSuffix(suffix string) ClusterOption {
+	return func(h *TestClusterConfig) {
+		h.LogsDirSuffix = suffix
 	}
 }
 
@@ -502,10 +524,12 @@ func NewTestCluster(t *testing.T, validatorsCount int, opts ...ClusterOption) *T
 		Binary:        resolveBinary(),
 		EpochSize:     10,
 		EpochReward:   1,
-		BlockGasLimit: 1e7, // 10M
+		BlockGasLimit: command.DefaultGenesisGasLimit,
 		StakeAmounts:  []*big.Int{},
 		HasBridge:     false,
 		VotingDelay:   10,
+		ApexConfig:    genesis.ApexConfigDefault,
+		InitialPort:   30300,
 	}
 
 	if config.ValidatorPrefix == "" {
@@ -533,9 +557,9 @@ func NewTestCluster(t *testing.T, validatorsCount int, opts ...ClusterOption) *T
 	cluster := &TestCluster{
 		Servers:     []*TestServer{},
 		Config:      config,
-		initialPort: 30300,
 		failCh:      make(chan struct{}),
 		once:        sync.Once{},
+		currentPort: config.InitialPort,
 	}
 
 	// in case no validators are specified in opts, all nodes will be validators
@@ -639,7 +663,7 @@ func NewTestCluster(t *testing.T, validatorsCount int, opts ...ClusterOption) *T
 		}
 
 		validators, err := genesis.ReadValidatorsByPrefix(
-			cluster.Config.TmpDir, cluster.Config.ValidatorPrefix, nil, true)
+			cluster.Config.TmpDir, cluster.Config.ValidatorPrefix, nil, true, config.InitialPort)
 		require.NoError(t, err)
 
 		if cluster.Config.BootnodeCount > 0 {
@@ -727,6 +751,10 @@ func NewTestCluster(t *testing.T, validatorsCount int, opts ...ClusterOption) *T
 			require.Equal(t, 2, len(parts))
 			args = append(args, "--stake-token", parts[0])
 		}
+
+		args = append(args, "--apex-config", fmt.Sprint(config.ApexConfig))
+
+		args = append(args, "--bootnode-port", fmt.Sprint(config.InitialPort))
 
 		// run genesis command with all the arguments
 		err = cluster.cmdRun(args...)
@@ -823,11 +851,16 @@ func (c *TestCluster) InitTestServer(t *testing.T,
 		config.UseTLS = c.Config.UseTLS
 		config.TLSCertFile = c.Config.TLSCertFile
 		config.TLSKeyFile = c.Config.TLSKeyFile
+
+		if c.Config.ApexConfig == genesis.ApexConfigDefault {
+			priceLimit := uint64(0)
+			config.PriceLimit = &priceLimit
+		}
 	})
 
 	// watch the server for stop signals. It is important to fix the specific
 	// 'node' reference since 'TestServer' creates a new one if restarted.
-	go func(node *node) {
+	go func(node *Node) {
 		<-node.Wait()
 
 		if !node.ExitResult().Signaled {
@@ -945,9 +978,10 @@ func (c *TestCluster) WaitForGeneric(dur time.Duration, fn func(*TestServer) boo
 }
 
 func (c *TestCluster) getOpenPort() int64 {
-	c.initialPort++
+	port := c.currentPort
+	c.currentPort++
 
-	return c.initialPort
+	return port
 }
 
 // runCommand executes command with given arguments

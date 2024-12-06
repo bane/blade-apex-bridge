@@ -5,11 +5,12 @@ import (
 	"log"
 
 	"github.com/0xPolygon/polygon-edge/chain"
+	"github.com/0xPolygon/polygon-edge/consensus/polybft/signer"
 	"github.com/0xPolygon/polygon-edge/contracts"
 	"github.com/0xPolygon/polygon-edge/helper/common"
 	"github.com/0xPolygon/polygon-edge/state/runtime"
 	"github.com/0xPolygon/polygon-edge/types"
-	"github.com/umbracle/ethgo/abi"
+	"github.com/Ethernal-Tech/ethgo/abi"
 )
 
 var _ runtime.Runtime = &Precompiled{}
@@ -75,10 +76,18 @@ func (p *Precompiled) setupContracts() {
 	p.register(contracts.NativeTransferPrecompile.String(), &nativeTransfer{})
 
 	// Console precompile
-	// p.register(contracts.ConsolePrecompile.String(), &console{})
+	p.register(contracts.ConsolePrecompile.String(), &console{})
 
 	// BLS aggregated signatures verification precompile
 	p.register(contracts.BLSAggSigsVerificationPrecompile.String(), &blsAggSignsVerification{})
+
+	// CardanoVerifySignature precompile
+	p.register(contracts.CardanoVerifySignaturePrecompile.String(), &cardanoVerifySignaturePrecompile{})
+
+	// APEX BLS signatures verification precompile
+	p.register(contracts.ApexBLSSignaturesVerificationPrecompile.String(), &apexBLSSignatureVerification{
+		domain: signer.DomainApexBridgeEVM,
+	})
 }
 
 func (p *Precompiled) register(precompileAddrRaw string, b contract) {
@@ -118,8 +127,7 @@ func (p *Precompiled) CanRun(c *runtime.Contract, _ runtime.Host, config *chain.
 	}
 
 	// istanbul precompiles
-	switch c.CodeAddress {
-	case nine:
+	if c.CodeAddress == nine {
 		return config.Istanbul
 	}
 
@@ -144,7 +152,7 @@ func (p *Precompiled) Run(c *runtime.Contract, host runtime.Host, config *chain.
 		}
 	}
 
-	c.Gas = c.Gas - gasCost
+	c.Gas -= gasCost
 	returnValue, err := contract.run(c.Input, c.Caller, host)
 
 	result := &runtime.ExecutionResult{

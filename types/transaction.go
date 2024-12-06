@@ -54,6 +54,11 @@ func (t TxType) String() (s string) {
 	return
 }
 
+// ToHexString returns the hex representation of the transaction type.
+func (t TxType) ToHexString() string {
+	return fmt.Sprintf("%02x", byte(t))
+}
+
 type Transaction struct {
 	Inner TxData
 
@@ -86,6 +91,7 @@ func (t *Transaction) InitInnerData(txType TxType) {
 }
 
 type TxData interface {
+	// Getters
 	transactionType() TxType
 	chainID() *big.Int
 	gasPrice() *big.Int
@@ -101,8 +107,7 @@ type TxData interface {
 	accessList() TxAccessList
 	rawSignatureValues() (v, r, s *big.Int)
 
-	//methods to set transactions fields
-
+	// Setters
 	setChainID(*big.Int)
 	setGasPrice(*big.Int)
 	setGasFeeCap(*big.Int)
@@ -116,21 +121,26 @@ type TxData interface {
 	setHash(h Hash)
 	setAccessList(TxAccessList)
 	setSignatureValues(v, r, s *big.Int)
+
 	unmarshalRLPFrom(p *fastrlp.Parser, v *fastrlp.Value) error
 	marshalRLPWith(arena *fastrlp.Arena) *fastrlp.Value
 	marshalJSON(a *fastjson.Arena) *fastjson.Value
 	unmarshalJSON(v *fastjson.Value) error
 	copy() TxData
+
+	// effectiveGasPrice computes the gas price paid by the transaction, given
+	// the inclusion block baseFee.
+	effectiveGasPrice(baseFee *big.Int) *big.Int
 }
 
-func (tx *Transaction) String() string {
-	v, r, s := tx.RawSignatureValues()
+func (t *Transaction) String() string {
+	v, r, s := t.RawSignatureValues()
 
 	return fmt.Sprintf("[%s] Nonce: %d, GasPrice: %d, GasTipCap: %d, GasFeeCap: %d, "+
 		"Gas: %d, To: %s, Value: %d, Input: %x, V: %d, R: %d, S: %s, Hash: %s, From: %s, AccessList: %s",
-		tx.Type(), tx.Nonce(), tx.GasPrice(), tx.GasTipCap(), tx.GasFeeCap(),
-		tx.Gas(), tx.To(), tx.Value(), tx.Input(),
-		v, r, s, tx.Hash(), tx.From(), tx.AccessList())
+		t.Type(), t.Nonce(), t.GasPrice(), t.GasTipCap(), t.GasFeeCap(),
+		t.Gas(), t.To(), t.Value(), t.Input(),
+		v, r, s, t.Hash(), t.From(), t.AccessList())
 }
 
 func (t *Transaction) Type() TxType {
@@ -187,6 +197,10 @@ func (t *Transaction) Hash() Hash {
 
 func (t *Transaction) RawSignatureValues() (v, r, s *big.Int) {
 	return t.Inner.rawSignatureValues()
+}
+
+func (t *Transaction) EffectiveGasPrice(baseFee *big.Int) *big.Int {
+	return t.Inner.effectiveGasPrice(baseFee)
 }
 
 // set methods for transaction fields

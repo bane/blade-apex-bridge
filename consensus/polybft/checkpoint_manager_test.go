@@ -12,11 +12,11 @@ import (
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/contractsapi"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/signer"
 	"github.com/0xPolygon/polygon-edge/crypto"
+	"github.com/Ethernal-Tech/ethgo"
 	merkle "github.com/Ethernal-Tech/merkle-tree"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/umbracle/ethgo"
 
 	"github.com/0xPolygon/polygon-edge/bls"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/bitmap"
@@ -247,13 +247,8 @@ func TestCheckpointManager_getCurrentCheckpointID(t *testing.T) {
 				Return(c.checkpointID, c.returnError).
 				Once()
 
-			acc, err := wallet.GenerateAccount()
-			require.NoError(t, err)
-
 			checkpointMgr := &checkpointManager{
 				rootChainRelayer: txRelayerMock,
-				key:              acc.Ecdsa,
-				logger:           hclog.NewNullLogger(),
 			}
 
 			actualCheckpointID, err := getCurrentCheckpointBlock(checkpointMgr.rootChainRelayer,

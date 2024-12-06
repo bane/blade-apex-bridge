@@ -50,7 +50,7 @@ build: check-go check-git
 
 .PHONY: lint
 lint: check-lint
-	golangci-lint run --config .golangci.yml
+	golangci-lint run --config .golangci.yml --whole-files
 
 .PHONY: generate-bsd-licenses
 generate-bsd-licenses: check-git
@@ -75,9 +75,16 @@ test-e2e-legacy: check-go
 
 .PHONY: test-e2e-polybft
 test-e2e-polybft: check-go
+	@TESTS=`go test -list . ./e2e-polybft/e2e/... | grep '^Test' | grep -v ApexBridge | paste -sd '|' - | tr -d '\n'`; \
+	go build -o artifacts/blade .; \
+	env EDGE_BINARY=${PWD}/artifacts/blade E2E_TESTS=true E2E_LOGS=true \
+	go test -v -timeout=5h ./e2e-polybft/e2e/... -run "$${TESTS}"
+
+.PHONY: test-e2e-apex-bridge
+test-e2e-apex-bridge: check-go
 	go build -o artifacts/blade .
 	env EDGE_BINARY=${PWD}/artifacts/blade E2E_TESTS=true E2E_LOGS=true \
-	go test -v -timeout=1h30m ./e2e-polybft/e2e/...
+	go test -v -timeout=7h ./e2e-polybft/e2e/... -run "ApexBridge"
 
 .PHONY: test-property-polybft
 test-property-polybft: check-go
@@ -107,6 +114,13 @@ stop-docker:
 destroy-docker:
 	./scripts/cluster polybft --docker destroy
 
+.PHONY: update-apex-contracts
+update-apex-contracts:
+	git submodule update --remote --init apex-bridge-smartcontracts && \
+	cd apex-bridge-smartcontracts/ && npm i && npx hardhat compile && cd .. && \
+	go run consensus/polybft/contractsapi/apex-artifacts-gen/main.go && \
+	go run consensus/polybft/contractsapi/bindings-gen/main.go
+
 .PHONY: help
 help:
 	@echo "Available targets:"
@@ -123,6 +137,8 @@ help:
 	@printf "  %-35s - %s\n" "test-property-polybft" "Run property tests for PolyBFT"
 	@printf "  %-35s - %s\n" "compile-blade-contracts" "Compile blade contracts"
 	@printf "  %-35s - %s\n" "generate-smart-contract-bindings" "Generate smart contract bindings"
+	@printf "  %-35s - %s\n" "test-e2e-apex-bridge" "Run end-to-end tests for Apex Bridge"
+	@printf "  %-35s - %s\n" "update-apex-contracts" "Update Apex Bridge smart contracts and bindings"
 	@printf "  %-35s - %s\n" "run-docker" "Run Docker cluster for PolyBFT"
 	@printf "  %-35s - %s\n" "stop-docker" "Stop Docker cluster for PolyBFT"
 	@printf "  %-35s - %s\n" "destroy-docker" "Destroy Docker cluster for PolyBFT"

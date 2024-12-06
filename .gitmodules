@@ -8,3 +8,6 @@
 [submodule "tests/evm-benchmarks"]
 	path = tests/evm-benchmarks
 	url = https://github.com/ipsilon/evm-benchmarks
+[submodule "apex-bridge-smartcontracts"]
+	path = apex-bridge-smartcontracts
+	url = https://github.com/Ethernal-Tech/apex-bridge-smartcontracts.git

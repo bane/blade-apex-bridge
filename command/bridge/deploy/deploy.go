@@ -7,8 +7,8 @@ import (
 	"sync"
 
 	"github.com/0xPolygon/polygon-edge/jsonrpc"
+	"github.com/Ethernal-Tech/ethgo"
 	"github.com/spf13/cobra"
-	"github.com/umbracle/ethgo"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/0xPolygon/polygon-edge/chain"
@@ -496,7 +496,7 @@ func deployContracts(outputter command.OutputFormatter, client *jsonrpc.EthClien
 			hasProxy: true,
 			byteCodeBuilder: func() ([]byte, error) {
 				constructorFn := &contractsapi.CheckpointManagerConstructorFn{
-					Initiator: types.Address(deployerKey.Address()),
+					Initiator: deployerKey.Address(),
 				}
 
 				input, err := constructorFn.EncodeAbi()
@@ -631,10 +631,12 @@ func deployContracts(outputter command.OutputFormatter, client *jsonrpc.EthClien
 						return fmt.Errorf("deployment of %s contract failed", proxyContractName)
 					}
 
-					deployResults = append(deployResults, newDeployContractsResult(proxyContractName,
-						types.Address(receipt.ContractAddress),
-						receipt.TransactionHash,
-						receipt.GasUsed))
+					deployResults = append(deployResults,
+						newDeployContractsResult(proxyContractName,
+							types.Address(receipt.ContractAddress),
+							receipt.TransactionHash,
+							receipt.GasUsed,
+						))
 				}
 
 				resultsLock.Lock()
