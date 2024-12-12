@@ -273,15 +273,8 @@ func (ec *TestEVMChain) GetAddressBalance(ctx context.Context, addr string) (*bi
 }
 
 func (ec *TestEVMChain) BridgingRequest(
-	ctx context.Context, destChainID ChainID, privateKey string, receivers map[string]*big.Int,
+	ctx context.Context, destChainID ChainID, privateKey string, receivers map[string]*big.Int, feeAmount *big.Int,
 ) (string, error) {
-	const (
-		feeAmount = 1_100_000
-	)
-
-	feeAmountWei := new(big.Int).SetUint64(feeAmount)
-	feeAmountWei.Mul(feeAmountWei, new(big.Int).Exp(big.NewInt(10), big.NewInt(12), nil))
-
 	params := []string{
 		"sendtx",
 		"--tx-type", "evm",
@@ -289,7 +282,7 @@ func (ec *TestEVMChain) BridgingRequest(
 		fmt.Sprintf("--%s-url", ec.config.ChainID), ec.cluster.Servers[0].JSONRPCAddr(),
 		"--key", privateKey,
 		"--chain-dst", destChainID,
-		"--fee", feeAmountWei.String(),
+		"--fee", feeAmount.String(),
 	}
 
 	for addr, amount := range receivers {

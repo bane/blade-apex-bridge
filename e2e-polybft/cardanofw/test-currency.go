@@ -7,12 +7,20 @@ const (
 	WeiDecimals = 18
 )
 
-func ToChainNativeTokenAmount(chainID string, apexAmount *big.Int) *big.Int {
+func DfmToChainNativeTokenAmount(chainID string, dfmAmount *big.Int) *big.Int {
 	if chainID == ChainIDNexus {
-		return ApexToWei(apexAmount)
+		return DfmToWei(dfmAmount)
 	}
 
-	return ApexToDfm(apexAmount)
+	return dfmAmount
+}
+
+func ChainNativeTokenAmountToDfm(chainID string, nativeTokenAmount *big.Int) *big.Int {
+	if chainID == ChainIDNexus {
+		return WeiToDfm(nativeTokenAmount)
+	}
+
+	return nativeTokenAmount
 }
 
 func ApexToDfm(apex *big.Int) *big.Int {
@@ -20,6 +28,13 @@ func ApexToDfm(apex *big.Int) *big.Int {
 	base := big.NewInt(10)
 
 	return dfm.Mul(dfm, base.Exp(base, big.NewInt(DfmDecimals), nil))
+}
+
+func DfmToApex(dfm *big.Int) *big.Int {
+	apex := new(big.Int).Set(dfm)
+	base := big.NewInt(10)
+
+	return apex.Div(apex, base.Exp(base, big.NewInt(DfmDecimals), nil))
 }
 
 func ApexToWei(apex *big.Int) *big.Int {

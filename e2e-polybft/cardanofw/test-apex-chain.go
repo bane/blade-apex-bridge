@@ -21,7 +21,7 @@ type ITestApexChain interface {
 	ChainID() string
 	GetAddressBalance(ctx context.Context, addr string) (*big.Int, error)
 	BridgingRequest(
-		ctx context.Context, destChainID ChainID, privateKey string, receivers map[string]*big.Int,
+		ctx context.Context, destChainID ChainID, privateKey string, receivers map[string]*big.Int, feeAmount *big.Int,
 	) (string, error)
 	SendTx(
 		ctx context.Context, privateKey string, receiver string, amount *big.Int, data []byte,
@@ -41,7 +41,7 @@ func NewTestApexChainDummy(configParams []string) *TestApexChainDummy {
 }
 
 func (t *TestApexChainDummy) BridgingRequest(
-	ctx context.Context, destChainID string, privateKey string, receivers map[string]*big.Int,
+	ctx context.Context, destChainID string, privateKey string, receivers map[string]*big.Int, feeAmount *big.Int,
 ) (string, error) {
 	return "", nil
 }

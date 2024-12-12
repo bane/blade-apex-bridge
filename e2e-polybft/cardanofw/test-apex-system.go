@@ -221,7 +221,7 @@ func (a *ApexSystem) FundWallets(ctx context.Context) error {
 	})
 }
 
-func (a *ApexSystem) FundChainHotWallet(ctx context.Context, chainID string, amount *big.Int) error {
+func (a *ApexSystem) FundChainHotWallet(ctx context.Context, chainID string, dfmAmount *big.Int) error {
 	chain, err := a.getChain(chainID)
 	if err != nil {
 		return err
@@ -232,7 +232,8 @@ func (a *ApexSystem) FundChainHotWallet(ctx context.Context, chainID string, amo
 		return err
 	}
 
-	_, err = chain.SendTx(ctx, pk, chain.GetHotWalletAddress(), amount, nil)
+	_, err = chain.SendTx(
+		ctx, pk, chain.GetHotWalletAddress(), DfmToChainNativeTokenAmount(chainID, dfmAmount), nil)
 
 	return err
 }
@@ -404,18 +405,24 @@ func (a *ApexSystem) GetBalance(
 		return nil, err
 	}
 
-	return chain.GetAddressBalance(ctx, user.GetAddress(chainID))
+	amount, err := chain.GetAddressBalance(ctx, user.GetAddress(chainID))
+	if err != nil {
+		return nil, err
+	}
+
+	return ChainNativeTokenAmountToDfm(chainID, amount), nil
 }
 
 func (a *ApexSystem) WaitForGreaterAmount(
 	ctx context.Context, user *TestApexUser, chain ChainID,
-	expectedAmount *big.Int, numRetries int, waitTime time.Duration,
+	expectedAmountDfm *big.Int, numRetries int, waitTime time.Duration,
 ) error {
 	lastAmount, err := a.WaitForAmount(ctx, user, chain, func(val *big.Int) bool {
-		return val.Cmp(expectedAmount) == 1
+		return val.Cmp(expectedAmountDfm) == 1
 	}, numRetries, waitTime)
 	if err != nil {
-		return fmt.Errorf("amount mismatch: expected %s, but received %s: %w", expectedAmount, lastAmount, err)
+		return fmt.Errorf("amount mismatch: expected %s, but received %s: %w",
+			expectedAmountDfm, lastAmount, err)
 	}
 
 	return nil
@@ -423,15 +430,17 @@ func (a *ApexSystem) WaitForGreaterAmount(
 
 func (a *ApexSystem) WaitForExactAmount(
 	ctx context.Context, user *TestApexUser, chain ChainID,
-	expectedAmount *big.Int, numRetries int, waitTime time.Duration,
+	expectedAmountDfm *big.Int, numRetries int, waitTime time.Duration,
 ) error {
 	lastAmount, err := a.WaitForAmount(ctx, user, chain, func(val *big.Int) bool {
-		return val.Cmp(expectedAmount) >= 0
+		return val.Cmp(expectedAmountDfm) >= 0
 	}, numRetries, waitTime)
 	if err != nil {
-		return fmt.Errorf("amount mismatch: expected %s, but received %s: %w", expectedAmount, lastAmount, err)
-	} else if lastAmount.Cmp(expectedAmount) > 0 {
-		return fmt.Errorf("amount mismatch: received amount %s is greater than expected %s", lastAmount, expectedAmount)
+		return fmt.Errorf("amount mismatch: expected %s, but received %s: %w",
+			expectedAmountDfm, lastAmount, err)
+	} else if lastAmount.Cmp(expectedAmountDfm) > 0 {
+		return fmt.Errorf("amount mismatch: received amount %s is greater than expected %s",
+			lastAmount, expectedAmountDfm)
 	}
 
 	return nil
@@ -448,7 +457,7 @@ func (a *ApexSystem) WaitForAmount(
 		}
 
 		if !cmpHandler(newBalance) {
-			return nil, infracommon.ErrRetryTryAgain
+			return newBalance, infracommon.ErrRetryTryAgain
 		}
 
 		return newBalance, nil
@@ -456,7 +465,7 @@ func (a *ApexSystem) WaitForAmount(
 }
 
 func (a *ApexSystem) DefundHotWallet(
-	chain ChainID, defundReceiverAddress string, apexDefundAmount *big.Int,
+	chain ChainID, defundReceiverAddress string, defundDfm *big.Int,
 ) error {
 	pkBytes, err := a.GetBridgeAdmin().MarshallPrivateKey()
 	if err != nil {
@@ -469,15 +478,15 @@ func (a *ApexSystem) DefundHotWallet(
 		"bridge-admin", "defund",
 		"--bridge-url", a.GetBridgeDefaultJSONRPCAddr(),
 		"--chain", chain,
-		"--amount", fmt.Sprint(ApexToDfm(apexDefundAmount)),
+		"--amount", defundDfm.String(),
 		"--key", pk,
 		"--addr", defundReceiverAddress,
 	}, os.Stdout)
 }
 
 func (a *ApexSystem) SubmitTx(
-	ctx context.Context, sourceChain ChainID, destinationChain ChainID,
-	sender *TestApexUser, receiver *TestApexUser, amount *big.Int, data []byte,
+	ctx context.Context, sourceChain ChainID, sender *TestApexUser,
+	receiverAddr string, dfmAmount *big.Int, data []byte,
 ) (string, error) {
 	privateKey, err := sender.GetPrivateKey(sourceChain)
 	if err != nil {
@@ -489,13 +498,15 @@ func (a *ApexSystem) SubmitTx(
 		return "", err
 	}
 
-	return chain.SendTx(ctx, privateKey, receiver.GetAddress(destinationChain), amount, data)
+	return chain.SendTx(
+		ctx, privateKey, receiverAddr,
+		DfmToChainNativeTokenAmount(sourceChain, dfmAmount), data)
 }
 
 func (a *ApexSystem) SubmitBridgingRequest(
 	t *testing.T, ctx context.Context,
 	sourceChain ChainID, destinationChain ChainID,
-	sender *TestApexUser, sendAmount *big.Int, receivers ...*TestApexUser,
+	sender *TestApexUser, dfmAmount *big.Int, receivers ...*TestApexUser,
 ) string {
 	t.Helper()
 
@@ -530,13 +541,17 @@ func (a *ApexSystem) SubmitBridgingRequest(
 	require.Greater(t, len(receivers), 0)
 	require.Less(t, len(receivers), 5)
 
+	const feeAmountDfm = uint64(1_100_000)
+
+	feeAmount := DfmToChainNativeTokenAmount(sourceChain, new(big.Int).SetUint64(feeAmountDfm))
+
 	receiversMap := make(map[string]*big.Int, len(receivers))
 
 	for _, receiver := range receivers {
 		require.True(t, destinationChain != ChainIDVector || receiver.HasVectorWallet)
 		require.True(t, destinationChain != ChainIDNexus || receiver.HasNexusWallet)
 
-		receiversMap[receiver.GetAddress(destinationChain)] = sendAmount
+		receiversMap[receiver.GetAddress(destinationChain)] = DfmToChainNativeTokenAmount(sourceChain, dfmAmount)
 	}
 
 	// check if users are valid for the bridging - do they have necessary wallets
@@ -546,7 +561,8 @@ func (a *ApexSystem) SubmitBridgingRequest(
 	privateKey, err := sender.GetPrivateKey(sourceChain)
 	require.NoError(t, err)
 
-	txHash, err := a.GetChainMust(t, sourceChain).BridgingRequest(ctx, destinationChain, privateKey, receiversMap)
+	txHash, err := a.GetChainMust(t, sourceChain).BridgingRequest(
+		ctx, destinationChain, privateKey, receiversMap, feeAmount)
 	require.NoError(t, err)
 
 	return txHash
