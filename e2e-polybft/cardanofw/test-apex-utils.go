@@ -248,7 +248,7 @@ func GetNetworkName(networkType wallet.CardanoNetworkType) string {
 	}
 }
 
-func GetAddress(networkType wallet.CardanoNetworkType, cardanoWallet *wallet.Wallet) (wallet.CardanoAddress, error) {
+func GetAddress(networkType wallet.CardanoNetworkType, cardanoWallet *wallet.Wallet) (*wallet.CardanoAddress, error) {
 	if len(cardanoWallet.StakeVerificationKey) > 0 {
 		return wallet.NewBaseAddress(networkType,
 			cardanoWallet.VerificationKey, cardanoWallet.StakeVerificationKey)

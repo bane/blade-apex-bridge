@@ -1828,3 +1828,42 @@ func TestE2E_ApexBridge_ValidScenarios_BigTests(t *testing.T) {
 		fmt.Printf("Prime - Success count: %v. prevAmount: %v. newAmount: %v. expectedAmount: %v\n", succeededCountPrime, prevAmountOnPrime, newAmountOnPrime, expectedAmountOnPrime)
 	})
 }
+
+func TestE2E_ApexBridge_CardanoInfra(t *testing.T) {
+	const (
+		apiKey  = "test_api_key"
+		userCnt = 6
+	)
+
+	ctx, cncl := context.WithCancel(context.Background())
+	defer cncl()
+
+	apex := cardanofw.SetupAndRunApexBridge(
+		t, ctx,
+		cardanofw.WithAPIKey(apiKey),
+		cardanofw.WithUserCnt(userCnt),
+	)
+
+	defer require.True(t, apex.ApexBridgeProcessesRunning())
+
+	user := apex.Users[userCnt-1]
+
+	fmt.Println("prime user addr: ", user.PrimeAddress)
+	fmt.Println("vector user addr: ", user.VectorAddress)
+	fmt.Println("prime multisig addr: ", apex.PrimeInfo.MultisigAddr)
+	fmt.Println("prime fee addr: ", apex.PrimeInfo.FeeAddr)
+	fmt.Printf("prime socket path: %s\n", apex.PrimeInfo.SocketPath)
+	fmt.Println("vector multisig addr: ", apex.VectorInfo.MultisigAddr)
+	fmt.Println("vector fee addr: ", apex.VectorInfo.FeeAddr)
+	fmt.Printf("vector socket path: %s\n", apex.VectorInfo.SocketPath)
+
+	t.Run("From prime to vector wait for each submit", func(t *testing.T) {
+		const (
+			sendAmount = uint64(1_000_000)
+			instances  = 5
+		)
+
+		e2ehelper.ExecuteBridgingOneByOneWaitOnOtherSide(
+			t, ctx, apex, instances, user, cardanofw.ChainIDPrime, cardanofw.ChainIDVector, new(big.Int).SetUint64(sendAmount))
+	})
+}

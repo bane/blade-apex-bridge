@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Ethernal-Tech/cardano-infrastructure/common"
+	"github.com/Ethernal-Tech/cardano-infrastructure/sendtx"
 	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
 
@@ -161,13 +162,12 @@ func createNativeTokenTx(
 
 	desiredAmount := potentialFee + lovelaceAmount + MinUTxODefaultValue
 
-	inputs, err := cardanowallet.GetUTXOsForAmount(
-		ctx,
-		txProvider,
-		senderWalletAddr.String(),
-		[]string{cardanowallet.AdaTokenName},
+	inputs, err := sendtx.GetUTXOsForAmounts(
+		[]cardanowallet.Utxo{}, // TODO: FIX
 		map[string]uint64{cardanowallet.AdaTokenName: desiredAmount},
-		map[string]uint64{cardanowallet.AdaTokenName: desiredAmount})
+		10,
+		1,
+	)
 	if err != nil {
 		return nil, "", err
 	}
@@ -264,13 +264,12 @@ func createMintTx(
 
 	desiredAmount := potentialFee + lovelaceAmount + MinUTxODefaultValue
 
-	inputs, err := cardanowallet.GetUTXOsForAmount(
-		ctx,
-		txProvider,
-		walletAddr.String(),
-		[]string{cardanowallet.AdaTokenName},
+	inputs, err := sendtx.GetUTXOsForAmounts(
+		[]cardanowallet.Utxo{}, // TODO: FIX
 		map[string]uint64{cardanowallet.AdaTokenName: desiredAmount},
-		map[string]uint64{cardanowallet.AdaTokenName: desiredAmount})
+		10,
+		1,
+	)
 	if err != nil {
 		return nil, "", err
 	}

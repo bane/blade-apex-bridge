@@ -15,6 +15,7 @@ import (
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
 	"github.com/0xPolygon/polygon-edge/types"
 	infracommon "github.com/Ethernal-Tech/cardano-infrastructure/common"
+	"github.com/Ethernal-Tech/cardano-infrastructure/sendtx"
 	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 )
@@ -504,6 +505,135 @@ func (a *ApexSystem) SubmitTx(
 }
 
 func (a *ApexSystem) SubmitBridgingRequest(
+	t *testing.T, ctx context.Context,
+	sourceChain ChainID, destinationChain ChainID,
+	sender *TestApexUser, dfmAmount *big.Int, receivers ...*TestApexUser,
+) string {
+	t.Helper()
+
+	require.True(t, sourceChain != destinationChain)
+
+	// check if sourceChain is supported
+	require.True(t,
+		sourceChain == ChainIDPrime ||
+			sourceChain == ChainIDVector ||
+			sourceChain == ChainIDNexus,
+	)
+
+	// check if destinationChain is supported
+	require.True(t,
+		destinationChain == ChainIDPrime ||
+			destinationChain == ChainIDVector ||
+			destinationChain == ChainIDNexus,
+	)
+
+	// check if bridging direction is supported
+	require.False(t,
+		!a.Config.VectorConfig.IsEnabled && (sourceChain == ChainIDVector || destinationChain == ChainIDVector))
+	require.False(t,
+		!a.Config.NexusConfig.IsEnabled && (sourceChain == ChainIDNexus || destinationChain == ChainIDNexus))
+	require.True(t,
+		sourceChain == ChainIDPrime ||
+			(sourceChain == ChainIDVector && destinationChain == ChainIDPrime) ||
+			(sourceChain == ChainIDNexus && destinationChain == ChainIDPrime),
+	)
+
+	// check if number of receivers is valid
+	require.Greater(t, len(receivers), 0)
+	require.Less(t, len(receivers), 5)
+
+	const feeAmountDfm = uint64(1_100_000)
+
+	// check if users are valid for the bridging - do they have necessary wallets
+	require.True(t, sourceChain != ChainIDVector || sender.HasVectorWallet)
+	require.True(t, sourceChain != ChainIDNexus || sender.HasNexusWallet)
+
+	txProviderPrime := cardanowallet.NewTxProviderOgmios(a.PrimeInfo.OgmiosURL)
+	txProviderVector := cardanowallet.NewTxProviderOgmios(a.VectorInfo.OgmiosURL)
+
+	primeNet := cardanowallet.TestNetNetwork
+	vectorNet := cardanowallet.VectorTestNetNetwork
+
+	chainConfigMap := map[string]sendtx.ChainConfig{
+		"vector": {
+			CardanoCliBinary:    ResolveCardanoCliBinary(vectorNet),
+			TxProvider:          txProviderVector,
+			MultiSigAddr:        a.GetChainMust(t, "vector").GetHotWalletAddress(),
+			TestNetMagic:        GetNetworkMagic(vectorNet),
+			TTLSlotNumberInc:    ttlSlotNumberInc,
+			MinUtxoValue:        MinUTxODefaultValue,
+			NativeTokenFullName: "",
+			ExchangeRate:        nil,
+			ProtocolParameters:  nil, //protocolParams,
+		},
+		"prime": {
+			CardanoCliBinary:    ResolveCardanoCliBinary(primeNet),
+			TxProvider:          txProviderPrime,
+			MultiSigAddr:        a.GetChainMust(t, "prime").GetHotWalletAddress(),
+			TestNetMagic:        GetNetworkMagic(primeNet),
+			TTLSlotNumberInc:    ttlSlotNumberInc,
+			MinUtxoValue:        MinUTxODefaultValue,
+			NativeTokenFullName: "",
+			ExchangeRate:        nil,
+			ProtocolParameters:  nil, //protocolParams,
+		},
+	}
+
+	minAmountToBridge := uint64(1_000_000)
+
+	txSender := sendtx.NewTxSender(
+		feeAmountDfm,
+		minAmountToBridge,
+		potentialFee,
+		16,
+		chainConfigMap,
+	)
+
+	receiversMap := []sendtx.BridgingTxReceiver{}
+
+	for _, receiver := range receivers {
+		require.True(t, destinationChain != ChainIDVector || receiver.HasVectorWallet)
+		require.True(t, destinationChain != ChainIDNexus || receiver.HasNexusWallet)
+
+		receiversMap = append(receiversMap, sendtx.BridgingTxReceiver{
+			Addr:   receiver.GetAddress(destinationChain),
+			Amount: DfmToChainNativeTokenAmount(sourceChain, dfmAmount).Uint64(),
+		})
+
+	}
+
+	rawTx, txHash, metadata, err := txSender.CreateBridgingTx(
+		ctx,
+		"prime",
+		"vector",
+		sender.GetAddress("prime"),
+		receiversMap,
+	)
+	if err != nil {
+		fmt.Printf("Error creating tx: %v\n", err)
+	}
+
+	fmt.Printf("metadata: %+v\n", metadata)
+
+	require.NoError(t, err)
+
+	if len(rawTx) == 0 {
+		fmt.Printf("Error creating tx: rawTx len is 0\n")
+	}
+
+	fmt.Printf("Tx raw is: %+v\n", hex.EncodeToString(rawTx))
+
+	err = txSender.SubmitTx(ctx, sourceChain, rawTx, sender.PrimeWallet)
+
+	require.NoError(t, err)
+
+	fmt.Printf("Tx submitted. NO ERRORS\n")
+	fmt.Printf("Tx sent. hash: %s\n", txHash)
+
+	return txHash
+}
+
+func (a *ApexSystem) SubmitBridgingRequest2(
 	t *testing.T, ctx context.Context,
 	sourceChain ChainID, destinationChain ChainID,
 	sender *TestApexUser, dfmAmount *big.Int, receivers ...*TestApexUser,

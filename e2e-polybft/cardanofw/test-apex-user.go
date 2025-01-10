@@ -11,11 +11,11 @@ import (
 
 type TestApexUser struct {
 	PrimeWallet  *cardanowallet.Wallet
-	PrimeAddress cardanowallet.CardanoAddress
+	PrimeAddress *cardanowallet.CardanoAddress
 
 	HasVectorWallet bool
 	VectorWallet    *cardanowallet.Wallet
-	VectorAddress   cardanowallet.CardanoAddress
+	VectorAddress   *cardanowallet.CardanoAddress
 
 	HasNexusWallet bool
 	NexusWallet    *crypto.ECDSAKey
@@ -29,10 +29,10 @@ func NewTestApexUser(
 	nexusEnabled bool,
 ) (*TestApexUser, error) {
 	var (
-		vectorWallet      *cardanowallet.Wallet        = nil
-		vectorUserAddress cardanowallet.CardanoAddress = nil
-		nexusWallet       *crypto.ECDSAKey             = nil
-		nexusUserAddress                               = types.Address{}
+		vectorWallet      *cardanowallet.Wallet         = nil
+		vectorUserAddress *cardanowallet.CardanoAddress = nil
+		nexusWallet       *crypto.ECDSAKey              = nil
+		nexusUserAddress                                = types.Address{}
 	)
 
 	primeWallet, err := cardanowallet.GenerateWallet(false)
@@ -84,10 +84,10 @@ func NewExistingTestApexUser(
 	vectorNetworkType cardanowallet.CardanoNetworkType,
 ) (*TestApexUser, error) {
 	var (
-		vectorWallet      *cardanowallet.Wallet        = nil
-		vectorUserAddress cardanowallet.CardanoAddress = nil
-		nexusWallet       *crypto.ECDSAKey             = nil
-		nexusUserAddress                               = types.Address{}
+		vectorWallet      *cardanowallet.Wallet         = nil
+		vectorUserAddress *cardanowallet.CardanoAddress = nil
+		nexusWallet       *crypto.ECDSAKey              = nil
+		nexusUserAddress                                = types.Address{}
 	)
 
 	primePrivateKeyBytes, err := cardanowallet.GetKeyBytes(primePrivateKey)
@@ -145,7 +145,7 @@ func NewExistingTestApexUser(
 }
 
 func (u *TestApexUser) GetCardanoWallet(chain ChainID) (
-	*cardanowallet.Wallet, cardanowallet.CardanoAddress,
+	*cardanowallet.Wallet, *cardanowallet.CardanoAddress,
 ) {
 	if chain == ChainIDPrime {
 		return u.PrimeWallet, u.PrimeAddress

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	infracommon "github.com/Ethernal-Tech/cardano-infrastructure/common"
+	"github.com/Ethernal-Tech/cardano-infrastructure/sendtx"
 	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
 
@@ -45,56 +46,54 @@ func sendTx(ctx context.Context,
 	networkTestMagic := GetNetworkMagic(networkType)
 	cardanoCliBinary := ResolveCardanoCliBinary(networkType)
 
-	protocolParams, err := txProvider.GetProtocolParameters(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	qtd, err := txProvider.GetTip(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	outputs := []wallet.TxOutput{
-		{
-			Addr:   receiver,
-			Amount: amount,
+	chainConfigMap := map[string]sendtx.ChainConfig{
+		"vector": {
+			CardanoCliBinary:    cardanoCliBinary,
+			TxProvider:          txProvider,
+			MultiSigAddr:        cardanoWalletAddr,
+			TestNetMagic:        networkTestMagic,
+			TTLSlotNumberInc:    ttlSlotNumberInc,
+			MinUtxoValue:        MinUTxODefaultValue,
+			NativeTokenFullName: "",
+			ExchangeRate:        nil,
+			ProtocolParameters:  nil, //protocolParams,
+		},
+		"prime": {
+			CardanoCliBinary:    cardanoCliBinary,
+			TxProvider:          txProvider,
+			MultiSigAddr:        cardanoWalletAddr,
+			TestNetMagic:        networkTestMagic,
+			TTLSlotNumberInc:    ttlSlotNumberInc,
+			MinUtxoValue:        MinUTxODefaultValue,
+			NativeTokenFullName: "",
+			ExchangeRate:        nil,
+			ProtocolParameters:  nil, //protocolParams,
 		},
 	}
-	desiredSum := amount + potentialFee + MinUTxODefaultValue
 
-	inputs, err := wallet.GetUTXOsForAmount(
-		ctx, txProvider, cardanoWalletAddr,
-		[]string{wallet.AdaTokenName},
-		map[string]uint64{wallet.AdaTokenName: desiredSum},
-		map[string]uint64{wallet.AdaTokenName: desiredSum},
+	txSender := sendtx.NewTxSender(
+		uint64(1_100_000),
+		potentialFee,
+		MinUTxODefaultValue,
+		16,
+		chainConfigMap,
+	)
+
+	rawTx, txHash, err := txSender.CreateTxGeneric(
+		ctx,
+		GetNetworkName(networkType),
+		cardanoWalletAddr,
+		receiver,
+		metadata,
+		amount,
+		0,
 	)
 	if err != nil {
+		fmt.Printf("Error creating tx: %v\n", err)
 		return "", err
 	}
 
-	rawTx, txHash, err := CreateTx(
-		cardanoCliBinary,
-		networkTestMagic, protocolParams,
-		qtd.Slot+ttlSlotNumberInc, metadata,
-		outputs, inputs, cardanoWalletAddr, MinUTxODefaultValue)
-	if err != nil {
-		return "", err
-	}
-
-	txBilder, err := wallet.NewTxBuilder(cardanoCliBinary)
-	if err != nil {
-		return "", err
-	}
-
-	defer txBilder.Dispose()
-
-	signedTx, err := txBilder.SignTx(rawTx, []wallet.ITxSigner{cardanoWallet})
-	if err != nil {
-		return "", err
-	}
-
-	return txHash, txProvider.SubmitTx(ctx, signedTx)
+	return txHash, txSender.SubmitTx(ctx, GetNetworkName(networkType), rawTx, cardanoWallet)
 }
 
 func GetGenesisWalletFromCluster(
