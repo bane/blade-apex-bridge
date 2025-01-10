@@ -113,6 +113,7 @@ func (cv *TestApexValidator) RegisterChain(
 		"--type", fmt.Sprint(chainType),
 		"--validator-data-dir", cv.server.DataDir(),
 		"--token-supply", fmt.Sprint(tokenSupply),
+		"--wrapped-token-supply", "0",
 		"--bridge-url", cv.server.JSONRPCAddr(),
 		"--bridge-addr", contracts.Bridge.String(),
 	}, os.Stdout)

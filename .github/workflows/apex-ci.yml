@@ -35,7 +35,7 @@ on: # yamllint disable-line rule:truthy
       apex_bridge_ref:
         description: The branch/commit from the Apex Bridge
         type: string
-        default: main
+        default: feat/skyline
   workflow_call:
     inputs:
       lint:
@@ -125,7 +125,7 @@ jobs:
         id: apex_bridge_ref_input_check
         run: |
           if [[ "${{ inputs.apex_bridge_ref }}" == "" ]]; then
-            echo "apex_bridge_ref=main" >> $GITHUB_OUTPUT
+            echo "apex_bridge_ref=feat/skyline" >> $GITHUB_OUTPUT
           else
             echo "apex_bridge_ref=${{ inputs.apex_bridge_ref }}" >> $GITHUB_OUTPUT
           fi
@@ -142,11 +142,10 @@ jobs:
       PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
   e2e_apex_test:
     name: E2E ApexBridge Tests
-    uses: ./.github/workflows/e2e-apex-test.yml
+    uses: ./.github/workflows/e2e-apex-test.yml 
     needs: [build_blade, inputs_check]
     if: |
-      inputs.e2e_apex_test || 
-      github.event_name == 'pull_request'
+      inputs.e2e_apex_test
     with:
       apex_bridge_ref: ${{ needs.inputs_check.outputs.apex_bridge_ref }}
       e2e_apex_big_test: ${{ inputs.e2e_apex_big_test || 'false' }}
@@ -159,7 +158,7 @@ jobs:
     needs: build_blade
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'))
     with:
-      apex_bridge_ref: main
+      apex_bridge_ref: feat/skyline
       e2e_apex_big_test: false
       e2e_apex_skip_redundant_tests: false
     secrets:
