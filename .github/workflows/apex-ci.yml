@@ -145,7 +145,8 @@ jobs:
     uses: ./.github/workflows/e2e-apex-test.yml 
     needs: [build_blade, inputs_check]
     if: |
-      inputs.e2e_apex_test
+      inputs.e2e_apex_test ||
+      github.event_name == 'pull_request'
     with:
       apex_bridge_ref: ${{ needs.inputs_check.outputs.apex_bridge_ref }}
       e2e_apex_big_test: ${{ inputs.e2e_apex_big_test || 'false' }}

@@ -207,13 +207,14 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 		HasNexusWallet: true,
 	}
 
-	sendTxParams := func(txType, gatewayAddr, nexusUrl, privateKey, chainDst, receiver string, amount, fee *big.Int) error {
+	sendTxParams := func(txType, gatewayAddr, nexusUrl, privateKey, chainSrc, chainDst, receiver string, amount, fee *big.Int) error {
 		return cardanofw.RunCommand(cardanofw.ResolveApexBridgeBinary(), []string{
 			"sendtx",
 			"--tx-type", txType,
 			"--gateway-addr", gatewayAddr,
 			"--nexus-url", nexusUrl,
 			"--key", privateKey,
+			"--chain-src", chainSrc,
 			"--chain-dst", chainDst,
 			"--receiver", fmt.Sprintf("%s:%s", receiver, amount.String()),
 			"--fee", fee.String(),
@@ -230,7 +231,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 		err = sendTxParams("cardano", // "cardano" instead of "evm"
 			apex.NexusInfo.GatewayAddress.String(),
 			apex.NexusInfo.Node.JSONRPCAddr(),
-			userPk, cardanofw.ChainIDPrime,
+			userPk, cardanofw.ChainIDNexus, cardanofw.ChainIDPrime,
 			user.GetAddress(cardanofw.ChainIDPrime),
 			sendAmountWei, fee,
 		)
@@ -247,7 +248,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 		err = sendTxParams("evm",
 			apex.NexusInfo.GatewayAddress.String(),
 			"localhost:1234",
-			userPk, cardanofw.ChainIDPrime,
+			userPk, cardanofw.ChainIDNexus, cardanofw.ChainIDPrime,
 			user.GetAddress(cardanofw.ChainIDPrime),
 			sendAmountWei, fee,
 		)
@@ -272,7 +273,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 		err = sendTxParams("evm",
 			apex.NexusInfo.GatewayAddress.String(),
 			apex.NexusInfo.Node.JSONRPCAddr(),
-			unfundedUserPk, cardanofw.ChainIDPrime,
+			unfundedUserPk, cardanofw.ChainIDNexus, cardanofw.ChainIDPrime,
 			unfundedUser.GetAddress(cardanofw.ChainIDPrime),
 			sendAmountWei, fee,
 		)
@@ -301,7 +302,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 		err = sendTxParams("evm",
 			apex.NexusInfo.GatewayAddress.String(),
 			apex.NexusInfo.Node.JSONRPCAddr(),
-			unfundedUserPk, cardanofw.ChainIDPrime,
+			unfundedUserPk, cardanofw.ChainIDNexus, cardanofw.ChainIDPrime,
 			unfundedUser.GetAddress(cardanofw.ChainIDPrime),
 			sendAmountWei, fee,
 		)
