@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Ethernal-Tech/cardano-infrastructure/common"
+	"github.com/Ethernal-Tech/cardano-infrastructure/sendtx"
 	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
 
@@ -33,7 +34,8 @@ func FundUserWithToken(ctx context.Context, chain ChainID,
 	cardanoCliBinary := cardanowallet.ResolveCardanoCliBinary(networkType)
 
 	pid, _ := cardanowallet.NewCliUtils(cardanoCliBinary).GetPolicyID(policy)
-	mintToken := cardanowallet.NewTokenAmount(pid, defaultTokenName, defaultTokenMintAmount)
+	mintToken := cardanowallet.NewTokenAmount(
+		cardanowallet.NewToken(pid, defaultTokenName), defaultTokenMintAmount)
 
 	txHash, err := MintTokens(
 		ctx, networkType, txProvider, minterWallet, lovelaceFundAmount,
@@ -47,7 +49,8 @@ func FundUserWithToken(ctx context.Context, chain ChainID,
 
 	userToFundAddr := userToFund.GetAddress(chain)
 
-	fundToken := cardanowallet.NewTokenAmount(pid, defaultTokenName, tokenFundAmount)
+	fundToken := cardanowallet.NewTokenAmount(
+		cardanowallet.NewToken(pid, defaultTokenName), tokenFundAmount)
 
 	txHash, err = SendTxWithTokens(
 		ctx, networkType, txProvider, minterWallet, userToFundAddr, lovelaceFundAmount,
@@ -159,15 +162,19 @@ func createNativeTokenTx(
 		builder.SetMetaData(metadata)
 	}
 
-	desiredAmount := potentialFee + lovelaceAmount + MinUTxODefaultValue
+	desiredAmount := potentialFee + lovelaceAmount + minUTxODefaultValue
 
-	inputs, err := cardanowallet.GetUTXOsForAmount(
-		ctx,
-		txProvider,
-		senderWalletAddr.String(),
-		[]string{cardanowallet.AdaTokenName},
+	utxos, err := txProvider.GetUtxos(ctx, senderWalletAddr.String())
+	if err != nil {
+		return nil, "", err
+	}
+
+	inputs, err := sendtx.GetUTXOsForAmounts(
+		utxos,
 		map[string]uint64{cardanowallet.AdaTokenName: desiredAmount},
-		map[string]uint64{cardanowallet.AdaTokenName: desiredAmount})
+		10,
+		1,
+	)
 	if err != nil {
 		return nil, "", err
 	}
@@ -206,7 +213,7 @@ func createNativeTokenTx(
 
 	change := lovelaceInputAmount - lovelaceAmount - fee
 	// handle overflow or insufficient amount
-	if change > lovelaceInputAmount || change < MinUTxODefaultValue {
+	if change > lovelaceInputAmount || change < minUTxODefaultValue {
 		return []byte{}, "", fmt.Errorf("insufficient amount: %d", change)
 	}
 
@@ -262,15 +269,19 @@ func createMintTx(
 		return nil, "", err
 	}
 
-	desiredAmount := potentialFee + lovelaceAmount + MinUTxODefaultValue
+	desiredAmount := potentialFee + lovelaceAmount + minUTxODefaultValue
 
-	inputs, err := cardanowallet.GetUTXOsForAmount(
-		ctx,
-		txProvider,
-		walletAddr.String(),
-		[]string{cardanowallet.AdaTokenName},
+	utxos, err := txProvider.GetUtxos(ctx, walletAddr.String())
+	if err != nil {
+		return nil, "", err
+	}
+
+	inputs, err := sendtx.GetUTXOsForAmounts(
+		utxos,
 		map[string]uint64{cardanowallet.AdaTokenName: desiredAmount},
-		map[string]uint64{cardanowallet.AdaTokenName: desiredAmount})
+		10,
+		1,
+	)
 	if err != nil {
 		return nil, "", err
 	}
@@ -298,7 +309,7 @@ func createMintTx(
 
 	change := lovelaceInputAmount - lovelaceAmount - fee
 	// handle overflow or insufficient amount
-	if change > lovelaceInputAmount || change < MinUTxODefaultValue {
+	if change > lovelaceInputAmount || change < minUTxODefaultValue {
 		return []byte{}, "", fmt.Errorf("insufficient amount: %d", change)
 	}
 

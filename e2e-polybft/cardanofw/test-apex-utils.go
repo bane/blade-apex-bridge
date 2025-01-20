@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -28,7 +29,11 @@ const (
 	BatchStateExecuted                  = "ExecutedOnDestination"
 	BridgingRequestStatusInvalidRequest = "InvalidRequest"
 
-	MinUTxODefaultValue = uint64(1_000_000)
+	minUTxODefaultValue         = uint64(1_000_000)
+	ttlSlotNumberInc            = 500
+	potentialFee                = 500_000
+	bridgingFeeAmount           = uint64(1_100_000)
+	defaultMinBridgingFeeAmount = uint64(1_000_010)
 )
 
 func ResolveCardanoCliBinary(networkID wallet.CardanoNetworkType) string {
@@ -248,7 +253,7 @@ func GetNetworkName(networkType wallet.CardanoNetworkType) string {
 	}
 }
 
-func GetAddress(networkType wallet.CardanoNetworkType, cardanoWallet *wallet.Wallet) (wallet.CardanoAddress, error) {
+func GetAddress(networkType wallet.CardanoNetworkType, cardanoWallet *wallet.Wallet) (*wallet.CardanoAddress, error) {
 	if len(cardanoWallet.StakeVerificationKey) > 0 {
 		return wallet.NewBaseAddress(networkType,
 			cardanoWallet.VerificationKey, cardanoWallet.StakeVerificationKey)
@@ -263,35 +268,6 @@ func GetTestNetMagicArgs(testnetMagic uint) []string {
 	}
 
 	return []string{"--testnet-magic", strconv.FormatUint(uint64(testnetMagic), 10)}
-}
-
-type BridgingRequestMetadataTransaction struct {
-	Address []string `cbor:"a" json:"a"`
-	Amount  uint64   `cbor:"m" json:"m"`
-}
-
-func CreateCardanoBridgingMetaData(
-	sender string, receivers map[string]uint64, destinationChain ChainID, feeAmount uint64,
-) ([]byte, error) {
-	var transactions = make([]BridgingRequestMetadataTransaction, 0, len(receivers))
-	for addr, amount := range receivers {
-		transactions = append(transactions, BridgingRequestMetadataTransaction{
-			Address: SplitString(addr, 40),
-			Amount:  amount,
-		})
-	}
-
-	metadata := map[string]interface{}{
-		"1": map[string]interface{}{
-			"t":  "bridge",
-			"d":  destinationChain,
-			"s":  SplitString(sender, 40),
-			"tx": transactions,
-			"fa": feeAmount,
-		},
-	}
-
-	return json.Marshal(metadata)
 }
 
 func tryResolveFromEnv(env, name string) string {
@@ -439,4 +415,33 @@ func WaitForInvalidState(
 		ctx, apex, chainID, txHash, apiKey, []string{BridgingRequestStatusInvalidRequest}, 300)
 	require.NoError(t, err)
 	require.Equal(t, BridgingRequestStatusInvalidRequest, state)
+}
+
+func GetGenesisWalletFromCluster(
+	dirPath string,
+	keyID uint,
+) (*wallet.Wallet, error) {
+	keyFileName := strings.Join([]string{"utxo", fmt.Sprint(keyID)}, "")
+
+	sKey, err := wallet.NewKey(filepath.Join(dirPath, "utxo-keys", fmt.Sprintf("%s.skey", keyFileName)))
+	if err != nil {
+		return nil, err
+	}
+
+	sKeyBytes, err := sKey.GetKeyBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	vKey, err := wallet.NewKey(filepath.Join(dirPath, "utxo-keys", fmt.Sprintf("%s.vkey", keyFileName)))
+	if err != nil {
+		return nil, err
+	}
+
+	vKeyBytes, err := vKey.GetKeyBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	return wallet.NewWallet(vKeyBytes, sKeyBytes), nil
 }

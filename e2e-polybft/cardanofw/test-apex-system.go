@@ -15,6 +15,7 @@ import (
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/framework"
 	"github.com/0xPolygon/polygon-edge/types"
 	infracommon "github.com/Ethernal-Tech/cardano-infrastructure/common"
+	"github.com/Ethernal-Tech/cardano-infrastructure/sendtx"
 	cardanowallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 )
@@ -207,9 +208,46 @@ func (a *ApexSystem) InitContracts(ctx context.Context) error {
 		}
 	}
 
+	return nil
+}
+
+func (a *ApexSystem) FinishConfiguring() error {
 	// after contracts have been initialized populate all the needed things into apex object
 	for _, chain := range a.chains {
 		chain.PopulateApexSystem(a)
+	}
+
+	txSenderChainConfigs := map[string]sendtx.ChainConfig{
+		ChainIDVector: {
+			CardanoCliBinary:     ResolveCardanoCliBinary(a.Config.VectorConfig.NetworkType),
+			TxProvider:           cardanowallet.NewTxProviderOgmios(a.VectorInfo.OgmiosURL),
+			MultiSigAddr:         a.VectorInfo.MultisigAddr,
+			TestNetMagic:         GetNetworkMagic(a.Config.VectorConfig.NetworkType),
+			TTLSlotNumberInc:     ttlSlotNumberInc,
+			MinUtxoValue:         minUTxODefaultValue,
+			MinBridgingFeeAmount: a.Config.VectorConfig.MinBridgingFee,
+			NativeTokens:         a.Config.VectorConfig.NativeTokens,
+			PotentialFee:         potentialFee,
+		},
+		ChainIDPrime: {
+			CardanoCliBinary:     ResolveCardanoCliBinary(a.Config.PrimeConfig.NetworkType),
+			TxProvider:           cardanowallet.NewTxProviderOgmios(a.PrimeInfo.OgmiosURL),
+			MultiSigAddr:         a.PrimeInfo.MultisigAddr,
+			TestNetMagic:         GetNetworkMagic(a.Config.PrimeConfig.NetworkType),
+			TTLSlotNumberInc:     ttlSlotNumberInc,
+			MinUtxoValue:         minUTxODefaultValue,
+			MinBridgingFeeAmount: a.Config.PrimeConfig.MinBridgingFee,
+			NativeTokens:         a.Config.PrimeConfig.NativeTokens,
+			PotentialFee:         potentialFee,
+		},
+		ChainIDNexus: {
+			MinBridgingFeeAmount: a.Config.NexusConfig.MinBridgingFee,
+		},
+	}
+
+	// set txSenderChainConfigs configuration for each chain
+	for _, chain := range a.chains {
+		chain.UpdateTxSendChainConfiguration(txSenderChainConfigs)
 	}
 
 	return nil
@@ -553,7 +591,6 @@ func (a *ApexSystem) SubmitBridgingRequest(
 
 		receiversMap[receiver.GetAddress(destinationChain)] = DfmToChainNativeTokenAmount(sourceChain, dfmAmount)
 	}
-
 	// check if users are valid for the bridging - do they have necessary wallets
 	require.True(t, sourceChain != ChainIDVector || sender.HasVectorWallet)
 	require.True(t, sourceChain != ChainIDNexus || sender.HasNexusWallet)

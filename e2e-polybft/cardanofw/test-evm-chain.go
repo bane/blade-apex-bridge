@@ -23,6 +23,7 @@ import (
 	"github.com/0xPolygon/polygon-edge/jsonrpc"
 	"github.com/0xPolygon/polygon-edge/txrelayer"
 	"github.com/0xPolygon/polygon-edge/types"
+	"github.com/Ethernal-Tech/cardano-infrastructure/sendtx"
 	"github.com/Ethernal-Tech/ethgo"
 )
 
@@ -45,6 +46,7 @@ type TestEVMChainConfig struct {
 	StartingPort           int64
 	ApexConfig             uint8
 	BurnContractInfo       *polybft.BurnContractInfo
+	MinBridgingFee         uint64
 }
 
 func NewNexusChainConfig(isEnabled bool) *TestEVMChainConfig {
@@ -62,6 +64,7 @@ func NewNexusChainConfig(isEnabled bool) *TestEVMChainConfig {
 		PremineAmount:          ethgo.Ether(defaultPremineEthTokenAmount),
 		FundAmount:             ethgo.Ether(defaultFundEthTokenAmount),
 		FundRelayerAmount:      ethgo.Ether(defaultFundRelayerEthTokenAmount),
+		MinBridgingFee:         defaultMinBridgingFeeAmount,
 	}
 }
 
@@ -259,6 +262,9 @@ func (ec *TestEVMChain) PopulateApexSystem(apexSystem *ApexSystem) {
 	}
 }
 
+func (ec *TestEVMChain) UpdateTxSendChainConfiguration(_ map[string]sendtx.ChainConfig) {
+}
+
 func (ec *TestEVMChain) ChainID() string {
 	return ec.config.ChainID
 }
@@ -272,8 +278,23 @@ func (ec *TestEVMChain) GetAddressBalance(ctx context.Context, addr string) (*bi
 	return amount, err
 }
 
+func (ec *TestEVMChain) CreateMetadata(
+	senderAddr string,
+	dstChainID string,
+	receivers []sendtx.BridgingTxReceiver,
+	bridgingFee uint64,
+	exchangeRate sendtx.ExchangeRate,
+) ([]byte, error) {
+	return nil, nil
+}
+
 func (ec *TestEVMChain) BridgingRequest(
-	ctx context.Context, destChainID ChainID, privateKey string, receivers map[string]*big.Int, feeAmount *big.Int,
+	ctx context.Context,
+	destChainID ChainID,
+	privateKey string,
+	receivers map[string]*big.Int,
+	feeAmount *big.Int,
+	bridgingTypes ...sendtx.BridgingType,
 ) (string, error) {
 	params := []string{
 		"sendtx",

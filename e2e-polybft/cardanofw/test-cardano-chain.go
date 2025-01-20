@@ -17,6 +17,7 @@ import (
 	"github.com/0xPolygon/polygon-edge/contracts"
 	"github.com/0xPolygon/polygon-edge/crypto"
 	infracommon "github.com/Ethernal-Tech/cardano-infrastructure/common"
+	"github.com/Ethernal-Tech/cardano-infrastructure/sendtx"
 	infrawallet "github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 )
 
@@ -37,6 +38,8 @@ type TestCardanoChainConfig struct {
 	PremineAmount          uint64
 	SlotRoundingThreshold  uint64
 	TTLInc                 uint64
+	MinBridgingFee         uint64
+	NativeTokens           []sendtx.TokenExchangeConfig
 }
 
 func NewPrimeChainConfig() *TestCardanoChainConfig {
@@ -49,6 +52,7 @@ func NewPrimeChainConfig() *TestCardanoChainConfig {
 		PremineAmount:          defaultPremineAmount,
 		FundAmount:             defaultFundTokenAmount,
 		FundFeeAmount:          defaultFundTokenAmount,
+		MinBridgingFee:         defaultMinBridgingFeeAmount,
 	}
 }
 
@@ -62,6 +66,7 @@ func NewVectorChainConfig(isEnabled bool) *TestCardanoChainConfig {
 		PremineAmount:          defaultPremineAmount,
 		FundAmount:             defaultFundTokenAmount,
 		FundFeeAmount:          defaultFundTokenAmount,
+		MinBridgingFee:         defaultMinBridgingFeeAmount,
 	}
 }
 
@@ -72,6 +77,7 @@ type TestCardanoChain struct {
 	multisigFeeAddr string
 	fundBlockSlot   uint64
 	fundBlockHash   string
+	txSender        *sendtx.TxSender
 }
 
 var _ ITestApexChain = (*TestCardanoChain)(nil)
@@ -277,6 +283,10 @@ func (ec *TestCardanoChain) PopulateApexSystem(apexSystem *ApexSystem) {
 	}
 }
 
+func (ec *TestCardanoChain) UpdateTxSendChainConfiguration(configs map[string]sendtx.ChainConfig) {
+	ec.txSender = sendtx.NewTxSender(configs)
+}
+
 func (ec *TestCardanoChain) ChainID() string {
 	return GetNetworkName(ec.config.NetworkType)
 }
@@ -292,69 +302,110 @@ func (ec *TestCardanoChain) GetAddressBalance(ctx context.Context, addr string) 
 	return new(big.Int).SetUint64(sum[infrawallet.AdaTokenName]), nil
 }
 
+func (ec *TestCardanoChain) CreateMetadata(
+	senderAddr string,
+	dstChainID string,
+	receivers []sendtx.BridgingTxReceiver,
+	bridgingFee uint64,
+	exchangeRate sendtx.ExchangeRate,
+) ([]byte, error) {
+	metadata, err := ec.txSender.CreateMetadata(
+		senderAddr, GetNetworkName(ec.config.NetworkType), dstChainID, receivers, bridgingFee, exchangeRate)
+	if err != nil {
+		return nil, err
+	}
+
+	return metadata.Marshal()
+}
+
 func (ec *TestCardanoChain) BridgingRequest(
-	ctx context.Context, destChainID ChainID, privateKey string, receivers map[string]*big.Int, feeAmount *big.Int,
+	ctx context.Context,
+	dstChainID ChainID,
+	privateKey string,
+	receiversMap map[string]*big.Int,
+	feeAmount *big.Int,
+	bridgingTypes ...sendtx.BridgingType,
 ) (string, error) {
 	privateKeyBytes, err := hex.DecodeString(privateKey)
 	if err != nil {
 		return "", err
 	}
 
-	verificationKeys := infrawallet.GetVerificationKeyFromSigningKey(privateKeyBytes)
-	totalAmount := new(big.Int).Set(feeAmount)
-	receiversMap := make(map[string]uint64, len(receivers))
+	wallet := infrawallet.NewWallet(
+		infrawallet.GetVerificationKeyFromSigningKey(privateKeyBytes), privateKeyBytes)
+	srcChainID := GetNetworkName(ec.config.NetworkType)
 
-	for addr, amount := range receivers {
-		totalAmount.Add(totalAmount, amount)
-		receiversMap[addr] = amount.Uint64()
-	}
-
-	senderAddr, err := infrawallet.NewEnterpriseAddress(ec.config.NetworkType, verificationKeys)
+	walletAddr, err := GetAddress(ec.config.NetworkType, wallet)
 	if err != nil {
 		return "", err
 	}
 
-	bridgingRequestMetadata, err := CreateCardanoBridgingMetaData(
-		senderAddr.String(), receiversMap, destChainID, feeAmount.Uint64())
+	receivers := make([]sendtx.BridgingTxReceiver, 0, len(receiversMap))
+
+	for receiverAddress, receiverAmount := range receiversMap {
+		bridgingType := sendtx.BridgingTypeNormal
+		if idx := len(receivers); idx < len(bridgingTypes) {
+			bridgingType = bridgingTypes[idx]
+		}
+
+		receivers = append(receivers, sendtx.BridgingTxReceiver{
+			Addr:         receiverAddress,
+			Amount:       DfmToChainNativeTokenAmount(srcChainID, receiverAmount).Uint64(),
+			BridgingType: bridgingType,
+		})
+	}
+
+	rawTx, txHash, _, err := ec.txSender.CreateBridgingTx(
+		ctx,
+		srcChainID,
+		dstChainID,
+		walletAddr.String(),
+		receivers,
+		bridgingFeeAmount,
+		sendtx.NewExchangeRate(),
+	)
 	if err != nil {
 		return "", err
 	}
 
-	return ec.SendTx(ctx, privateKey, ec.multisigAddr, totalAmount, bridgingRequestMetadata)
+	return ec.submitTx(ctx, rawTx, txHash, ec.multisigAddr, wallet)
 }
 
 func (ec *TestCardanoChain) SendTx(
-	ctx context.Context, privateKey string, receiverAddr string, amount *big.Int, data []byte,
+	ctx context.Context,
+	privateKey string,
+	receiverAddr string,
+	amount *big.Int,
+	metadata []byte,
 ) (string, error) {
-	const (
-		retryCount    = 75
-		retryWaitTime = time.Second * 2
-	)
-
 	privateKeyBytes, err := hex.DecodeString(privateKey)
 	if err != nil {
 		return "", err
 	}
 
-	wallet := infrawallet.NewWallet(infrawallet.GetVerificationKeyFromSigningKey(privateKeyBytes), privateKeyBytes)
-	txProvider := infrawallet.NewTxProviderOgmios(ec.cluster.OgmiosURL())
+	wallet := infrawallet.NewWallet(
+		infrawallet.GetVerificationKeyFromSigningKey(privateKeyBytes), privateKeyBytes)
 
-	txHash, err := SendTx(ctx, txProvider, wallet,
-		amount.Uint64(), receiverAddr, ec.config.NetworkType, data)
+	walletAddr, err := GetAddress(ec.config.NetworkType, wallet)
 	if err != nil {
 		return "", err
 	}
 
-	return infracommon.ExecuteWithRetry(ctx, func(ctx context.Context) (string, error) {
-		contains, err := infrawallet.IsTxInUtxos(ctx, txProvider, receiverAddr, txHash)
-		if err != nil {
-			return "", err
-		} else if !contains {
-			return "", infracommon.ErrRetryTryAgain
-		}
+	rawTx, txHash, err := ec.txSender.CreateTxGeneric(
+		ctx,
+		GetNetworkName(ec.config.NetworkType),
+		walletAddr.String(),
+		receiverAddr,
+		metadata,
+		amount.Uint64(),
+		0,
+		"",
+	)
+	if err != nil {
+		return "", err
+	}
 
-		return txHash, nil
-	}, infracommon.WithRetryCount(retryCount), infracommon.WithRetryWaitTime(retryWaitTime))
+	return ec.submitTx(ctx, rawTx, txHash, receiverAddr, wallet)
 }
 
 func (ec *TestCardanoChain) GetHotWalletAddress() string {
@@ -368,4 +419,34 @@ func (ec *TestCardanoChain) GetAdminPrivateKey() (string, error) {
 	}
 
 	return hex.EncodeToString(genesisWallet.SigningKey), nil
+}
+
+func (ec *TestCardanoChain) submitTx(
+	ctx context.Context,
+	rawTx []byte,
+	txHash string,
+	receiverAddr string,
+	signer infrawallet.ITxSigner,
+) (string, error) {
+	const (
+		retryCount    = 40
+		retryWaitTime = time.Second * 5
+	)
+
+	txProvider := infrawallet.NewTxProviderOgmios(ec.cluster.OgmiosURL())
+
+	if err := ec.txSender.SubmitTx(ctx, GetNetworkName(ec.config.NetworkType), rawTx, signer); err != nil {
+		return "", err
+	}
+
+	return infracommon.ExecuteWithRetry(ctx, func(ctx context.Context) (string, error) {
+		contains, err := infrawallet.IsTxInUtxos(ctx, txProvider, receiverAddr, txHash)
+		if err != nil {
+			return "", err
+		} else if !contains {
+			return "", infracommon.ErrRetryTryAgain
+		}
+
+		return txHash, nil
+	}, infracommon.WithRetryCount(retryCount), infracommon.WithRetryWaitTime(retryWaitTime))
 }

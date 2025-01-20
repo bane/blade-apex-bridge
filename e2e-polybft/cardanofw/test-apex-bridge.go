@@ -53,6 +53,7 @@ func SetupAndRunApexBridge(
 	fmt.Printf("Multisig addresses have been created\n")
 
 	require.NoError(t, apexSystem.InitContracts(ctx))
+	require.NoError(t, apexSystem.FinishConfiguring())
 
 	fmt.Printf("Contracts have been set up\n")
 
