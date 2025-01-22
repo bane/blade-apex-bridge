@@ -62,18 +62,25 @@ func Test_cardanoVerifySignaturePrecompile_ValidSignature(t *testing.T) {
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolTrue, value)
+}
 
-	keyHash, err := cardanowallet.GetKeyHash(walletBasic.VerificationKey)
+func Test_cardanoVerifySignaturePrecompile_ValidMessageSignature(t *testing.T) {
+	prec := &cardanoVerifySignaturePrecompile{}
+
+	const (
+		msg  = "b34e37efa830e3f442eb479ad7ee88ce508f976fe866a0eff506550ad1f3eb5b"
+		sign = "c728c5ffb946bb79a3e643aabdd7c5147d09af0e72b7a1ac810513a95739d9218958d39747e89838f7126428bb31e40c952ec5d4bcb386d1655444efc09a7108"
+		vkey = "086ccfce6888b0b0a52446a359b98790b4f9d050fdc0c7f0c4a6436c5a37e15b"
+	)
+
+	msgBytes, err := hex.DecodeString(msg)
 	require.NoError(t, err)
-
-	// message
-	message := []byte(fmt.Sprintf("Hello world! My keyHash is: %s", keyHash))
-	signature, err = cardanowallet.SignMessage(
-		walletBasic.SigningKey, walletBasic.VerificationKey, message)
+	signBytes, err := hex.DecodeString(sign)
 	require.NoError(t, err)
-
-	value, err = prec.run(
-		encodeCardanoVerifySignature(t, message, signature, walletBasic.VerificationKey, false),
+	vkeyBytes, err := hex.DecodeString(vkey)
+	require.NoError(t, err)
+	value, err := prec.run(
+		encodeCardanoVerifySignature(t, msgBytes, signBytes, vkeyBytes, false),
 		types.ZeroAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, abiBoolTrue, value)
