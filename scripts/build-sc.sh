@@ -4,7 +4,7 @@ BRANCH=main
 
 # build Apex-bridge smartcontracts
 cd ./apex-bridge-smartcontracts
-git checkout main
+git checkout audit/apex-451
 git fetch origin
 git pull origin
 if [ "$BRANCH" != "main" ]; then
