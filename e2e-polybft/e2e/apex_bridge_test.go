@@ -258,7 +258,8 @@ func TestE2E_ApexBridge_BatchRecreated(t *testing.T) {
 	)
 
 	_, timeout := cardanofw.WaitForBatchState(
-		ctx, apex, cardanofw.ChainIDPrime, txHash, apiKey, false, true, cardanofw.BatchStateIncludedInBatch)
+		ctx, apex, cardanofw.ChainIDPrime, txHash, apiKey, false, true,
+		cardanofw.BatchStateIncludedInBatch, cardanofw.BatchStateSubmittedToDestination)
 
 	require.False(t, timeout)
 }

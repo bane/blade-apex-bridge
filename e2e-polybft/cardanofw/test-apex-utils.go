@@ -25,6 +25,7 @@ const (
 
 	BatchStateFailedToExecute           = "FailedToExecuteOnDestination"
 	BatchStateIncludedInBatch           = "IncludedInBatch"
+	BatchStateSubmittedToDestination    = "SubmittedToDestination"
 	BatchStateExecuted                  = "ExecutedOnDestination"
 	BridgingRequestStatusInvalidRequest = "InvalidRequest"
 
@@ -386,7 +387,7 @@ func WaitForRequestStateGeneric(
 
 func WaitForBatchState(
 	ctx context.Context, apex *ApexSystem, chainID string, txHash string,
-	apiKey string, breakIfFailed bool, failAtLeastOnce bool, batchState string,
+	apiKey string, breakIfFailed bool, failAtLeastOnce bool, batchState string, otherGoodBatchStates ...string,
 ) (int, bool) {
 	failedToExecuteCount := 0
 	err := WaitForRequestStateGeneric(ctx, apex, chainID, txHash, apiKey, time.Second*300, func(status string) bool {
@@ -398,7 +399,18 @@ func WaitForBatchState(
 			}
 		}
 
-		return status == batchState && (!failAtLeastOnce || failedToExecuteCount > 0)
+		found := status == batchState
+		if !found {
+			for _, otherState := range otherGoodBatchStates {
+				if status == otherState {
+					found = true
+
+					break
+				}
+			}
+		}
+
+		return found && (!failAtLeastOnce || failedToExecuteCount > 0)
 	})
 
 	return failedToExecuteCount, err != nil
