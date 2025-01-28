@@ -208,7 +208,7 @@ func (ec *TestEVMChain) InitContracts(bridgeAdmin *crypto.ECDSAKey, bridgeURL st
 			"--bridge-addr", contracts.Bridge.String(),
 			"--bridge-key", hex.EncodeToString(bridgeAdminPk),
 			"--dir", workingDirectory,
-			"--branch", "audit/apex-ci",
+			"--branch", "audit/APEX-472",
 			"--clone",
 		}
 	)
