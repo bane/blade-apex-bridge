@@ -232,9 +232,9 @@ func (ec *TestEVMChain) InitContracts(bridgeAdmin *crypto.ECDSAKey, bridgeURL st
 	return errors.New("cannot find gateway address")
 }
 
-func (ec *TestEVMChain) RegisterChain(validator *TestApexValidator) error {
+func (ec *TestEVMChain) RegisterChain(validator *TestApexValidator, system string) error {
 	return validator.RegisterChain(
-		ec.config.ChainID, WeiToDfm(ec.config.InitialHotWalletAmount), ChainTypeEVM)
+		ec.config.ChainID, WeiToDfm(ec.config.InitialHotWalletAmount), big.NewInt(0), ChainTypeEVM)
 }
 
 func (ec *TestEVMChain) GetGenerateConfigsParams(indx int) (result []string) {
@@ -386,4 +386,7 @@ func (ec *TestEVMChain) sendTx(
 	}
 
 	return receipt, nil
+}
+
+func (t *TestEVMChain) SetNativeTokenName(tokenName string) {
 }

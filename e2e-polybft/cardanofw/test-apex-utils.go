@@ -29,18 +29,18 @@ const (
 	BatchStateExecuted                  = "ExecutedOnDestination"
 	BridgingRequestStatusInvalidRequest = "InvalidRequest"
 
-	minUTxODefaultValue         = uint64(1_000_000)
+	minUTxODefaultValue         = uint64(1_043_020)
 	ttlSlotNumberInc            = 500
 	potentialFee                = 500_000
 	bridgingFeeAmount           = uint64(1_100_000)
-	defaultMinBridgingFeeAmount = uint64(1_000_010)
+	defaultMinBridgingFeeAmount = uint64(1_043_020)
 )
 
 func ResolveCardanoCliBinary(networkID wallet.CardanoNetworkType) string {
 	var env, name string
 
 	switch networkID {
-	case wallet.VectorMainNetNetwork, wallet.VectorTestNetNetwork:
+	case wallet.VectorMainNetNetwork, wallet.VectorTestNetNetwork, wallet.CardanoTestNetwork:
 		env = "CARDANO_CLI_BINARY_VECTOR"
 		name = "vector-cli"
 	default:
@@ -55,7 +55,7 @@ func ResolveOgmiosBinary(networkID wallet.CardanoNetworkType) string {
 	var env, name string
 
 	switch networkID {
-	case wallet.VectorMainNetNetwork, wallet.VectorTestNetNetwork:
+	case wallet.VectorMainNetNetwork, wallet.VectorTestNetNetwork, wallet.CardanoTestNetwork:
 		env = "OGMIOS_BINARY_VECTOR"
 		name = "vector-ogmios"
 	default:
@@ -70,7 +70,7 @@ func ResolveCardanoNodeBinary(networkID wallet.CardanoNetworkType) string {
 	var env, name string
 
 	switch networkID {
-	case wallet.VectorMainNetNetwork, wallet.VectorTestNetNetwork:
+	case wallet.VectorMainNetNetwork, wallet.VectorTestNetNetwork, wallet.CardanoTestNetwork:
 		env = "CARDANO_NODE_BINARY_VECTOR"
 		name = "vector-node"
 	default:
@@ -225,7 +225,7 @@ type OracleStateResponse struct {
 
 func GetNetworkMagic(networkType wallet.CardanoNetworkType) uint {
 	switch networkType {
-	case wallet.VectorTestNetNetwork:
+	case wallet.VectorTestNetNetwork, wallet.CardanoTestNetwork:
 		return wallet.VectorTestNetProtocolMagic
 	case wallet.VectorMainNetNetwork:
 		return wallet.VectorMainNetProtocolMagic
@@ -241,13 +241,16 @@ func GetNetworkMagic(networkType wallet.CardanoNetworkType) uint {
 func GetNetworkName(networkType wallet.CardanoNetworkType) string {
 	switch networkType {
 	case wallet.VectorTestNetNetwork:
-		return ChainIDVector
+		return ChainIDCardano
+		// return ChainIDVector
 	case wallet.VectorMainNetNetwork:
 		return ChainIDVector
 	case wallet.MainNetNetwork:
 		return ChainIDPrime
 	case wallet.TestNetNetwork:
 		return ChainIDPrime
+	case wallet.CardanoTestNetwork:
+		return ChainIDCardano
 	default:
 		return ""
 	}

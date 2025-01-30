@@ -149,7 +149,7 @@ func (u *TestApexUser) GetCardanoWallet(chain ChainID) (
 ) {
 	if chain == ChainIDPrime {
 		return u.PrimeWallet, u.PrimeAddress
-	} else if chain == ChainIDVector {
+	} else if chain == ChainIDVector || chain == ChainIDCardano {
 		return u.VectorWallet, u.VectorAddress
 	}
 
@@ -170,7 +170,7 @@ func (u *TestApexUser) GetAddress(chain ChainID) string {
 	switch chain {
 	case ChainIDPrime:
 		return u.PrimeAddress.String()
-	case ChainIDVector:
+	case ChainIDVector, ChainIDCardano:
 		if u.HasVectorWallet {
 			return u.VectorAddress.String()
 		}
@@ -191,7 +191,7 @@ func (u *TestApexUser) GetPrivateKey(chain ChainID) (string, error) {
 	switch chain {
 	case ChainIDPrime:
 		return hex.EncodeToString(u.PrimeWallet.SigningKey), nil
-	case ChainIDVector:
+	case ChainIDVector, ChainIDCardano:
 		if u.HasVectorWallet {
 			return hex.EncodeToString(u.VectorWallet.SigningKey), nil
 		}

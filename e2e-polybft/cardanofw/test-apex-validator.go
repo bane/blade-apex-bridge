@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/0xPolygon/polygon-edge/contracts"
 	"github.com/0xPolygon/polygon-edge/crypto"
@@ -105,6 +106,7 @@ func (cv *TestApexValidator) GetCardanoWallet(chainID string) (*CardanoWallet, e
 func (cv *TestApexValidator) RegisterChain(
 	chain ChainID,
 	tokenSupply *big.Int,
+	nativeTokenSupply *big.Int,
 	chainType uint8,
 ) error {
 	return RunCommand(ResolveApexBridgeBinary(), []string{
@@ -113,7 +115,7 @@ func (cv *TestApexValidator) RegisterChain(
 		"--type", fmt.Sprint(chainType),
 		"--validator-data-dir", cv.server.DataDir(),
 		"--token-supply", fmt.Sprint(tokenSupply),
-		"--wrapped-token-supply", "0",
+		"--wrapped-token-supply", fmt.Sprint(nativeTokenSupply),
 		"--bridge-url", cv.server.JSONRPCAddr(),
 		"--bridge-addr", contracts.Bridge.String(),
 	}, os.Stdout)
@@ -144,6 +146,50 @@ func (cv *TestApexValidator) GenerateConfigs(
 		"--api-keys", apiKey,
 		"--telemetry", telemetryConfig,
 		"--relayer-data-dir", cv.server.DataDir(),
+	}, args...)
+
+	if err := RunCommand(ResolveApexBridgeBinary(), args, os.Stdout); err != nil {
+		return err
+	}
+
+	if err := common.CreateDirSafe(logsPath, 0770); err != nil {
+		return err
+	}
+
+	return common.CreateDirSafe(dbsPath, 0770)
+}
+
+func (cv *TestApexValidator) GenerateSkylineConfigs(
+	apiPort int,
+	apiKey string,
+	telemetryConfig string,
+	cardanoPrimeTokenName string,
+	primeCardanoTokenName string,
+	args ...string,
+) error {
+	cv.APIPort = apiPort
+	logsPath := filepath.Join(cv.dataDirPath, BridgingLogsDir)
+	dbsPath := filepath.Join(cv.dataDirPath, BridgingDBsDir)
+
+	args = append([]string{
+		"generate-configs", "skyline",
+		"--validator-data-dir", cv.server.DataDir(),
+		"--output-dir", cv.GetBridgingConfigsDir(),
+		"--output-validator-components-file-name", ValidatorComponentsConfigFileName,
+		"--output-relayer-file-name", RelayerConfigFileName,
+		"--bridge-node-url", cv.server.JSONRPCAddr(),
+		"--bridge-sc-address", contracts.Bridge.String(),
+		"--relayer-data-dir", cv.GetNexusTestDir(),
+		"--logs-path", logsPath,
+		"--dbs-path", dbsPath,
+		"--api-port", fmt.Sprint(apiPort),
+		"--api-keys", apiKey,
+		"--telemetry", telemetryConfig,
+		"--relayer-data-dir", cv.server.DataDir(),
+		"--prime-cardano-token-name", primeCardanoTokenName,
+		"--cardano-prime-token-name", cardanoPrimeTokenName,
+		"--cardano-utxo-min-amount", strconv.FormatUint(minUTxODefaultValue, 10),
+		"--prime-utxo-min-amount", strconv.FormatUint(minUTxODefaultValue, 10),
 	}, args...)
 
 	if err := RunCommand(ResolveApexBridgeBinary(), args, os.Stdout); err != nil {

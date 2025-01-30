@@ -45,7 +45,9 @@ func (t *TestCardanoServer) Stop() error {
 		return err
 	}
 
-	t.txProvider.Dispose()
+	if t.txProvider != nil {
+		t.txProvider.Dispose()
+	}
 
 	t.node = nil
 	t.txProvider = nil

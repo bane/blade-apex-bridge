@@ -15,7 +15,7 @@ type ITestApexChain interface {
 	CreateWallets(validator *TestApexValidator) error
 	CreateAddresses(bladeAdmin *crypto.ECDSAKey, bridgeURL string) error
 	FundWallets(ctx context.Context) error
-	RegisterChain(validator *TestApexValidator) error
+	RegisterChain(validator *TestApexValidator, system string) error
 	InitContracts(bridgeAdmin *crypto.ECDSAKey, bridgeURL string) error
 	GetGenerateConfigsParams(indx int) []string
 	PopulateApexSystem(apexSystem *ApexSystem)
@@ -42,6 +42,8 @@ type ITestApexChain interface {
 		bridgingFee uint64,
 		exchangeRate sendtx.ExchangeRate,
 	) ([]byte, error)
+
+	SetNativeTokenName(string)
 }
 
 type TestApexChainDummy struct {
@@ -99,7 +101,7 @@ func (t *TestApexChainDummy) PopulateApexSystem(apexSystem *ApexSystem) {
 func (t *TestApexChainDummy) UpdateTxSendChainConfiguration(_ map[string]sendtx.ChainConfig) {
 }
 
-func (t *TestApexChainDummy) RegisterChain(validator *TestApexValidator) error {
+func (t *TestApexChainDummy) RegisterChain(validator *TestApexValidator, system string) error {
 	return nil
 }
 
@@ -135,6 +137,10 @@ func (t *TestApexChainDummy) CreateMetadata(
 	exchangeRate sendtx.ExchangeRate,
 ) ([]byte, error) {
 	return nil, nil
+}
+
+func (t *TestApexChainDummy) SetNativeTokenName(string) {
+
 }
 
 var _ ITestApexChain = (*TestApexChainDummy)(nil)

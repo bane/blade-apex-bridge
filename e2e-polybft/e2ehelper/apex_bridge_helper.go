@@ -11,6 +11,7 @@ import (
 
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/cardanofw"
 	infracommon "github.com/Ethernal-Tech/cardano-infrastructure/common"
+	"github.com/Ethernal-Tech/cardano-infrastructure/sendtx"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,6 +26,47 @@ func ExecuteSingleBridging(
 
 	txHash := apex.SubmitBridgingRequest(
 		t, ctx, srcChain, dstChain, senderUser, sendAmountDfm, receiverUser)
+	expectedAmountDfm := new(big.Int).Add(prevAmountDfm, sendAmountDfm)
+
+	fmt.Printf("Tx sent. hash: %s\n", txHash)
+
+	// check expected amount cardano
+	err = apex.WaitForExactAmount(ctx, receiverUser, dstChain, expectedAmountDfm, 100, time.Second*10)
+	require.NoError(t, err)
+}
+
+func ExecuteSingleBridgingSkyline(
+	t *testing.T, ctx context.Context, apex IApexSystem, senderUser, receiverUser *cardanofw.TestApexUser,
+	srcChain, dstChain string, sendAmountDfm *big.Int,
+) {
+	t.Helper()
+
+	prevAmountDfm, err := apex.GetBalance(ctx, receiverUser, dstChain)
+	require.NoError(t, err)
+
+	txHash := apex.SubmitBridgingRequestSkyline(
+		t, ctx, srcChain, dstChain, senderUser, sendAmountDfm, sendtx.BridgingTypeCurrencyOnSource, receiverUser)
+	expectedAmountDfm := new(big.Int).Add(prevAmountDfm, big.NewInt(1_043_020))
+
+	fmt.Printf("Tx sent. hash: %s\n", txHash)
+
+	// check expected amount cardano
+	err = apex.WaitForExactAmount(ctx, receiverUser, dstChain, expectedAmountDfm, 100, time.Second*10)
+	require.NoError(t, err)
+}
+
+func ExecuteSingleBridgingSkylineNativeTokens(
+	t *testing.T, ctx context.Context, apex IApexSystem, senderUser, receiverUser *cardanofw.TestApexUser,
+	srcChain, dstChain string, sendAmountDfm *big.Int,
+) {
+	t.Helper()
+
+	prevAmountDfm, err := apex.GetBalance(ctx, receiverUser, dstChain)
+	require.NoError(t, err)
+
+	txHash := apex.SubmitBridgingRequestSkyline(t, ctx, srcChain, dstChain, senderUser, sendAmountDfm,
+		sendtx.BridgingTypeNativeTokenOnSource, receiverUser)
+
 	expectedAmountDfm := new(big.Int).Add(prevAmountDfm, sendAmountDfm)
 
 	fmt.Printf("Tx sent. hash: %s\n", txHash)

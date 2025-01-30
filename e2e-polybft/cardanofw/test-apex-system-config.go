@@ -13,6 +13,8 @@ const (
 	ChainIDVector ChainID = "vector"
 	ChainIDNexus  ChainID = "nexus"
 
+	ChainIDCardano ChainID = "cardano"
+
 	RunRelayerOnValidatorID = 1
 )
 
@@ -121,6 +123,25 @@ func getDefaultApexSystemConfig() *ApexSystemConfig {
 
 		PrimeConfig:  NewPrimeChainConfig(),
 		VectorConfig: NewVectorChainConfig(true),
+		NexusConfig:  NewNexusChainConfig(false),
+
+		CustomOracleHandler:  nil,
+		CustomRelayerHandler: nil,
+
+		UserCnt: 10,
+	}
+}
+
+func getDefaultSkylinexSystemConfig() *ApexSystemConfig {
+	return &ApexSystemConfig{
+		APIValidatorID: 1,
+		APIPortStart:   40000,
+		APIKey:         "test_api_key",
+
+		BladeValidatorCount: 4,
+
+		PrimeConfig:  NewPrimeChainConfig(),
+		VectorConfig: NewCardanoChainConfig(true),
 		NexusConfig:  NewNexusChainConfig(false),
 
 		CustomOracleHandler:  nil,

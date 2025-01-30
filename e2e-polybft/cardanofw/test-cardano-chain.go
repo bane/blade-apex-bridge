@@ -70,6 +70,21 @@ func NewVectorChainConfig(isEnabled bool) *TestCardanoChainConfig {
 	}
 }
 
+func NewCardanoChainConfig(isEnabled bool) *TestCardanoChainConfig {
+	return &TestCardanoChainConfig{
+		IsEnabled:   isEnabled,
+		ID:          4,
+		NetworkType: infrawallet.VectorTestNetNetwork,
+		// NetworkType:            infrawallet.CardanoTestNetwork,
+		NodesCount:             4,
+		InitialHotWalletAmount: big.NewInt(0),
+		PremineAmount:          defaultPremineAmount,
+		FundAmount:             defaultFundTokenAmount,
+		FundFeeAmount:          defaultFundTokenAmount,
+		MinBridgingFee:         defaultMinBridgingFeeAmount,
+	}
+}
+
 type TestCardanoChain struct {
 	config          *TestCardanoChainConfig
 	cluster         *TestCardanoCluster
@@ -78,6 +93,8 @@ type TestCardanoChain struct {
 	fundBlockSlot   uint64
 	fundBlockHash   string
 	txSender        *sendtx.TxSender
+
+	NativeTokenName string
 }
 
 var _ ITestApexChain = (*TestCardanoChain)(nil)
@@ -236,8 +253,13 @@ func (ec *TestCardanoChain) InitContracts(bridgeAdmin *crypto.ECDSAKey, bridgeUR
 	return nil
 }
 
-func (ec *TestCardanoChain) RegisterChain(validator *TestApexValidator) error {
-	return validator.RegisterChain(ec.ChainID(), ec.config.InitialHotWalletAmount, ChainTypeCardano)
+func (ec *TestCardanoChain) RegisterChain(validator *TestApexValidator, system string) error {
+	if system == "skyline" {
+		return validator.RegisterChain(ec.ChainID(), ec.config.InitialHotWalletAmount, big.NewInt(1000000000),
+			ChainTypeCardano)
+	}
+
+	return validator.RegisterChain(ec.ChainID(), ec.config.InitialHotWalletAmount, big.NewInt(0), ChainTypeCardano)
 }
 
 func (ec *TestCardanoChain) GetGenerateConfigsParams(indx int) (result []string) {
@@ -278,7 +300,7 @@ func (ec *TestCardanoChain) PopulateApexSystem(apexSystem *ApexSystem) {
 	switch ec.ChainID() {
 	case ChainIDPrime:
 		apexSystem.PrimeInfo = chainInfo
-	case ChainIDVector:
+	case ChainIDVector, ChainIDCardano:
 		apexSystem.VectorInfo = chainInfo
 	}
 }
@@ -362,7 +384,20 @@ func (ec *TestCardanoChain) BridgingRequest(
 		walletAddr.String(),
 		receivers,
 		bridgingFeeAmount,
-		sendtx.NewExchangeRate(),
+		sendtx.NewExchangeRate(
+			sendtx.ExchangeRateEntry{
+
+				SrcChainID: ChainIDPrime,
+				DstChainID: ChainIDCardano,
+				Value:      0.5,
+			},
+			sendtx.ExchangeRateEntry{
+
+				SrcChainID: ChainIDCardano,
+				DstChainID: ChainIDPrime,
+				Value:      2.0,
+			},
+		),
 	)
 	if err != nil {
 		return "", err
@@ -399,7 +434,7 @@ func (ec *TestCardanoChain) SendTx(
 		metadata,
 		amount.Uint64(),
 		0,
-		"",
+		ec.NativeTokenName,
 	)
 	if err != nil {
 		return "", err
@@ -449,4 +484,8 @@ func (ec *TestCardanoChain) submitTx(
 
 		return txHash, nil
 	}, infracommon.WithRetryCount(retryCount), infracommon.WithRetryWaitTime(retryWaitTime))
+}
+
+func (t *TestCardanoChain) SetNativeTokenName(tokenName string) {
+	t.NativeTokenName = tokenName
 }
