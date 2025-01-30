@@ -33,3 +33,4 @@ vendor/
 coverage.out
 
 e2e-bridge-data-tmp*
+testnet-users.json

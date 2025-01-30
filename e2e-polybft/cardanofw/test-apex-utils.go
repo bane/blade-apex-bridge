@@ -243,6 +243,43 @@ func GetAPIRequestGeneric[T any](ctx context.Context, requestURL string, apiKey 
 	return responseModel, nil
 }
 
+type FaucetRequestBody struct {
+	Addr  string `json:"address"`
+	Token string `json:"token"`
+}
+
+func FaucetRequest(ctx context.Context, addr string) (err error) {
+	requestURL := "https://developers.apexfusion.org/api/faucet"
+
+	requestBody := FaucetRequestBody{
+		Addr:  addr,
+		Token: os.Getenv("TESTNET_FAUCET_API_KEY"),
+	}
+
+	bodyBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return err
+	}
+
+	body := bytes.NewBuffer(bodyBytes)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, body)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	} else if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("http status for %s code is %d", requestURL, resp.StatusCode)
+	}
+
+	return nil
+}
+
 type BridgingRequestStateResponse struct {
 	SourceChainID      string `json:"sourceChainId"`
 	SourceTxHash       string `json:"sourceTxHash"`

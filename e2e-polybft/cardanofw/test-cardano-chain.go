@@ -65,6 +65,22 @@ func NewVectorChainConfig(isEnabled bool) *TestCardanoChainConfig {
 	}
 }
 
+func NewRemotePrimeChainConfig() *TestCardanoChainConfig {
+	return &TestCardanoChainConfig{
+		IsEnabled:   true,
+		ID:          0,
+		NetworkType: infrawallet.TestNetNetwork,
+	}
+}
+
+func NewRemoteVectorChainConfig(isEnabled bool) *TestCardanoChainConfig {
+	return &TestCardanoChainConfig{
+		IsEnabled:   isEnabled,
+		ID:          1,
+		NetworkType: infrawallet.VectorTestNetNetwork,
+	}
+}
+
 type TestCardanoChain struct {
 	config          *TestCardanoChainConfig
 	cluster         *TestCardanoCluster

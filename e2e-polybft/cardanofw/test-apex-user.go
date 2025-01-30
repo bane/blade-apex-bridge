@@ -79,54 +79,28 @@ func NewTestApexUser(
 }
 
 func NewExistingTestApexUser(
-	primePrivateKey, vectorPrivateKey, nexusPrivateKey string,
+	primeWallet, vectorWallet *cardanowallet.Wallet, nexusWallet *crypto.ECDSAKey,
 	primeNetworkType cardanowallet.CardanoNetworkType,
 	vectorNetworkType cardanowallet.CardanoNetworkType,
 ) (*TestApexUser, error) {
 	var (
-		vectorWallet      *cardanowallet.Wallet         = nil
 		vectorUserAddress *cardanowallet.CardanoAddress = nil
-		nexusWallet       *crypto.ECDSAKey              = nil
 		nexusUserAddress                                = types.Address{}
 	)
-
-	primePrivateKeyBytes, err := cardanowallet.GetKeyBytes(primePrivateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	primeWallet := cardanowallet.NewWallet(primePrivateKeyBytes, nil)
 
 	primeUserAddress, err := GetAddress(primeNetworkType, primeWallet)
 	if err != nil {
 		return nil, err
 	}
 
-	if vectorPrivateKey != "" {
-		vectorPrivateKeyBytes, err := cardanowallet.GetKeyBytes(vectorPrivateKey)
-		if err != nil {
-			return nil, err
-		}
-
-		vectorWallet = cardanowallet.NewWallet(vectorPrivateKeyBytes, nil)
-
+	if vectorWallet != nil {
 		vectorUserAddress, err = GetAddress(vectorNetworkType, vectorWallet)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if nexusPrivateKey != "" {
-		pkBytes, err := hex.DecodeString(nexusPrivateKey)
-		if err != nil {
-			return nil, err
-		}
-
-		nexusWallet, err = crypto.NewECDSAKeyFromRawPrivECDSA(pkBytes)
-		if err != nil {
-			return nil, err
-		}
-
+	if nexusWallet != nil {
 		nexusUserAddress = nexusWallet.Address()
 	}
 
@@ -135,10 +109,10 @@ func NewExistingTestApexUser(
 		PrimeAddress:    primeUserAddress,
 		VectorWallet:    vectorWallet,
 		VectorAddress:   vectorUserAddress,
-		HasVectorWallet: vectorPrivateKey != "",
+		HasVectorWallet: vectorWallet != nil,
 		NexusWallet:     nexusWallet,
 		NexusAddress:    nexusUserAddress,
-		HasNexusWallet:  nexusPrivateKey != "",
+		HasNexusWallet:  nexusWallet != nil,
 	}, nil
 }
 
