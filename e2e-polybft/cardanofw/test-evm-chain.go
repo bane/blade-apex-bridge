@@ -69,6 +69,7 @@ type TestEVMChain struct {
 	config        *TestEVMChainConfig
 	admin         *crypto.ECDSAKey
 	cluster       *framework.TestCluster
+	jsonRPCAddr   string
 	gatewayAddr   types.Address
 	relayerWallet *crypto.ECDSAKey
 	fundBlockNum  uint64
@@ -118,6 +119,7 @@ func (ec *TestEVMChain) RunChain(t *testing.T) error {
 	fmt.Printf("%s chain setup done: port = %d\n", ec.config.ChainID, ec.config.StartingPort)
 
 	ec.cluster = cluster
+	ec.jsonRPCAddr = ec.cluster.Servers[0].JSONRPCAddr()
 
 	return nil
 }
@@ -128,6 +130,10 @@ func (ec *TestEVMChain) Stop() error {
 	}
 
 	return nil
+}
+
+func (ec *TestEVMChain) JSONRPC() (*jsonrpc.EthClient, error) {
+	return JSONRPCClient(ec.jsonRPCAddr)
 }
 
 func (ec *TestEVMChain) CreateWallets(validator *TestApexValidator) error {
@@ -202,7 +208,7 @@ func (ec *TestEVMChain) InitContracts(bridgeAdmin *crypto.ECDSAKey, bridgeURL st
 		b      bytes.Buffer
 		params = []string{
 			"deploy-evm",
-			"--url", ec.cluster.Servers[0].JSONRPCAddr(),
+			"--url", ec.jsonRPCAddr,
 			"--key", hex.EncodeToString(pk),
 			"--bridge-url", bridgeURL,
 			"--bridge-addr", contracts.Bridge.String(),
@@ -251,7 +257,7 @@ func (ec *TestEVMChain) PopulateApexSystem(apexSystem *ApexSystem) {
 	if ec.config.ChainID == ChainIDNexus {
 		apexSystem.NexusInfo = EVMChainInfo{
 			GatewayAddress: ec.gatewayAddr,
-			Node:           ec.cluster.Servers[0],
+			JSONRPCAddr:    ec.jsonRPCAddr,
 			RelayerAddress: ec.relayerWallet.Address(),
 			AdminKey:       ec.admin,
 			FundBlockNum:   ec.fundBlockNum,
@@ -264,7 +270,12 @@ func (ec *TestEVMChain) ChainID() string {
 }
 
 func (ec *TestEVMChain) GetAddressBalance(ctx context.Context, addr string) (*big.Int, error) {
-	amount, err := ec.cluster.Servers[0].JSONRPC().GetBalance(types.StringToAddress(addr), jsonrpc.LatestBlockNumberOrHash)
+	rpc, err := ec.JSONRPC()
+	if err != nil {
+		return nil, err
+	}
+
+	amount, err := rpc.GetBalance(types.StringToAddress(addr), jsonrpc.LatestBlockNumberOrHash)
 	if err != nil {
 		return nil, err
 	}
@@ -279,7 +290,7 @@ func (ec *TestEVMChain) BridgingRequest(
 		"sendtx",
 		"--tx-type", "evm",
 		"--gateway-addr", ec.gatewayAddr.String(),
-		fmt.Sprintf("--%s-url", ec.config.ChainID), ec.cluster.Servers[0].JSONRPCAddr(),
+		fmt.Sprintf("--%s-url", ec.config.ChainID), ec.jsonRPCAddr,
 		"--key", privateKey,
 		"--chain-dst", destChainID,
 		"--fee", feeAmount.String(),
@@ -340,7 +351,7 @@ func (ec *TestEVMChain) sendTx(
 	}
 
 	txRelayer, err := txrelayer.NewTxRelayer(
-		txrelayer.WithIPAddress(ec.cluster.Servers[0].JSONRPCAddr()),
+		txrelayer.WithIPAddress(ec.jsonRPCAddr),
 		txrelayer.WithReceiptsTimeout(1*time.Minute),
 		txrelayer.WithEstimateGasFallback(),
 	)

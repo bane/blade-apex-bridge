@@ -20,13 +20,18 @@ var (
 )
 
 func Test_cardanoVerifySignaturePrecompile_ValidSignature(t *testing.T) {
-	txRaw, txHash := createTx(t)
+	txRaw, _ := createTx(t)
 	walletBasic, walletFee := createWallets(t)
 
-	witness, err := cardanowallet.CreateTxWitness(txHash, walletBasic)
+	txBuilder, err := cardanowallet.NewTxBuilder(cardanowallet.ResolveCardanoCliBinary(cardanowallet.TestNetNetwork))
 	require.NoError(t, err)
 
-	witnessFee, err := cardanowallet.CreateTxWitness(txHash, walletFee)
+	defer txBuilder.Dispose()
+
+	witness, err := txBuilder.CreateTxWitness(txRaw, walletBasic)
+	require.NoError(t, err)
+
+	witnessFee, err := txBuilder.CreateTxWitness(txRaw, walletFee)
 	require.NoError(t, err)
 
 	prec := &cardanoVerifySignaturePrecompile{}
@@ -87,13 +92,18 @@ func Test_cardanoVerifySignaturePrecompile_ValidMessageSignature(t *testing.T) {
 }
 
 func Test_cardanoVerifySignaturePrecompile_InvalidSignature(t *testing.T) {
-	txRaw, txHash := createTx(t)
+	txRaw, _ := createTx(t)
 	walletBasic, walletFee := createWallets(t)
 
-	witness, err := cardanowallet.CreateTxWitness(txHash, walletBasic)
+	txBuilder, err := cardanowallet.NewTxBuilder(cardanowallet.ResolveCardanoCliBinary(cardanowallet.TestNetNetwork))
 	require.NoError(t, err)
 
-	witnessFee, err := cardanowallet.CreateTxWitness(txHash, walletFee)
+	defer txBuilder.Dispose()
+
+	witness, err := txBuilder.CreateTxWitness(txRaw, walletBasic)
+	require.NoError(t, err)
+
+	witnessFee, err := txBuilder.CreateTxWitness(txRaw, walletFee)
 	require.NoError(t, err)
 
 	prec := &cardanoVerifySignaturePrecompile{}

@@ -160,11 +160,11 @@ func (asc *ApexSystemConfig) applyPremineFundingOptions(users []*TestApexUser) {
 
 	for _, user := range users {
 		asc.PrimeConfig.PreminesAddresses = append(asc.PrimeConfig.PreminesAddresses,
-			hex.EncodeToString(user.PrimeAddress.Bytes()))
+			hex.EncodeToString(user.PrimeAddress.GetBytes()))
 
 		if user.HasVectorWallet {
 			asc.VectorConfig.PreminesAddresses = append(asc.VectorConfig.PreminesAddresses,
-				hex.EncodeToString(user.VectorAddress.Bytes()))
+				hex.EncodeToString(user.VectorAddress.GetBytes()))
 		}
 
 		if user.HasNexusWallet {

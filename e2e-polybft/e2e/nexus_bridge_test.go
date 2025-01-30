@@ -229,7 +229,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 		// call SendTx command
 		err = sendTxParams("cardano", // "cardano" instead of "evm"
 			apex.NexusInfo.GatewayAddress.String(),
-			apex.NexusInfo.Node.JSONRPCAddr(),
+			apex.NexusInfo.JSONRPCAddr,
 			userPk, cardanofw.ChainIDPrime,
 			user.GetAddress(cardanofw.ChainIDPrime),
 			sendAmountWei, fee,
@@ -271,7 +271,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 		// call SendTx command
 		err = sendTxParams("evm",
 			apex.NexusInfo.GatewayAddress.String(),
-			apex.NexusInfo.Node.JSONRPCAddr(),
+			apex.NexusInfo.JSONRPCAddr,
 			unfundedUserPk, cardanofw.ChainIDPrime,
 			unfundedUser.GetAddress(cardanofw.ChainIDPrime),
 			sendAmountWei, fee,
@@ -300,7 +300,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 		// call SendTx command
 		err = sendTxParams("evm",
 			apex.NexusInfo.GatewayAddress.String(),
-			apex.NexusInfo.Node.JSONRPCAddr(),
+			apex.NexusInfo.JSONRPCAddr,
 			unfundedUserPk, cardanofw.ChainIDPrime,
 			unfundedUser.GetAddress(cardanofw.ChainIDPrime),
 			sendAmountWei, fee,

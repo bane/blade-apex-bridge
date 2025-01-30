@@ -3,6 +3,7 @@ package cardanofw
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/0xPolygon/polygon-edge/jsonrpc"
 	"github.com/Ethernal-Tech/cardano-infrastructure/wallet"
 	"github.com/stretchr/testify/require"
 )
@@ -154,6 +156,51 @@ func SplitString(s string, mxlen int) (res []string) {
 	return res
 }
 
+func ToCardanoPrivateKeyString(paymentKey, stakeKey []byte) string {
+	paymentSK := hex.EncodeToString(paymentKey)
+	if len(stakeKey) == 0 {
+		return paymentSK
+	}
+
+	return fmt.Sprintf("%s_%s", paymentSK, hex.EncodeToString(stakeKey))
+}
+
+func FromCardanoPrivateKeyString(privateKey string) (paymentKey, stakeKey []byte, err error) {
+	var (
+		pKey = privateKey
+		sKey string
+	)
+
+	if strings.Contains(privateKey, "_") {
+		keys := strings.Split(privateKey, "_")
+		pKey = keys[0]
+		sKey = keys[1]
+	}
+
+	paymentKey, err = hex.DecodeString(pKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(sKey) > 0 {
+		stakeKey, err = hex.DecodeString(sKey)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return paymentKey, stakeKey, err
+}
+
+func JSONRPCClient(jsonRPCAddr string) (*jsonrpc.EthClient, error) {
+	clt, err := jsonrpc.NewEthClient(jsonRPCAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	return clt, nil
+}
+
 func GetBridgingRequestState(ctx context.Context, requestURL string, apiKey string) (
 	*BridgingRequestStateResponse, error,
 ) {
@@ -249,7 +296,7 @@ func GetNetworkName(networkType wallet.CardanoNetworkType) string {
 	}
 }
 
-func GetAddress(networkType wallet.CardanoNetworkType, cardanoWallet *wallet.Wallet) (wallet.CardanoAddress, error) {
+func GetAddress(networkType wallet.CardanoNetworkType, cardanoWallet *wallet.Wallet) (*wallet.CardanoAddress, error) {
 	if len(cardanoWallet.StakeVerificationKey) > 0 {
 		return wallet.NewBaseAddress(networkType,
 			cardanoWallet.VerificationKey, cardanoWallet.StakeVerificationKey)

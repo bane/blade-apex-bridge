@@ -68,6 +68,7 @@ func NewVectorChainConfig(isEnabled bool) *TestCardanoChainConfig {
 type TestCardanoChain struct {
 	config          *TestCardanoChainConfig
 	cluster         *TestCardanoCluster
+	ogmiosURL       string
 	multisigAddr    string
 	multisigFeeAddr string
 	fundBlockSlot   uint64
@@ -131,6 +132,8 @@ func (ec *TestCardanoChain) RunChain(t *testing.T) error {
 	if err := cluster.WaitForBlockWithState(10, time.Second*120); err != nil {
 		return err
 	}
+
+	ec.ogmiosURL = ec.cluster.OgmiosURL()
 
 	fmt.Printf("Cluster %s (%d) is ready\n", networkName, ec.config.ID)
 
@@ -215,7 +218,7 @@ func (ec *TestCardanoChain) FundWallets(ctx context.Context) error {
 	}
 
 	// retrieve latest tip
-	tip, err := infrawallet.NewTxProviderOgmios(ec.cluster.OgmiosURL()).GetTip(ctx)
+	tip, err := infrawallet.NewTxProviderOgmios(ec.ogmiosURL).GetTip(ctx)
 	if err != nil {
 		return err
 	}
@@ -244,7 +247,7 @@ func (ec *TestCardanoChain) GetGenerateConfigsParams(indx int) (result []string)
 		getFlag("network-address"), server.NetworkAddress(),
 		getFlag("network-magic"), fmt.Sprint(GetNetworkMagic(ec.config.NetworkType)),
 		getFlag("network-id"), fmt.Sprint(ec.config.NetworkType),
-		getFlag("ogmios-url"), ec.cluster.OgmiosURL(),
+		getFlag("ogmios-url"), ec.ogmiosURL,
 	}
 
 	if ec.config.TTLInc > 0 {
@@ -261,7 +264,7 @@ func (ec *TestCardanoChain) GetGenerateConfigsParams(indx int) (result []string)
 func (ec *TestCardanoChain) PopulateApexSystem(apexSystem *ApexSystem) {
 	chainInfo := CardanoChainInfo{
 		NetworkAddress: ec.cluster.Servers[0].NetworkAddress(),
-		OgmiosURL:      ec.cluster.OgmiosURL(),
+		OgmiosURL:      ec.ogmiosURL,
 		MultisigAddr:   ec.multisigAddr,
 		FeeAddr:        ec.multisigFeeAddr,
 		SocketPath:     ec.cluster.OgmiosServer.SocketPath(),
@@ -282,7 +285,7 @@ func (ec *TestCardanoChain) ChainID() string {
 }
 
 func (ec *TestCardanoChain) GetAddressBalance(ctx context.Context, addr string) (*big.Int, error) {
-	utxos, err := infrawallet.NewTxProviderOgmios(ec.cluster.OgmiosURL()).GetUtxos(ctx, addr)
+	utxos, err := infrawallet.NewTxProviderOgmios(ec.ogmiosURL).GetUtxos(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -295,12 +298,20 @@ func (ec *TestCardanoChain) GetAddressBalance(ctx context.Context, addr string) 
 func (ec *TestCardanoChain) BridgingRequest(
 	ctx context.Context, destChainID ChainID, privateKey string, receivers map[string]*big.Int, feeAmount *big.Int,
 ) (string, error) {
-	privateKeyBytes, err := hex.DecodeString(privateKey)
+	paymentKey, stakeKey, err := FromCardanoPrivateKeyString(privateKey)
 	if err != nil {
 		return "", err
 	}
 
-	verificationKeys := infrawallet.GetVerificationKeyFromSigningKey(privateKeyBytes)
+	wallet := infrawallet.NewWallet(paymentKey, stakeKey)
+
+	caddr, err := GetAddress(ec.config.NetworkType, wallet)
+	if err != nil {
+		return "", err
+	}
+
+	senderAddr := caddr.String()
+
 	totalAmount := new(big.Int).Set(feeAmount)
 	receiversMap := make(map[string]uint64, len(receivers))
 
@@ -309,13 +320,8 @@ func (ec *TestCardanoChain) BridgingRequest(
 		receiversMap[addr] = amount.Uint64()
 	}
 
-	senderAddr, err := infrawallet.NewEnterpriseAddress(ec.config.NetworkType, verificationKeys)
-	if err != nil {
-		return "", err
-	}
-
 	bridgingRequestMetadata, err := CreateCardanoBridgingMetaData(
-		senderAddr.String(), receiversMap, destChainID, feeAmount.Uint64())
+		senderAddr, receiversMap, destChainID, feeAmount.Uint64())
 	if err != nil {
 		return "", err
 	}
@@ -331,13 +337,14 @@ func (ec *TestCardanoChain) SendTx(
 		retryWaitTime = time.Second * 2
 	)
 
-	privateKeyBytes, err := hex.DecodeString(privateKey)
+	paymentKey, stakeKey, err := FromCardanoPrivateKeyString(privateKey)
 	if err != nil {
 		return "", err
 	}
 
-	wallet := infrawallet.NewWallet(infrawallet.GetVerificationKeyFromSigningKey(privateKeyBytes), privateKeyBytes)
-	txProvider := infrawallet.NewTxProviderOgmios(ec.cluster.OgmiosURL())
+	wallet := infrawallet.NewWallet(paymentKey, stakeKey)
+
+	txProvider := infrawallet.NewTxProviderOgmios(ec.ogmiosURL)
 
 	txHash, err := SendTx(ctx, txProvider, wallet,
 		amount.Uint64(), receiverAddr, ec.config.NetworkType, data)

@@ -81,14 +81,17 @@ func Test_OnlyRunApexBridge_WithNexusAndVector(t *testing.T) {
 	fmt.Printf("user vector addr: %s\n", user.GetAddress(cardanofw.ChainIDVector))
 	fmt.Printf("user vector signing key hex: %s\n", userVectorSK)
 
-	chainID, err := apex.NexusInfo.Node.JSONRPC().ChainID()
+	jsonRPCClient, err := cardanofw.JSONRPCClient(apex.NexusInfo.JSONRPCAddr)
+	require.NoError(t, err)
+
+	nexusChainID, err := jsonRPCClient.ChainID()
 	require.NoError(t, err)
 
 	fmt.Printf("nexus user addr: %s\n", user.GetAddress(cardanofw.ChainIDNexus))
 	fmt.Printf("nexus user signing key: %s\n", userNexusPK)
-	fmt.Printf("nexus url: %s\n", apex.NexusInfo.Node.JSONRPCAddr())
+	fmt.Printf("nexus url: %s\n", apex.NexusInfo.JSONRPCAddr)
 	fmt.Printf("nexus gateway sc addr: %s\n", apex.NexusInfo.GatewayAddress)
-	fmt.Printf("nexus chainID: %v\n", chainID)
+	fmt.Printf("nexus chainID: %v\n", nexusChainID)
 	fmt.Printf("nexus admin key: %v\n", hex.EncodeToString(nexusAdminKeyRaw))
 
 	proxyAdminPrivateKeyRaw, err := apex.GetBridgeProxyAdmin().MarshallPrivateKey()

@@ -103,7 +103,7 @@ func MintTokens(
 		return "", errors.New("no tokens or policy scripts")
 	}
 
-	walletAddr, err := cardanowallet.NewEnterpriseAddress(networkType, wallet.VerificationKey)
+	walletAddr, err := GetAddress(networkType, wallet)
 	if err != nil {
 		return "", err
 	}
@@ -134,7 +134,7 @@ func createNativeTokenTx(
 	tokens []cardanowallet.TokenAmount,
 	metadata []byte,
 ) ([]byte, string, error) {
-	senderWalletAddr, err := cardanowallet.NewEnterpriseAddress(networkType, senderWallet.VerificationKey)
+	senderWalletAddr, err := GetAddress(networkType, senderWallet)
 	if err != nil {
 		return nil, "", err
 	}
@@ -219,7 +219,7 @@ func createNativeTokenTx(
 		return nil, "", err
 	}
 
-	witness, err := cardanowallet.CreateTxWitness(txHash, senderWallet)
+	witness, err := builder.CreateTxWitness(txRaw, senderWallet)
 	if err != nil {
 		return nil, "", err
 	}
@@ -241,7 +241,7 @@ func createMintTx(
 	tokens []cardanowallet.TokenAmount,
 	tokenPolicyScripts []cardanowallet.IPolicyScript,
 ) ([]byte, string, error) {
-	walletAddr, err := cardanowallet.NewEnterpriseAddress(networkType, wallet.VerificationKey)
+	walletAddr, err := GetAddress(networkType, wallet)
 	if err != nil {
 		return nil, "", err
 	}
@@ -311,7 +311,7 @@ func createMintTx(
 		return nil, "", err
 	}
 
-	witness, err := cardanowallet.CreateTxWitness(txHash, wallet)
+	witness, err := builder.CreateTxWitness(txRaw, wallet)
 	if err != nil {
 		return nil, "", err
 	}
