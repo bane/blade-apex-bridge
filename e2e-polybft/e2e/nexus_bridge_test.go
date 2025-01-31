@@ -139,21 +139,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("From Nexus to Prime - sequential and parallel multiple receivers", func(t *testing.T) {
-		const (
-			instances         = 5
-			parallelInstances = 10
-			receivers         = 4
-		)
-
-		e2ehelper.ExecuteBridging(
-			t, ctx, apex, instances,
-			apex.Users[:parallelInstances],
-			apex.Users[len(apex.Users)-receivers:],
-			[]string{srcChain},
-			map[string][]string{
-				srcChain: {dstChain},
-			},
-			sendAmountDfm)
+		NexusToPrimeSequentialAndParallelWithMaxReceivers(t, ctx, apex, sendAmountDfm)
 	})
 
 	t.Run("From Nexus to Prime - sequential and parallel, one node goes off in the middle", func(t *testing.T) {
@@ -207,19 +193,6 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 		HasNexusWallet: true,
 	}
 
-	sendTxParams := func(txType, gatewayAddr, nexusUrl, privateKey, chainDst, receiver string, amount, fee *big.Int) error {
-		return cardanofw.RunCommand(cardanofw.ResolveApexBridgeBinary(), []string{
-			"sendtx",
-			"--tx-type", txType,
-			"--gateway-addr", gatewayAddr,
-			"--nexus-url", nexusUrl,
-			"--key", privateKey,
-			"--chain-dst", chainDst,
-			"--receiver", fmt.Sprintf("%s:%s", receiver, amount.String()),
-			"--fee", fee.String(),
-		}, os.Stdout)
-	}
-
 	t.Run("Wrong Tx-Type", func(t *testing.T) {
 		sendAmountWei := ethgo.Ether(uint64(1))
 
@@ -227,7 +200,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		// call SendTx command
-		err = sendTxParams("cardano", // "cardano" instead of "evm"
+		err = sendTxParamsNPInvalidScenarios("cardano", // "cardano" instead of "evm"
 			apex.NexusInfo.GatewayAddress.String(),
 			apex.NexusInfo.JSONRPCAddr,
 			userPk, cardanofw.ChainIDPrime,
@@ -244,7 +217,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		// call SendTx command
-		err = sendTxParams("evm",
+		err = sendTxParamsNPInvalidScenarios("evm",
 			apex.NexusInfo.GatewayAddress.String(),
 			"localhost:1234",
 			userPk, cardanofw.ChainIDPrime,
@@ -254,29 +227,8 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 		require.ErrorContains(t, err, "Error: invalid --nexus-url flag")
 	})
 
-	t.Run("Sender not enough funds", func(t *testing.T) {
-		sendAmountWei := ethgo.Ether(uint64(2))
-
-		unfundedUser, err := cardanofw.NewTestApexUser(
-			apex.Config.PrimeConfig.NetworkType,
-			apex.Config.VectorConfig.IsEnabled,
-			apex.Config.VectorConfig.NetworkType,
-			apex.Config.NexusConfig.IsEnabled,
-		)
-		require.NoError(t, err)
-
-		unfundedUserPk, err := unfundedUser.GetPrivateKey(cardanofw.ChainIDNexus)
-		require.NoError(t, err)
-
-		// call SendTx command
-		err = sendTxParams("evm",
-			apex.NexusInfo.GatewayAddress.String(),
-			apex.NexusInfo.JSONRPCAddr,
-			unfundedUserPk, cardanofw.ChainIDPrime,
-			unfundedUser.GetAddress(cardanofw.ChainIDPrime),
-			sendAmountWei, fee,
-		)
-		require.ErrorContains(t, err, "insufficient funds for execution")
+	t.Run("Submitter not enough funds", func(t *testing.T) {
+		NexusToPrimeSubmitterNotEnoughFunds(t, ctx, apex)
 	})
 
 	t.Run("Big receiver amount", func(t *testing.T) {
@@ -298,7 +250,7 @@ func TestE2E_ApexBridgeWithNexus_NtP_InvalidScenarios(t *testing.T) {
 		sendAmountWei := ethgo.Ether(uint64(20)) // try to send 20 ethers with users without enough funds
 
 		// call SendTx command
-		err = sendTxParams("evm",
+		err = sendTxParamsNPInvalidScenarios("evm",
 			apex.NexusInfo.GatewayAddress.String(),
 			apex.NexusInfo.JSONRPCAddr,
 			unfundedUserPk, cardanofw.ChainIDPrime,
@@ -398,22 +350,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 			t.Skip()
 		}
 
-		const (
-			sequentialInstances = 5
-			parallelInstances   = 10
-			receivers           = 4
-		)
-
-		e2ehelper.ExecuteBridging(
-			t, ctx, apex,
-			sequentialInstances,
-			apex.Users[:parallelInstances],
-			apex.Users[len(apex.Users)-receivers:],
-			[]string{cardanofw.ChainIDPrime},
-			map[string][]string{
-				cardanofw.ChainIDPrime: {cardanofw.ChainIDNexus},
-			},
-			sendAmountDfm)
+		PrimeToNexusSequentialAndParallelWithMaxReceivers(t, ctx, apex, sendAmountDfm)
 	})
 
 	t.Run("From Prime to Nexus sequential and parallel - one node goes off in the midle", func(t *testing.T) {
@@ -464,22 +401,7 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("Both directions sequential and parallel", func(t *testing.T) {
-		const (
-			sequentialInstances = 5
-			parallelInstances   = 6
-		)
-
-		e2ehelper.ExecuteBridging(
-			t, ctx, apex,
-			sequentialInstances,
-			apex.Users[:parallelInstances],
-			[]*cardanofw.TestApexUser{user},
-			[]string{cardanofw.ChainIDPrime, cardanofw.ChainIDNexus},
-			map[string][]string{
-				cardanofw.ChainIDPrime: {cardanofw.ChainIDNexus},
-				cardanofw.ChainIDNexus: {cardanofw.ChainIDPrime},
-			},
-			sendAmountDfm)
+		PrimeNexusBothDirectionsSequentialAndParallel(t, ctx, apex, user, sendAmountDfm)
 	})
 
 	t.Run("Both directions sequential and parallel - one node goes off in the midle", func(t *testing.T) {
@@ -562,184 +484,31 @@ func TestE2E_ApexBridgeWithNexus_PtN_InvalidScenarios(t *testing.T) {
 	defer require.True(t, apex.ApexBridgeProcessesRunning())
 
 	user := apex.Users[userCnt-1]
-	srcChain, dstChain := cardanofw.ChainIDPrime, cardanofw.ChainIDNexus
-	receiverAddr := apex.PrimeInfo.MultisigAddr
 
 	t.Run("Submitter not enough funds", func(t *testing.T) {
 		sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(100))
-		feeAmount := uint64(1_100_000)
 
-		receivers := map[string]uint64{
-			user.GetAddress(dstChain): sendAmountDfm.Uint64(),
-		}
-
-		bridgingRequestMetadata, err := cardanofw.CreateCardanoBridgingMetaData(
-			user.GetAddress(srcChain), receivers, dstChain, feeAmount)
-		require.NoError(t, err)
-
-		_, err = apex.SubmitTx(
-			ctx, srcChain, user, receiverAddr, sendAmountDfm, bridgingRequestMetadata)
-
-		require.Error(t, err)
-		require.ErrorContains(t, err, "not enough funds")
+		PrimeToNexusSubmitterNotEnoughFunds(t, ctx, apex, user, sendAmountDfm)
 	})
 
-	t.Run("Submitted invalid metadata", func(t *testing.T) {
-		sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(1))
-		feeAmount := uint64(1_100_000)
-
-		receivers := map[string]uint64{
-			user.GetAddress(dstChain): sendAmountDfm.Uint64() * 10,
-		}
-
-		bridgingRequestMetadata, err := cardanofw.CreateCardanoBridgingMetaData(
-			user.GetAddress(srcChain), receivers, dstChain, feeAmount)
-		require.NoError(t, err)
-
-		// Send only half bytes of metadata making it invalid
-		bridgingRequestMetadata = bridgingRequestMetadata[0 : len(bridgingRequestMetadata)/2]
-
-		_, err = apex.SubmitTx(
-			ctx, srcChain, user, receiverAddr, sendAmountDfm, bridgingRequestMetadata)
-		require.Error(t, err)
+	t.Run("Submitted invalid metadata - sliced off", func(t *testing.T) {
+		PrimeToNexusInvalidMetadataSlicedOff(t, ctx, apex, user)
 	})
 
 	t.Run("Submitted invalid metadata - wrong type", func(t *testing.T) {
-		sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(1))
-		feeAmount := uint64(1_100_000)
-
-		receivers := map[string]uint64{
-			user.GetAddress(dstChain): sendAmountDfm.Uint64() * 10,
-		}
-
-		var transactions = make([]cardanofw.BridgingRequestMetadataTransaction, 0, len(receivers))
-		for addr, amount := range receivers {
-			transactions = append(transactions, cardanofw.BridgingRequestMetadataTransaction{
-				Address: cardanofw.SplitString(addr, 40),
-				Amount:  amount,
-			})
-		}
-
-		metadata := map[string]interface{}{
-			"1": map[string]interface{}{
-				"t":  "transaction", // should be "bridge"
-				"d":  dstChain,
-				"s":  cardanofw.SplitString(user.GetAddress(srcChain), 40),
-				"tx": transactions,
-				"fa": feeAmount,
-			},
-		}
-
-		bridgingRequestMetadata, err := json.Marshal(metadata)
-		require.NoError(t, err)
-
-		txHash, err := apex.SubmitTx(
-			ctx, srcChain, user, receiverAddr,
-			sendAmountDfm.Add(sendAmountDfm, new(big.Int).SetUint64(feeAmount)), bridgingRequestMetadata)
-		require.NoError(t, err)
-
-		_, err = cardanofw.WaitForRequestStates(ctx, apex, srcChain, txHash, apiKey, nil, 60)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "timeout")
+		PrimeToNexusInvalidMetadataWrongType(t, ctx, apex, user)
 	})
 
 	t.Run("Submitted invalid metadata - invalid destination", func(t *testing.T) {
-		sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(1))
-		feeAmount := uint64(1_100_000)
-
-		receivers := map[string]uint64{
-			user.GetAddress(dstChain): sendAmountDfm.Uint64() * 10,
-		}
-
-		var transactions = make([]cardanofw.BridgingRequestMetadataTransaction, 0, len(receivers))
-		for addr, amount := range receivers {
-			transactions = append(transactions, cardanofw.BridgingRequestMetadataTransaction{
-				Address: cardanofw.SplitString(addr, 40),
-				Amount:  amount,
-			})
-		}
-
-		metadata := map[string]interface{}{
-			"1": map[string]interface{}{
-				"t":  "bridge",
-				"d":  "", // should be destination chain address
-				"s":  cardanofw.SplitString(user.GetAddress(srcChain), 40),
-				"tx": transactions,
-				"fa": feeAmount,
-			},
-		}
-
-		bridgingRequestMetadata, err := json.Marshal(metadata)
-		require.NoError(t, err)
-
-		txHash, err := apex.SubmitTx(
-			ctx, srcChain, user, receiverAddr,
-			sendAmountDfm.Add(sendAmountDfm, new(big.Int).SetUint64(feeAmount)), bridgingRequestMetadata)
-		require.NoError(t, err)
-
-		cardanofw.WaitForInvalidState(t, ctx, apex, srcChain, txHash, apiKey)
+		PrimeToNexusInvalidMetadataInvalidDestination(t, ctx, apex, user)
 	})
 
 	t.Run("Submitted invalid metadata - invalid sender", func(t *testing.T) {
-		sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(1))
-		feeAmount := uint64(1_100_000)
-
-		receivers := map[string]uint64{
-			user.GetAddress(dstChain): sendAmountDfm.Uint64() * 10,
-		}
-
-		var transactions = make([]cardanofw.BridgingRequestMetadataTransaction, 0, len(receivers))
-		for addr, amount := range receivers {
-			transactions = append(transactions, cardanofw.BridgingRequestMetadataTransaction{
-				Address: cardanofw.SplitString(addr, 40),
-				Amount:  amount,
-			})
-		}
-
-		metadata := map[string]interface{}{
-			"1": map[string]interface{}{
-				"t":  "bridge",
-				"d":  dstChain,
-				"s":  "", // should be sender address (max len 40)
-				"tx": transactions,
-				"fa": feeAmount,
-			},
-		}
-
-		bridgingRequestMetadata, err := json.Marshal(metadata)
-		require.NoError(t, err)
-
-		txHash, err := apex.SubmitTx(
-			ctx, srcChain, user, receiverAddr,
-			sendAmountDfm.Add(sendAmountDfm, new(big.Int).SetUint64(feeAmount)), bridgingRequestMetadata)
-		require.NoError(t, err)
-
-		cardanofw.WaitForInvalidState(t, ctx, apex, srcChain, txHash, apiKey)
+		PrimeToNexusInvalidMetadataInvalidSender(t, ctx, apex, user)
 	})
 
 	t.Run("Submitted invalid metadata - empty tx", func(t *testing.T) {
-		sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(1))
-		feeAmount := uint64(1_100_000)
-
-		metadata := map[string]interface{}{
-			"1": map[string]interface{}{
-				"t":  "bridge",
-				"d":  dstChain,
-				"s":  cardanofw.SplitString(user.GetAddress(srcChain), 40),
-				"tx": []cardanofw.BridgingRequestMetadataTransaction{}, // should not be empty
-				"fa": feeAmount,
-			},
-		}
-
-		bridgingRequestMetadata, err := json.Marshal(metadata)
-		require.NoError(t, err)
-
-		txHash, err := apex.SubmitTx(
-			ctx, srcChain, user, receiverAddr,
-			sendAmountDfm.Add(sendAmountDfm, new(big.Int).SetUint64(feeAmount)), bridgingRequestMetadata)
-		require.NoError(t, err)
-
-		cardanofw.WaitForInvalidState(t, ctx, apex, srcChain, txHash, apiKey)
+		PrimeToNexusInvalidMetadataInvalidTransactions(t, ctx, apex, user)
 	})
 }
 
@@ -1439,4 +1208,328 @@ func TestE2E_NexusFundAmount(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func PrimeToNexusSequentialAndParallelWithMaxReceivers(
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, sendAmountDfm *big.Int,
+) {
+	t.Helper()
+
+	const (
+		sequentialInstances = 5
+		parallelInstances   = 10
+		receivers           = 4
+	)
+
+	e2ehelper.ExecuteBridging(
+		t, ctx, apex,
+		sequentialInstances,
+		apex.Users[:parallelInstances],
+		apex.Users[len(apex.Users)-receivers:],
+		[]string{cardanofw.ChainIDPrime},
+		map[string][]string{
+			cardanofw.ChainIDPrime: {cardanofw.ChainIDNexus},
+		},
+		sendAmountDfm)
+}
+
+func PrimeNexusBothDirectionsSequentialAndParallel(
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, user *cardanofw.TestApexUser, sendAmountDfm *big.Int,
+) {
+	t.Helper()
+
+	const (
+		sequentialInstances = 5
+		parallelInstances   = 6
+	)
+
+	e2ehelper.ExecuteBridging(
+		t, ctx, apex,
+		sequentialInstances,
+		apex.Users[:parallelInstances],
+		[]*cardanofw.TestApexUser{user},
+		[]string{cardanofw.ChainIDPrime, cardanofw.ChainIDNexus},
+		map[string][]string{
+			cardanofw.ChainIDPrime: {cardanofw.ChainIDNexus},
+			cardanofw.ChainIDNexus: {cardanofw.ChainIDPrime},
+		},
+		sendAmountDfm)
+}
+
+func NexusToPrimeSequentialAndParallelWithMaxReceivers(
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, sendAmountDfm *big.Int,
+) {
+	t.Helper()
+
+	const (
+		instances         = 5
+		parallelInstances = 10
+		receivers         = 4
+	)
+
+	e2ehelper.ExecuteBridging(
+		t, ctx, apex, instances,
+		apex.Users[:parallelInstances],
+		apex.Users[len(apex.Users)-receivers:],
+		[]string{cardanofw.ChainIDNexus},
+		map[string][]string{
+			cardanofw.ChainIDNexus: {cardanofw.ChainIDPrime},
+		},
+		sendAmountDfm)
+}
+
+func PrimeToNexusSubmitterNotEnoughFunds(
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, user *cardanofw.TestApexUser,
+	sendAmountDfm *big.Int,
+) {
+	t.Helper()
+
+	srcChain, dstChain := cardanofw.ChainIDPrime, cardanofw.ChainIDNexus
+	receiverAddr := apex.PrimeInfo.MultisigAddr
+	feeAmount := uint64(1_100_000)
+
+	receivers := map[string]uint64{
+		user.GetAddress(dstChain): sendAmountDfm.Uint64(),
+	}
+
+	bridgingRequestMetadata, err := cardanofw.CreateCardanoBridgingMetaData(
+		user.GetAddress(srcChain), receivers, dstChain, feeAmount)
+	require.NoError(t, err)
+
+	_, err = apex.SubmitTx(
+		ctx, srcChain, user, receiverAddr, sendAmountDfm, bridgingRequestMetadata)
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "not enough funds")
+}
+
+func PrimeToNexusInvalidMetadataSlicedOff(
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, user *cardanofw.TestApexUser,
+) {
+	t.Helper()
+
+	srcChain, dstChain := cardanofw.ChainIDPrime, cardanofw.ChainIDNexus
+	receiverAddr := apex.PrimeInfo.MultisigAddr
+	sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(1))
+	feeAmount := uint64(1_100_000)
+
+	receivers := map[string]uint64{
+		user.GetAddress(dstChain): sendAmountDfm.Uint64() * 10,
+	}
+
+	bridgingRequestMetadata, err := cardanofw.CreateCardanoBridgingMetaData(
+		user.GetAddress(srcChain), receivers, dstChain, feeAmount)
+	require.NoError(t, err)
+
+	// Send only half bytes of metadata making it invalid
+	bridgingRequestMetadata = bridgingRequestMetadata[0 : len(bridgingRequestMetadata)/2]
+
+	_, err = apex.SubmitTx(
+		ctx, srcChain, user, receiverAddr, sendAmountDfm, bridgingRequestMetadata)
+	require.Error(t, err)
+}
+
+func PrimeToNexusInvalidMetadataWrongType(
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, user *cardanofw.TestApexUser,
+) {
+	t.Helper()
+
+	srcChain, dstChain := cardanofw.ChainIDPrime, cardanofw.ChainIDNexus
+	receiverAddr := apex.PrimeInfo.MultisigAddr
+	sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(1))
+	feeAmount := uint64(1_100_000)
+
+	receivers := map[string]uint64{
+		user.GetAddress(dstChain): sendAmountDfm.Uint64() * 10,
+	}
+
+	var transactions = make([]cardanofw.BridgingRequestMetadataTransaction, 0, len(receivers))
+	for addr, amount := range receivers {
+		transactions = append(transactions, cardanofw.BridgingRequestMetadataTransaction{
+			Address: cardanofw.SplitString(addr, 40),
+			Amount:  amount,
+		})
+	}
+
+	metadata := map[string]interface{}{
+		"1": map[string]interface{}{
+			"t":  "transaction", // should be "bridge"
+			"d":  dstChain,
+			"s":  cardanofw.SplitString(user.GetAddress(srcChain), 40),
+			"tx": transactions,
+			"fa": feeAmount,
+		},
+	}
+
+	bridgingRequestMetadata, err := json.Marshal(metadata)
+	require.NoError(t, err)
+
+	txHash, err := apex.SubmitTx(
+		ctx, srcChain, user, receiverAddr,
+		sendAmountDfm.Add(sendAmountDfm, new(big.Int).SetUint64(feeAmount)), bridgingRequestMetadata)
+	require.NoError(t, err)
+
+	_, err = cardanofw.WaitForRequestStates(ctx, apex, srcChain, txHash, apex.Config.APIKey, nil, 60)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "timeout")
+}
+
+func PrimeToNexusInvalidMetadataInvalidDestination(
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, user *cardanofw.TestApexUser,
+) {
+	t.Helper()
+
+	srcChain, dstChain := cardanofw.ChainIDPrime, cardanofw.ChainIDNexus
+	receiverAddr := apex.PrimeInfo.MultisigAddr
+	sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(1))
+	feeAmount := uint64(1_100_000)
+
+	receivers := map[string]uint64{
+		user.GetAddress(dstChain): sendAmountDfm.Uint64() * 10,
+	}
+
+	var transactions = make([]cardanofw.BridgingRequestMetadataTransaction, 0, len(receivers))
+	for addr, amount := range receivers {
+		transactions = append(transactions, cardanofw.BridgingRequestMetadataTransaction{
+			Address: cardanofw.SplitString(addr, 40),
+			Amount:  amount,
+		})
+	}
+
+	metadata := map[string]interface{}{
+		"1": map[string]interface{}{
+			"t":  "bridge",
+			"d":  "", // should be destination chain address
+			"s":  cardanofw.SplitString(user.GetAddress(srcChain), 40),
+			"tx": transactions,
+			"fa": feeAmount,
+		},
+	}
+
+	bridgingRequestMetadata, err := json.Marshal(metadata)
+	require.NoError(t, err)
+
+	txHash, err := apex.SubmitTx(
+		ctx, srcChain, user, receiverAddr,
+		sendAmountDfm.Add(sendAmountDfm, new(big.Int).SetUint64(feeAmount)), bridgingRequestMetadata)
+	require.NoError(t, err)
+
+	cardanofw.WaitForInvalidState(t, ctx, apex, srcChain, txHash, apex.Config.APIKey)
+}
+
+func PrimeToNexusInvalidMetadataInvalidSender(
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, user *cardanofw.TestApexUser,
+) {
+	t.Helper()
+
+	srcChain, dstChain := cardanofw.ChainIDPrime, cardanofw.ChainIDNexus
+	receiverAddr := apex.PrimeInfo.MultisigAddr
+	sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(1))
+	feeAmount := uint64(1_100_000)
+
+	receivers := map[string]uint64{
+		user.GetAddress(dstChain): sendAmountDfm.Uint64() * 10,
+	}
+
+	var transactions = make([]cardanofw.BridgingRequestMetadataTransaction, 0, len(receivers))
+	for addr, amount := range receivers {
+		transactions = append(transactions, cardanofw.BridgingRequestMetadataTransaction{
+			Address: cardanofw.SplitString(addr, 40),
+			Amount:  amount,
+		})
+	}
+
+	metadata := map[string]interface{}{
+		"1": map[string]interface{}{
+			"t":  "bridge",
+			"d":  dstChain,
+			"s":  "", // should be sender address (max len 40)
+			"tx": transactions,
+			"fa": feeAmount,
+		},
+	}
+
+	bridgingRequestMetadata, err := json.Marshal(metadata)
+	require.NoError(t, err)
+
+	txHash, err := apex.SubmitTx(
+		ctx, srcChain, user, receiverAddr,
+		sendAmountDfm.Add(sendAmountDfm, new(big.Int).SetUint64(feeAmount)), bridgingRequestMetadata)
+	require.NoError(t, err)
+
+	cardanofw.WaitForInvalidState(t, ctx, apex, srcChain, txHash, apex.Config.APIKey)
+}
+
+func PrimeToNexusInvalidMetadataInvalidTransactions(
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, user *cardanofw.TestApexUser,
+) {
+	t.Helper()
+
+	srcChain, dstChain := cardanofw.ChainIDPrime, cardanofw.ChainIDNexus
+	receiverAddr := apex.PrimeInfo.MultisigAddr
+	sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(1))
+	feeAmount := uint64(1_100_000)
+
+	metadata := map[string]interface{}{
+		"1": map[string]interface{}{
+			"t":  "bridge",
+			"d":  dstChain,
+			"s":  cardanofw.SplitString(user.GetAddress(srcChain), 40),
+			"tx": []cardanofw.BridgingRequestMetadataTransaction{}, // should not be empty
+			"fa": feeAmount,
+		},
+	}
+
+	bridgingRequestMetadata, err := json.Marshal(metadata)
+	require.NoError(t, err)
+
+	txHash, err := apex.SubmitTx(
+		ctx, srcChain, user, receiverAddr,
+		sendAmountDfm.Add(sendAmountDfm, new(big.Int).SetUint64(feeAmount)), bridgingRequestMetadata)
+	require.NoError(t, err)
+
+	cardanofw.WaitForInvalidState(t, ctx, apex, srcChain, txHash, apex.Config.APIKey)
+}
+
+func NexusToPrimeSubmitterNotEnoughFunds(
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem,
+) {
+	t.Helper()
+
+	fee := cardanofw.DfmToChainNativeTokenAmount(cardanofw.ChainIDNexus, new(big.Int).SetUint64(uint64(1_100_000)))
+	sendAmountWei := ethgo.Ether(uint64(2))
+
+	unfundedUser, err := cardanofw.NewTestApexUser(
+		apex.Config.PrimeConfig.NetworkType,
+		apex.Config.VectorConfig.IsEnabled,
+		apex.Config.VectorConfig.NetworkType,
+		apex.Config.NexusConfig.IsEnabled,
+	)
+	require.NoError(t, err)
+
+	unfundedUserPk, err := unfundedUser.GetPrivateKey(cardanofw.ChainIDNexus)
+	require.NoError(t, err)
+
+	// call SendTx command
+	err = sendTxParamsNPInvalidScenarios("evm",
+		apex.NexusInfo.GatewayAddress.String(),
+		apex.NexusInfo.JSONRPCAddr,
+		unfundedUserPk, cardanofw.ChainIDPrime,
+		unfundedUser.GetAddress(cardanofw.ChainIDPrime),
+		sendAmountWei, fee,
+	)
+	require.ErrorContains(t, err, "insufficient funds for execution")
+}
+
+func sendTxParamsNPInvalidScenarios(txType, gatewayAddr, nexusURL, privateKey, chainDst, receiver string, amount, fee *big.Int) error {
+	return cardanofw.RunCommand(cardanofw.ResolveApexBridgeBinary(), []string{
+		"sendtx",
+		"--tx-type", txType,
+		"--gateway-addr", gatewayAddr,
+		"--nexus-url", nexusURL,
+		"--key", privateKey,
+		"--chain-dst", chainDst,
+		"--receiver", fmt.Sprintf("%s:%s", receiver, amount.String()),
+		"--fee", fee.String(),
+	}, os.Stdout)
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/cardanofw"
 	"github.com/0xPolygon/polygon-edge/e2e-polybft/e2ehelper"
 	infracommon "github.com/Ethernal-Tech/cardano-infrastructure/common"
+	"github.com/Ethernal-Tech/ethgo"
 	"github.com/stretchr/testify/require"
 )
 
@@ -131,6 +132,122 @@ func Test_E2E_ApexTestnetBridge(t *testing.T) {
 		e2ehelper.ExecuteSingleBridging(
 			t, ctx, apex, user, user, dir.src, dir.dest, sendAmount)
 	}
+}
+
+func TestE2E_ApexTestnetBridge_ValidScenarios(t *testing.T) {
+	ctx, cncl := context.WithCancel(context.Background())
+	defer cncl()
+
+	apex, err := cardanofw.SetupRemoteApexBridge(t, cardanofw.GetTestnetApexBridgeConfig())
+	require.NoError(t, err)
+
+	t.Run("From Prime to Cector sequential and parallel with max receivers", func(t *testing.T) {
+		PrimeToVectorSequentialAndParallelWithMaxReceivers(t, ctx, apex)
+	})
+
+	t.Run("Prime and Vector both directions sequential and parallel", func(t *testing.T) {
+		const (
+			userCnt = 20
+		)
+
+		user := apex.Users[userCnt-1]
+
+		PrimeVectorBothDirectionsSequentialAndParallel(t, ctx, apex, user)
+	})
+
+	t.Run("From Prime to Nexus sequential and parallel with max receivers", func(t *testing.T) {
+		sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(1))
+
+		PrimeToNexusSequentialAndParallelWithMaxReceivers(t, ctx, apex, sendAmountDfm)
+	})
+
+	t.Run("Prime and Nexus both directions sequential and parallel", func(t *testing.T) {
+		const (
+			userCnt = 15
+		)
+
+		user := apex.Users[userCnt-1]
+		sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(1))
+
+		PrimeNexusBothDirectionsSequentialAndParallel(t, ctx, apex, user, sendAmountDfm)
+	})
+
+	t.Run("From Nexus to Prime sequential and parallel max receivers", func(t *testing.T) {
+		sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(1))
+
+		NexusToPrimeSequentialAndParallelWithMaxReceivers(t, ctx, apex, sendAmountDfm)
+	})
+}
+
+func TestE2E_ApexTestnetBridge_InvalidScenarios(t *testing.T) {
+	ctx, cncl := context.WithCancel(context.Background())
+	defer cncl()
+
+	apex, err := cardanofw.SetupRemoteApexBridge(t, cardanofw.GetTestnetApexBridgeConfig())
+	require.NoError(t, err)
+
+	const (
+		pnUserCnt = 15
+	)
+
+	var (
+		pvUser = apex.Users[0]
+		pnUser = apex.Users[pnUserCnt-2]
+	)
+
+	t.Run("Prime to Vector mismatch submitted and receiver amounts", func(t *testing.T) {
+		PrimeToVectorMismatchSubmittedAndReceiverAmounts(t, ctx, apex, pvUser)
+	})
+
+	t.Run("Prime to Vector submitted invalid metadata - sliced off", func(t *testing.T) {
+		PrimeToVectorInvalidMetadataSlicedOff(t, ctx, apex, pvUser)
+	})
+
+	t.Run("Prime to Vector submitted invalid metadata - wrong type", func(t *testing.T) {
+		PrimeToVectorInvalidMetadataWrongType(t, ctx, apex, pvUser)
+	})
+
+	t.Run("Prime to Vector submitted invalid metadata - invalid destination", func(t *testing.T) {
+		PrimeToVectorInvalidMetadataInvalidDestination(t, ctx, apex, pvUser)
+	})
+
+	t.Run("Prime to Vector submitted invalid metadata - invalid sender", func(t *testing.T) {
+		PrimeToVectorInvalidMetadataInvalidSender(t, ctx, apex, pvUser)
+	})
+
+	t.Run("Prime to Vector submitted invalid metadata - empty tx", func(t *testing.T) {
+		PrimeToVectorInvalidMetadataInvalidTransactions(t, ctx, apex, pvUser)
+	})
+
+	t.Run("Prime to Nexus submitter not enough funds", func(t *testing.T) {
+		sendAmountDfm := cardanofw.WeiToDfm(ethgo.Ether(500_000_000))
+
+		PrimeToNexusSubmitterNotEnoughFunds(t, ctx, apex, pnUser, sendAmountDfm)
+	})
+
+	t.Run("Prime to Nexus submitted invalid metadata - sliced off", func(t *testing.T) {
+		PrimeToNexusInvalidMetadataSlicedOff(t, ctx, apex, pnUser)
+	})
+
+	t.Run("Prime to Nexus submitted invalid metadata - wrong type", func(t *testing.T) {
+		PrimeToNexusInvalidMetadataWrongType(t, ctx, apex, pnUser)
+	})
+
+	t.Run("Prime to Nexus submitted invalid metadata - invalid destination", func(t *testing.T) {
+		PrimeToNexusInvalidMetadataInvalidDestination(t, ctx, apex, pnUser)
+	})
+
+	t.Run("Prime to Nexus submitted invalid metadata - invalid sender", func(t *testing.T) {
+		PrimeToNexusInvalidMetadataInvalidSender(t, ctx, apex, pnUser)
+	})
+
+	t.Run("Prime to Nexus submitted invalid metadata - empty tx", func(t *testing.T) {
+		PrimeToNexusInvalidMetadataInvalidTransactions(t, ctx, apex, pnUser)
+	})
+
+	t.Run("Nexus to Prime submitter not enough funds", func(t *testing.T) {
+		NexusToPrimeSubmitterNotEnoughFunds(t, ctx, apex)
+	})
 }
 
 func Test_E2E_TestnetPrintBalances(t *testing.T) {
