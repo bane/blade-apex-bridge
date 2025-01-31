@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	potentialFee     = 250_000
+	PotentialFee     = 250_000
 	ttlSlotNumberInc = 500
 )
 
@@ -61,7 +61,7 @@ func sendTx(ctx context.Context,
 			Amount: amount,
 		},
 	}
-	desiredSum := amount + potentialFee + MinUTxODefaultValue
+	desiredSum := amount + PotentialFee + MinUTxODefaultValue
 
 	inputs, err := wallet.GetUTXOsForAmount(
 		ctx, txProvider, cardanoWalletAddr,

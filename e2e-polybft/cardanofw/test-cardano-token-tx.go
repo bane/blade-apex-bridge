@@ -159,7 +159,7 @@ func createNativeTokenTx(
 		builder.SetMetaData(metadata)
 	}
 
-	desiredAmount := potentialFee + lovelaceAmount + MinUTxODefaultValue
+	desiredAmount := PotentialFee + lovelaceAmount + MinUTxODefaultValue
 
 	inputs, err := cardanowallet.GetUTXOsForAmount(
 		ctx,
@@ -262,7 +262,7 @@ func createMintTx(
 		return nil, "", err
 	}
 
-	desiredAmount := potentialFee + lovelaceAmount + MinUTxODefaultValue
+	desiredAmount := PotentialFee + lovelaceAmount + MinUTxODefaultValue
 
 	inputs, err := cardanowallet.GetUTXOsForAmount(
 		ctx,

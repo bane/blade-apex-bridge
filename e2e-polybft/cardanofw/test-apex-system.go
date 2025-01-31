@@ -60,7 +60,8 @@ type ApexSystem struct {
 
 	bridgingAPIs []string
 
-	Users []*TestApexUser
+	FunderUser *TestApexUser
+	Users      []*TestApexUser
 }
 
 func NewApexSystem(
