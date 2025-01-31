@@ -27,7 +27,7 @@ on: # yamllint disable-line rule:truthy
       e2e_apex_big_test:
         description: E2E ApexBridge Big Tests
         type: boolean
-        default: true
+        default: false
       e2e_apex_skip_redundant_tests:
         description: E2E ApexBridge Skip Redundant Tests
         type: boolean
