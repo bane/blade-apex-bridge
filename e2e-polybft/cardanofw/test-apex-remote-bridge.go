@@ -18,6 +18,16 @@ type RemoteApexBridgeConfig struct {
 	BridgingAPIKey string
 }
 
+type ApexKeysData struct {
+	Funder *ApexPrivateKeys   `json:"funder"`
+	Users  []*ApexPrivateKeys `json:"users"`
+}
+
+type ApexUsersData struct {
+	Funder *TestApexUser
+	Users  []*TestApexUser
+}
+
 func GetTestnetApexBridgeConfig() *RemoteApexBridgeConfig {
 	return &RemoteApexBridgeConfig{
 		PrimeInfo: CardanoChainInfo{
@@ -43,27 +53,27 @@ func GetTestnetApexBridgeConfig() *RemoteApexBridgeConfig {
 	}
 }
 
-func GetTestnetUserKeys() ([]*ApexPrivateKeys, error) {
+func GetTestnetUserKeys() (*ApexKeysData, error) {
 	content := os.Getenv("E2E_TESTNET_WALLET_KEYS_CONTENT")
 	if len(content) > 0 {
-		var pks []*ApexPrivateKeys
+		var pks ApexKeysData
 
 		err := json.Unmarshal([]byte(content), &pks)
 		if err != nil {
 			return nil, err
 		}
 
-		return pks, nil
+		return &pks, nil
 	}
 
 	path := os.Getenv("E2E_TESTNET_WALLET_KEYS_PATH")
 	if len(path) > 0 {
-		pks, err := LoadJSON[[]*ApexPrivateKeys](path)
+		pks, err := LoadJSON[ApexKeysData](path)
 		if err != nil {
 			return nil, err
 		}
 
-		return *pks, nil
+		return pks, nil
 	}
 
 	return nil, errors.New("E2E_TESTNET_WALLET_KEYS_CONTENT nor E2E_TESTNET_WALLET_KEYS_PATH env variables defined")
@@ -72,18 +82,21 @@ func GetTestnetUserKeys() ([]*ApexPrivateKeys, error) {
 func GetTestnetApexUsers(
 	primeNetworkType wallet.CardanoNetworkType,
 	vectorNetworkType wallet.CardanoNetworkType,
-) ([]*TestApexUser, error) {
-	userKeys, err := GetTestnetUserKeys()
+) (*ApexUsersData, error) {
+	userKeysData, err := GetTestnetUserKeys()
 	if err != nil {
 		return nil, err
 	}
 
-	users := make([]*TestApexUser, len(userKeys))
+	funder, err := userKeysData.Funder.User(primeNetworkType, vectorNetworkType)
+	if err != nil {
+		return nil, err
+	}
 
-	for i, keys := range userKeys {
-		user, err := keys.User(
-			primeNetworkType,
-			vectorNetworkType)
+	users := make([]*TestApexUser, len(userKeysData.Users))
+
+	for i, keys := range userKeysData.Users {
+		user, err := keys.User(primeNetworkType, vectorNetworkType)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +104,10 @@ func GetTestnetApexUsers(
 		users[i] = user
 	}
 
-	return users, nil
+	return &ApexUsersData{
+		Funder: funder,
+		Users:  users,
+	}, nil
 }
 
 func SetupRemoteApexBridge(
@@ -132,7 +148,7 @@ func SetupRemoteApexBridge(
 		jsonRPCAddr: remoteConfig.NexusInfo.JSONRPCAddr,
 	}
 
-	users, err := GetTestnetApexUsers(
+	usersData, err := GetTestnetApexUsers(
 		apexConfig.PrimeConfig.NetworkType,
 		apexConfig.VectorConfig.NetworkType)
 	if err != nil {
@@ -141,7 +157,8 @@ func SetupRemoteApexBridge(
 
 	apexSystem := &ApexSystem{
 		Config:       apexConfig,
-		Users:        users,
+		FunderUser:   usersData.Funder,
+		Users:        usersData.Users,
 		chains:       []ITestApexChain{primeChain, vectorChain, nexusChain},
 		bridgingAPIs: remoteConfig.BridgingAPIs,
 	}
