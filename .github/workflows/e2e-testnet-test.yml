@@ -5,15 +5,15 @@ on: # yamllint disable-line rule:truthy
     inputs:
       e2e_apex_testnet_test:
         description: E2E ApexBridge Testnet Test
-        type: boolean
+        type: string
         required: true
       e2e_apex_testnet_fund:
         description: E2E ApexBridge Testnet Fund
-        type: boolean
+        type: string
         required: true
       e2e_apex_testnet_balances:
         description: E2E ApexBridge Testnet Balances
-        type: boolean
+        type: string
         required: true
     outputs:
       workflow_output:
@@ -96,18 +96,19 @@ jobs:
       - name: Check certificate key permissions
         run: ls -l /etc/ssl/private/localhost.key
       - name: Run Funds
-        if: inputs.e2e_apex_testnet_fund
+        if: inputs.e2e_apex_testnet_fund == 'true'
         run: make fund-testnet-e2e-apex-bridge
         env:
           TESTNET_BRIDGING_API_KEY: ${{ secrets.TESTNET_BRIDGING_API_KEY }}
           E2E_TESTNET_WALLET_KEYS_CONTENT: ${{ secrets.E2E_TESTNET_WALLET_KEYS_CONTENT }}
       - name: Run Tests
+        if: inputs.e2e_apex_testnet_test == 'true'
         run: make test-testnet-e2e-apex-bridge
         env:
           TESTNET_BRIDGING_API_KEY: ${{ secrets.TESTNET_BRIDGING_API_KEY }}
           E2E_TESTNET_WALLET_KEYS_CONTENT: ${{ secrets.E2E_TESTNET_WALLET_KEYS_CONTENT }}
       - name: Run Balances
-        if: inputs.e2e_apex_testnet_balances
+        if: inputs.e2e_apex_testnet_balances == 'true'
         run: make testnet-e2e-apex-bridge-print-balances
         env:
           TESTNET_BRIDGING_API_KEY: ${{ secrets.TESTNET_BRIDGING_API_KEY }}
