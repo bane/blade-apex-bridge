@@ -791,7 +791,12 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 			t.Skip()
 		}
 
-		PrimeToVectorSequentialAndParallelWithMaxReceivers(t, ctx, apex)
+		const (
+			sequentialInstances = 5
+			parallelInstances   = 10
+		)
+
+		PrimeToVectorSequentialAndParallelWithMaxReceivers(t, ctx, apex, sequentialInstances, parallelInstances)
 	})
 
 	t.Run("Both directions sequential", func(t *testing.T) {
@@ -867,7 +872,12 @@ func TestE2E_ApexBridge_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("Both directions sequential and parallel", func(t *testing.T) {
-		PrimeVectorBothDirectionsSequentialAndParallel(t, ctx, apex, user)
+		const (
+			sequentialInstances = 5
+			parallelInstances   = 6
+		)
+
+		PrimeVectorBothDirectionsSequentialAndParallel(t, ctx, apex, user, sequentialInstances, parallelInstances)
 	})
 }
 
@@ -1648,21 +1658,19 @@ func TestE2E_ApexBridge_ValidScenarios_BigTests(t *testing.T) {
 }
 
 func PrimeToVectorSequentialAndParallelWithMaxReceivers(
-	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem,
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, sequentialInstances, parallelInstances int,
 ) {
 	t.Helper()
 
 	const (
-		sequentialInstances = 5
-		parallelInstances   = 10
-		receivers           = 4
-		sendAmount          = uint64(1_000_000)
+		receivers  = 4
+		sendAmount = uint64(1_000_000)
 	)
 
 	e2ehelper.ExecuteBridging(
 		t, ctx, apex, sequentialInstances,
 		apex.Users[:parallelInstances],
-		apex.Users[len(apex.Users)-receivers:],
+		apex.Users[:receivers],
 		[]string{cardanofw.ChainIDPrime},
 		map[string][]string{
 			cardanofw.ChainIDPrime: {cardanofw.ChainIDVector},
@@ -1670,20 +1678,19 @@ func PrimeToVectorSequentialAndParallelWithMaxReceivers(
 }
 
 func PrimeVectorBothDirectionsSequentialAndParallel(
-	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, user *cardanofw.TestApexUser,
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem,
+	receiverUser *cardanofw.TestApexUser, sequentialInstances, parallelInstances int,
 ) {
 	t.Helper()
 
 	const (
-		sequentialInstances = 5
-		parallelInstances   = 6
-		sendAmount          = uint64(1_000_000)
+		sendAmount = uint64(1_000_000)
 	)
 
 	e2ehelper.ExecuteBridging(
 		t, ctx, apex, sequentialInstances,
 		apex.Users[:parallelInstances],
-		[]*cardanofw.TestApexUser{user},
+		[]*cardanofw.TestApexUser{receiverUser},
 		[]string{cardanofw.ChainIDPrime, cardanofw.ChainIDVector},
 		map[string][]string{
 			cardanofw.ChainIDPrime:  {cardanofw.ChainIDVector},

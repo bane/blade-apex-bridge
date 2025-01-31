@@ -139,7 +139,13 @@ func TestE2E_ApexBridgeWithNexus_NtP_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("From Nexus to Prime - sequential and parallel multiple receivers", func(t *testing.T) {
-		NexusToPrimeSequentialAndParallelWithMaxReceivers(t, ctx, apex, sendAmountDfm)
+		const (
+			sequentialInstances = 5
+			parallelInstances   = 10
+		)
+
+		NexusToPrimeSequentialAndParallelWithMaxReceivers(
+			t, ctx, apex, sequentialInstances, parallelInstances, sendAmountDfm)
 	})
 
 	t.Run("From Nexus to Prime - sequential and parallel, one node goes off in the middle", func(t *testing.T) {
@@ -350,7 +356,13 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 			t.Skip()
 		}
 
-		PrimeToNexusSequentialAndParallelWithMaxReceivers(t, ctx, apex, sendAmountDfm)
+		const (
+			sequentialInstances = 5
+			parallelInstances   = 10
+		)
+
+		PrimeToNexusSequentialAndParallelWithMaxReceivers(
+			t, ctx, apex, sequentialInstances, parallelInstances, sendAmountDfm)
 	})
 
 	t.Run("From Prime to Nexus sequential and parallel - one node goes off in the midle", func(t *testing.T) {
@@ -401,7 +413,13 @@ func TestE2E_ApexBridgeWithNexus_PtNandBoth_ValidScenarios(t *testing.T) {
 	})
 
 	t.Run("Both directions sequential and parallel", func(t *testing.T) {
-		PrimeNexusBothDirectionsSequentialAndParallel(t, ctx, apex, user, sendAmountDfm)
+		const (
+			sequentialInstances = 5
+			parallelInstances   = 6
+		)
+
+		PrimeNexusBothDirectionsSequentialAndParallel(
+			t, ctx, apex, user, sequentialInstances, parallelInstances, sendAmountDfm)
 	})
 
 	t.Run("Both directions sequential and parallel - one node goes off in the midle", func(t *testing.T) {
@@ -1211,21 +1229,20 @@ func TestE2E_NexusFundAmount(t *testing.T) {
 }
 
 func PrimeToNexusSequentialAndParallelWithMaxReceivers(
-	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, sendAmountDfm *big.Int,
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem,
+	sequentialInstances, parallelInstances int, sendAmountDfm *big.Int,
 ) {
 	t.Helper()
 
 	const (
-		sequentialInstances = 5
-		parallelInstances   = 10
-		receivers           = 4
+		receivers = 4
 	)
 
 	e2ehelper.ExecuteBridging(
 		t, ctx, apex,
 		sequentialInstances,
 		apex.Users[:parallelInstances],
-		apex.Users[len(apex.Users)-receivers:],
+		apex.Users[:receivers],
 		[]string{cardanofw.ChainIDPrime},
 		map[string][]string{
 			cardanofw.ChainIDPrime: {cardanofw.ChainIDNexus},
@@ -1234,20 +1251,18 @@ func PrimeToNexusSequentialAndParallelWithMaxReceivers(
 }
 
 func PrimeNexusBothDirectionsSequentialAndParallel(
-	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, user *cardanofw.TestApexUser, sendAmountDfm *big.Int,
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, receiverUser *cardanofw.TestApexUser,
+	sequentialInstances, parallelInstances int, sendAmountDfm *big.Int,
 ) {
 	t.Helper()
 
-	const (
-		sequentialInstances = 5
-		parallelInstances   = 6
-	)
+	const ()
 
 	e2ehelper.ExecuteBridging(
 		t, ctx, apex,
 		sequentialInstances,
 		apex.Users[:parallelInstances],
-		[]*cardanofw.TestApexUser{user},
+		[]*cardanofw.TestApexUser{receiverUser},
 		[]string{cardanofw.ChainIDPrime, cardanofw.ChainIDNexus},
 		map[string][]string{
 			cardanofw.ChainIDPrime: {cardanofw.ChainIDNexus},
@@ -1257,20 +1272,19 @@ func PrimeNexusBothDirectionsSequentialAndParallel(
 }
 
 func NexusToPrimeSequentialAndParallelWithMaxReceivers(
-	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem, sendAmountDfm *big.Int,
+	t *testing.T, ctx context.Context, apex *cardanofw.ApexSystem,
+	sequentialInstances, parallelInstances int, sendAmountDfm *big.Int,
 ) {
 	t.Helper()
 
 	const (
-		instances         = 5
-		parallelInstances = 10
-		receivers         = 4
+		receivers = 4
 	)
 
 	e2ehelper.ExecuteBridging(
-		t, ctx, apex, instances,
+		t, ctx, apex, sequentialInstances,
 		apex.Users[:parallelInstances],
-		apex.Users[len(apex.Users)-receivers:],
+		apex.Users[:receivers],
 		[]string{cardanofw.ChainIDNexus},
 		map[string][]string{
 			cardanofw.ChainIDNexus: {cardanofw.ChainIDPrime},
