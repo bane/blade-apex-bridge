@@ -150,7 +150,7 @@ jobs:
     with:
       apex_bridge_ref: ${{ needs.inputs_check.outputs.apex_bridge_ref }}
       e2e_apex_big_test: ${{ inputs.e2e_apex_big_test || 'false' }}
-      e2e_apex_skip_redundant_tests: ${{ needs.inputs_check.outputs.skip_redundant_tests }}
+      e2e_apex_skip_redundant_tests: false
     secrets:
       PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
   e2e_apex_test_push:
